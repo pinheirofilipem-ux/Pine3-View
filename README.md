@@ -65,4 +65,4 @@ pytest
 Plantas 3D com posições desenhadas à mão, câmaras no início, leitor Spotify.
 
 ## Licença
-MIT (ver `LICENSE`). As fontes Outfit e Figtree estão sob a SIL Open Font License 1.1.
+MIT (ver `LICENSE`). As fontes Outfit e Figtree estão sob a SIL Open Font License 1.1 (ver `NOTICE`).
