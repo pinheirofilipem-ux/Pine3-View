@@ -1,0 +1,8 @@
+"""Constants for Pine3 View."""
+
+DOMAIN = "pine3_view"
+PANEL_URL_PATH = "pine3-view"
+PANEL_TITLE = "Pine3 View"
+PANEL_ICON = "mdi:home-variant"
+PANEL_ELEMENT = "pine3-view-panel"
+STATIC_URL = "/pine3_view_static"

@@ -1,0 +1,11 @@
+{
+  "domain": "pine3_view",
+  "name": "Pine3 View",
+  "version": "0.1.0",
+  "documentation": "https://github.com/pinheirofilipem-ux/haview",
+  "issue_tracker": "https://github.com/pinheirofilipem-ux/haview/issues",
+  "codeowners": ["@pinheirofilipem-ux"],
+  "config_flow": true,
+  "dependencies": ["frontend", "http", "panel_custom"],
+  "iot_class": "calculated"
+}
