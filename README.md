@@ -25,6 +25,9 @@ Copia `custom_components/pine3_view` para `/config/custom_components/`, reinicia
 - **Início**: relógio, tempo (toca para ver a previsão), pessoas, estado da casa, cenas, cartões de divisão e resumo (Clima, Segurança, A tocar).
 - **Tempo**: usa a entidade de tempo do Home Assistant ou, se não houver, a [Open-Meteo](https://open-meteo.com) para a localização da casa (sem chave). Previsão das próximas 12 horas e 7 dias.
 - **Casa 3D**: cada divisão é um bloco, empilhado por piso (pisos do HA). As divisões acesas brilham, as luzes aparecem como pontos que podes ligar/desligar, arrasta para rodar, toca numa divisão para a abrir.
+- **Planta 3D** (Definições → Planta 3D, ou «Editar planta» na Casa 3D): editor 2D visto de cima, um piso de cada vez. Desenha cada divisão como um retângulo na grelha, arrasta para mover, puxa o canto para redimensionar, muda de piso ou cria pisos novos. A Casa 3D usa esta planta; as divisões por colocar são arrumadas automaticamente. Há também «Gerar planta automática» como ponto de partida.
+- **Entidades** (Definições → Entidades): lista todas as entidades de cada divisão, com pesquisa. Esconde mosaicos que não queres ou mostra entidades secundárias (o interruptor de uma TV, a potência de uma tomada, sensores de diagnóstico) como mosaicos próprios.
+- **Apple TV e HomePod** (integração *Apple TV* do HA): ícones próprios e a app/música que está a tocar.
 - **Modo de edição** (lápis ✎): arrasta para reordenar divisões e dispositivos, toca em − para esconder, nas setas para duplicar o tamanho (um cartão de divisão duplo mostra atalhos para os dispositivos).
 - **Disposição**: Grelha ou Lista.
 - **Ecrã de descanso**: relógio grande e escurecido após 1–30 min sem toques.
@@ -65,4 +68,4 @@ pytest
 Plantas 3D com posições desenhadas à mão, câmaras no início, leitor Spotify.
 
 ## Licença
-MIT (ver `LICENSE`). As fontes Outfit e Figtree estão sob a SIL Open Font License 1.1.
+MIT (ver `LICENSE`). As fontes Outfit e Figtree estão sob a SIL Open Font License 1.1 (ver `NOTICE`).

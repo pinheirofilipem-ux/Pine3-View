@@ -37,6 +37,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "big_devices": [],
     "device_order": {},
     "house_size": {},
+    "house_layout": {},
+    "shown": [],
     "settings_version": 2,
 }
 DOCK_ITEMS = ["home", "rooms", "house", "scenes", "security"]
@@ -139,6 +141,16 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         vol.Optional("big_devices"): [str],
         vol.Optional("device_order"): {str: [str]},
         vol.Optional("house_size"): {str: vol.In([1, 2, 3])},
+        vol.Optional("house_layout"): {
+            str: {
+                vol.Required("f"): vol.All(int, vol.Range(min=-5, max=20)),
+                vol.Required("x"): vol.All(int, vol.Range(min=0, max=60)),
+                vol.Required("y"): vol.All(int, vol.Range(min=0, max=60)),
+                vol.Required("w"): vol.All(int, vol.Range(min=1, max=30)),
+                vol.Required("d"): vol.All(int, vol.Range(min=1, max=30)),
+            }
+        },
+        vol.Optional("shown"): [str],
         vol.Optional("settings_version"): int,
     }
 )

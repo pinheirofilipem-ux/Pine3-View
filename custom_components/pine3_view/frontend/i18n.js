@@ -93,4 +93,16 @@ export const EN = {
   "Versão": "Version", "Modo": "Mode", "Integração": "Integration", "Local (sem API)": "Local (no API)", "Dispositivos": "Devices",
   "Reconstruir agora": "Rebuild now", "Repor predefinições": "Reset to defaults", "Integração no HA": "Integration in HA",
   "Casa reconstruída": "Home rebuilt",
+  // entities & floor plan
+  "Entidades": "Entities", "Planta 3D": "3D floor plan", "Esta secção precisa da integração Pine3 View instalada.": "This section needs the Pine3 View integration installed.",
+  "Principal": "Main", "Diagnóstico": "Diagnostic", "Escondida no HA": "Hidden in HA", "Secundária": "Secondary",
+  "{a} de {b} visíveis": "{a} of {b} visible",
+  "Escolhe o que aparece no painel. As entidades principais são os mosaicos criados automaticamente; as secundárias (por exemplo, o interruptor de uma TV ou o sensor de potência de uma tomada) podes mostrá-las como mosaicos próprios.": "Choose what shows on the panel. Main entities are the tiles built automatically; secondary ones (for example a TV's power switch or a plug's power sensor) can be shown as tiles of their own.",
+  "Procurar entidades…": "Search entities…", "Mostrar diagnóstico e escondidas no HA": "Show diagnostic and HA-hidden",
+  "Inclui entidades de diagnóstico, de configuração e as escondidas no Home Assistant.": "Includes diagnostic, configuration and Home Assistant-hidden entities.",
+  "Nenhuma entidade encontrada.": "No entities found.", "Editar planta": "Edit floor plan", "Planta da casa": "Floor plan",
+  "Desenha cada piso visto de cima. A Casa 3D usa esta planta: as divisões que não colocares são arrumadas automaticamente.": "Draw each floor from above. The 3D Home uses this plan; rooms you don't place are arranged automatically.",
+  "Piso": "Floor", "Desenha um retângulo na grelha para colocar «{r}».": "Draw a rectangle on the grid to place “{r}”.",
+  "Arrasta uma divisão para a mover e o canto para a redimensionar. Para colocar uma divisão nova, escolhe-a em baixo e desenha-a na grelha.": "Drag a room to move it and its corner to resize it. To place a new room, pick it below and draw it on the grid.",
+  "Tirar da planta": "Remove from plan", "Por colocar": "Not placed yet", "Gerar planta automática": "Generate automatic plan", "Limpar este piso": "Clear this floor",
 };
