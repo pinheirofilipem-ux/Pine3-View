@@ -1,0 +1,96 @@
+// Pine3 View - translations. Portuguese (Portugal) is the source language; English is keyed by the Portuguese text.
+
+let LANG = "pt";
+
+export function setLang(l) { LANG = l === "en" ? "en" : "pt"; }
+export function lang() { return LANG; }
+export function locale() { return LANG === "en" ? "en-GB" : "pt-PT"; }
+
+/** Translate a Portuguese source string, filling {placeholders}. */
+export function t(s, vars) {
+  let out = LANG === "en" ? (EN[s] ?? s) : s;
+  if (vars) out = out.replace(/\{(\w+)\}/g, (m, k) => (vars[k] ?? m));
+  return out;
+}
+/** Plural: picks the singular or plural source string by n, then translates. */
+export function tp(n, one, many, vars) { return t(n === 1 ? one : many, { n, ...vars }); }
+/** Decimal separator for the current language. */
+export function num(n) { return LANG === "en" ? String(n) : String(n).replace(".", ","); }
+
+export const EN = {
+  // general
+  "Casa": "Home", "Casa 3D": "3D Home", "Divisões": "Rooms", "Cenas": "Scenes", "Segurança": "Security", "Outros": "Other",
+  "Definições": "Settings", "Editar": "Edit", "Concluído": "Done", "Cancelar": "Cancel", "Fechar": "Close", "Mostrar": "Show",
+  "Esconder": "Hide", "Ligar": "Turn on", "Desligar": "Turn off", "Abrir": "Open", "Parar": "Stop", "Atual": "Current",
+  "Sala": "Living room", "Quarto": "Bedroom", "Interior": "Indoor", "Clima": "Climate", "A tocar": "Now playing",
+  "Indisponível": "Unavailable", "Tocar para executar": "Tap to run", "Toca para executar": "Tap to run",
+  "Bateria fraca": "Low battery", "Mais definições": "More settings", "Esconder do Pine3 View": "Hide from Pine3 View",
+  "{n}% aberto": "{n}% open", "{n} min": "{n} min",
+  // home
+  "Estado da casa": "Home status", "Acender tudo": "Turn all on", "Apagar tudo": "Turn all off",
+  "{n} luz acesa em casa": "{n} light on at home", "{n} luzes acesas em casa": "{n} lights on at home",
+  "Todas as luzes apagadas": "All lights off", "Tudo tranquilo em casa": "All quiet at home",
+  "{n} luz acesa": "{n} light on", "{n} luzes acesas": "{n} lights on", "Luzes apagadas": "Lights off",
+  "{a} de {b} ligados": "{a} of {b} on", "Tudo desligado": "All off", "Desligar tudo": "Turn all off", "Ligar luzes": "Turn lights on",
+  "{n} dispositivo": "{n} device", "{n} dispositivos": "{n} devices", "{n} divisão": "{n} room", "{n} divisões": "{n} rooms",
+  "Humidade {n}%": "Humidity {n}%", "{n} item aberto": "{n} item open", "{n} itens abertos": "{n} items open", "Tudo seguro": "All secure",
+  "{n} item monitorizado": "{n} monitored item", "{n} itens monitorizados": "{n} monitored items",
+  "Ainda não há divisões com dispositivos. Atribui áreas aos teus dispositivos no Home Assistant.": "No rooms with devices yet. Assign areas to your devices in Home Assistant.",
+  "Ainda não há divisões com dispositivos.": "No rooms with devices yet.",
+  "Cenas e scripts": "Scenes and scripts", "Scripts": "Scripts", "Não há cenas nem scripts.": "No scenes or scripts.",
+  "Portas, janelas e fechaduras": "Doors, windows and locks", "Nada para monitorizar.": "Nothing to monitor.",
+  // sections
+  "Luzes": "Lights", "Cortinas e estores": "Blinds and shades", "Multimédia": "Media", "Tomadas e interruptores": "Plugs and switches",
+  "Ações": "Actions", "Sensores": "Sensors",
+  // edit mode
+  "Arrasta para mover. Toca em − para esconder e nas setas para duplicar o tamanho.": "Drag to move. Tap − to hide and the arrows to make a card double size.",
+  "Tamanho duplo": "Double size", "Tamanho normal": "Normal size",
+  "Mostrar {n} escondida": "Show {n} hidden", "Mostrar {n} escondidas": "Show {n} hidden",
+  "Mostrar {n} escondido": "Show {n} hidden", "Mostrar {n} escondidos": "Show {n} hidden",
+  // weather
+  "A carregar o tempo…": "Loading weather…", "A carregar a previsão…": "Loading forecast…", "Previsão": "Forecast", "Tempo": "Weather",
+  "Vento": "Wind", "Hoje": "Today", "Próximas horas": "Next hours", "Próximos dias": "Next days", "Sem previsão disponível.": "No forecast available.",
+  "Céu limpo": "Clear", "Nublado": "Cloudy", "Excecional": "Exceptional", "Nevoeiro": "Fog", "Granizo": "Hail", "Trovoada": "Lightning",
+  "Trovoada e chuva": "Thunderstorm", "Pouco nublado": "Partly cloudy", "Chuva forte": "Pouring", "Chuva": "Rainy", "Neve": "Snowy",
+  "Chuva e neve": "Sleet", "Sol": "Sunny", "Ventoso": "Windy",
+  // states
+  "Ligado": "On", "Desligado": "Off", "Aberto": "Open", "Fechado": "Closed", "A abrir": "Opening", "A fechar": "Closing",
+  "Trancado": "Locked", "Destrancado": "Unlocked", "Em pausa": "Paused", "Inativo": "Idle", "Em espera": "Standby",
+  "Desconhecido": "Unknown", "Aquecer": "Heat", "Arrefecer": "Cool", "Automático": "Auto", "Aquecer/Arrefecer": "Heat/Cool",
+  "Desumidificar": "Dry", "Ventilação": "Fan only", "A limpar": "Cleaning", "Na base": "Docked", "A regressar": "Returning",
+  "Fechada": "Closed", "Aberta": "Open", "Sem movimento": "Clear", "Movimento": "Motion", "Livre": "Clear", "Ocupado": "Occupied",
+  "Seco": "Dry", "Fuga": "Leak",
+  // 3D
+  "Piso {n}": "Floor {n}", "Todos os pisos": "All floors", "Rodar": "Rotate", "Repor vista": "Reset view",
+  "{n} divisão acesa": "{n} room lit", "{n} divisões acesas": "{n} rooms lit", "{n} ligado": "{n} on", "{n} ligados": "{n} on",
+  "Arrasta para rodar · Toca numa divisão para a abrir · Toca numa luz para a ligar": "Drag to rotate · Tap a room to open it · Tap a light to toggle it",
+  // settings
+  "Aparência": "Appearance", "Início": "Home", "Navegação": "Navigation", "Sistema": "System",
+  "Aparência, ecrã inicial, divisões e navegação.": "Look, home screen, rooms and navigation.",
+  "Guardar alterações": "Save changes", "Alterações guardadas": "Changes saved", "Não foi possível guardar": "Could not save",
+  "Idioma": "Language", "Idioma de todo o painel.": "Language of the whole panel.",
+  "Disposição": "Layout", "Grelha": "Grid", "Lista": "List", "Como as divisões e os dispositivos aparecem.": "How rooms and devices are shown.",
+  "Cor dos cartões": "Card color", "Superfície suave dos cartões ligados.": "Soft surface of lit cards.",
+  "Cor de destaque": "Highlight color", "Ícones acesos, pontos das luzes, sliders e contadores.": "Lit icons, light dots, sliders and counters.",
+  "Fundo": "Background", "O ambiente por trás dos cartões.": "The backdrop behind the cards.",
+  "Ameixa": "Plum", "Pinheiro": "Pine", "Noite": "Night", "Aurora": "Aurora", "Areia": "Sand", "Oceano": "Ocean",
+  "Ecrã inicial": "Home screen", "O que aparece no início.": "What shows on the home screen.",
+  "Meteorologia": "Weather", "Pílula com a temperatura e o estado do tempo. Toca nela para ver a previsão.": "Pill with temperature and conditions. Tap it to see the forecast.",
+  "Fonte do tempo": "Weather source",
+  "Automático usa a primeira entidade de tempo do Home Assistant ou, se não houver, a Open-Meteo para a localização da casa.": "Auto uses the first Home Assistant weather entity or, if there is none, Open-Meteo for your home's location.",
+  "Pessoas": "People", "Quem está em casa.": "Who is home.",
+  "Luzes acesas e botões Acender/Apagar tudo.": "Lights on and the Turn all on/off buttons.",
+  "Faixa de cenas no início.": "Scene strip on the home screen.", "Cartões de resumo": "Summary cards", "Clima, Segurança e A tocar.": "Climate, Security and Now playing.",
+  "Relógio de 24 horas": "24-hour clock", "Desliga para mostrar AM/PM.": "Turn off to show AM/PM.",
+  "Ecrã de descanso": "Screensaver", "Relógio grande e escurecido depois de algum tempo sem toques. Ideal para tablets na parede.": "Large dimmed clock after a while without touches. Great for wall tablets.",
+  "Criadas automaticamente a partir das áreas do Home Assistant. Ordena, esconde e escolhe o tamanho de cada uma na Casa 3D.": "Built automatically from your Home Assistant areas. Reorder, hide and set each room's size in the 3D Home.",
+  "Tamanho na Casa 3D": "Size in the 3D Home", "A": "A", "P": "S", "M": "M", "G": "L",
+  "Tamanho na Casa 3D: A = automático, P = pequeno, M = médio, G = grande. Os pisos vêm dos pisos do Home Assistant.": "Size in the 3D Home: A = auto, S = small, M = medium, L = large. Floors come from Home Assistant floors.",
+  "Dispositivos escondidos": "Hidden devices", "Escondidos no modo de edição ou na folha de detalhe.": "Hidden in edit mode or from the detail sheet.",
+  "Dock": "Dock", "Botões da barra de navegação. A Casa está sempre presente.": "Buttons in the navigation bar. Home is always there.",
+  "Todas as divisões numa grelha.": "All rooms in a grid.", "Cenas e scripts.": "Scenes and scripts.",
+  "Portas, janelas, fechaduras e câmaras.": "Doors, windows, locks and cameras.", "Vista 3D da casa, por pisos.": "3D view of the home, by floor.",
+  "Versão": "Version", "Modo": "Mode", "Integração": "Integration", "Local (sem API)": "Local (no API)", "Dispositivos": "Devices",
+  "Reconstruir agora": "Rebuild now", "Repor predefinições": "Reset to defaults", "Integração no HA": "Integration in HA",
+  "Casa reconstruída": "Home rebuilt",
+};
