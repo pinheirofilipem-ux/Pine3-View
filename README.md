@@ -10,8 +10,12 @@ Código original, feito de raiz.
 3. Definições → Dispositivos e serviços → Adicionar integração → **Pine3 View**.
 4. Abrir **Pine3 View** na barra lateral.
 
-## Estado (v0.1)
-- Grelha de divisões, vista de divisão, toque para ligar/desligar luzes, interruptores, ventoinhas, cortinas e fechaduras; cenas e scripts.
+## Estado (v0.2)
+- Visual em vidro, ao estilo Apple Home, com 5 fundos à escolha (Pinheiro, Noite, Aurora, Areia, Oceano).
+- Início: saudação, data e hora, chips de estado (tempo, temperatura interior, luzes, estores, portas, fechaduras, música), faixa de cenas e cartões de divisão com temperatura, humidade e botão para as luzes.
+- Divisão: mosaicos agrupados por tipo. Toque liga/desliga; toque longo (ou clique direito) abre o detalhe.
+- Detalhe: luminosidade e cor das luzes, posição dos estores, anel do termóstato com modos, controlos de multimédia e volume, câmara, sensores.
+- Dock inferior: Casa e Cenas.
 
 ## Roadmap
 Modo de edição, layouts, câmaras, clima, meteorologia, ecrã de descanso, temas.
