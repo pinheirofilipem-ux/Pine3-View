@@ -1,0 +1,17 @@
+{
+  "domain": "pine3_view",
+  "name": "Pine3 View",
+  "codeowners": [
+    "@pinheirofilipem-ux"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "frontend",
+    "http",
+    "panel_custom"
+  ],
+  "documentation": "https://github.com/pinheirofilipem-ux/pine3-view",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/pinheirofilipem-ux/pine3-view/issues",
+  "version": "0.4.0"
+}
