@@ -10,8 +10,8 @@
     "http",
     "panel_custom"
   ],
-  "documentation": "https://github.com/pinheirofilipem-ux/HAview",
+  "documentation": "https://github.com/pinheirofilipem-ux/pine3-view",
   "iot_class": "calculated",
-  "issue_tracker": "https://github.com/pinheirofilipem-ux/HAview/issues",
+  "issue_tracker": "https://github.com/pinheirofilipem-ux/pine3-view/issues",
   "version": "0.4.0"
 }

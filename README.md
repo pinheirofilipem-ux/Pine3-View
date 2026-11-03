@@ -6,7 +6,7 @@ Código original, feito de raiz.
 
 ## Instalar com HACS
 1. No Home Assistant abre **HACS** → menu **⋮** → **Repositórios personalizados**.
-2. Repositório: `https://github.com/pinheirofilipem-ux/HAview`, categoria **Integração** → **Adicionar**.
+2. Repositório: `https://github.com/pinheirofilipem-ux/pine3-view`, categoria **Integração** → **Adicionar**.
 3. Procura **Pine3 View**, abre e carrega em **Transferir**.
 4. Reinicia o Home Assistant.
 5. **Definições → Dispositivos e serviços → Adicionar integração → Pine3 View**.
