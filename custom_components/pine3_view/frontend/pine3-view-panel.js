@@ -9,6 +9,7 @@ import { css } from "./styles.js";
 import { t, tp, num, locale, setLang, lang } from "./i18n.js";
 import { Weather } from "./weather.js";
 import { houseView, bindHouse, css3d } from "./house3d.js";
+import { planView, bindPlan, cssPlan } from "./plan2d.js";
 
 loadFonts();
 
@@ -113,7 +114,10 @@ class Pine3ViewPanel extends HTMLElement {
     if (this._model) {
       for (const r of this._model.rooms) {
         for (const d of r.devices) this._meta[d.id] = d;
-        let ents = r.devices.filter((d) => !hiddenDev.includes(d.id) && this._s(d.id)).map((d) => d.id);
+        const shown = cfg.shown || [];
+        const extra = (r.entities || []).filter((e) => !e.primary && shown.includes(e.id) && !hiddenDev.includes(e.id) && this._s(e.id));
+        for (const e of extra) this._meta[e.id] = { ...e, extras: [], extra: true };
+        let ents = [...r.devices.filter((d) => !hiddenDev.includes(d.id) && this._s(d.id)).map((d) => d.id), ...extra.map((e) => e.id)];
         ents = sortBy(cfg.device_order?.[r.id] || [], ents);
         const scenes = r.scenes.filter((i) => this._s(i));
         if (!ents.length && !scenes.length) continue;
@@ -156,6 +160,11 @@ class Pine3ViewPanel extends HTMLElement {
   _icon(id) {
     const s = this._s(id), d = dom(id), dc = s?.attributes.device_class;
     if (s?.attributes.icon) return s.attributes.icon;
+    const m = this._meta?.[id];
+    if (d === "media_player" && /apple/i.test(m?.manufacturer || "")) {
+      if (/homepod/i.test(m.model || "")) return "mdi:speaker";
+      if (/tv/i.test(m.model || "")) return "mdi:television-box";
+    }
     if (d === "light") return this._isOn(id) ? "mdi:lightbulb-on" : "mdi:lightbulb-outline";
     if (d === "lock") return s?.state === "locked" ? "mdi:lock" : "mdi:lock-open-variant";
     if (d === "cover") return s?.state === "closed" ? "mdi:window-shutter" : "mdi:window-shutter-open";
@@ -174,7 +183,11 @@ class Pine3ViewPanel extends HTMLElement {
     if (d === "light" && s.state === "on" && a.brightness != null) return `${Math.round((a.brightness / 255) * 100)}%`;
     if (d === "cover" && a.current_position != null && s.state !== "closed") return t("{n}% aberto", { n: a.current_position });
     if (d === "climate") return `${this._st(s.state)}${a.current_temperature != null ? ` · ${num(a.current_temperature)}°` : ""}`;
-    if (d === "media_player" && s.state === "playing" && a.media_title) return a.media_title;
+    if (d === "media_player") {
+      const title = a.media_title ? (a.media_artist ? `${a.media_title} · ${a.media_artist}` : a.media_title) : null;
+      if (["playing", "paused"].includes(s.state) && (title || a.app_name)) return title || a.app_name;
+      if (a.app_name && !["off", "standby"].includes(s.state)) return `${this._st(s.state)} · ${a.app_name}`;
+    }
     if (d === "binary_sensor") { const m = BIN_PT[a.device_class]; if (m) return t(m[s.state === "on" ? 1 : 0]); }
     if (d === "sensor") return this._sensorVal(id);
     if (d === "scene" || d === "script" || d === "button") return t("Tocar para executar");
@@ -264,7 +277,8 @@ class Pine3ViewPanel extends HTMLElement {
   }
 
   // ---------- settings ----------
-  _openSettings() {
+  _openSettings(section) {
+    if (section) this._section = section;
     const c = this._saved();
     if (!c.room_order?.length) c.room_order = this._rooms().map((r) => r.id);
     this._draft = clone(c);
@@ -303,6 +317,7 @@ class Pine3ViewPanel extends HTMLElement {
     const dirty = JSON.stringify(d) !== this._savedJson;
     const navItems = [
       ["look", "mdi:palette-outline", t("Aparência")], ["home", "mdi:home-outline", t("Início")], ["rooms", "mdi:view-grid-outline", t("Divisões")],
+      ["entities", "mdi:format-list-checks", t("Entidades")], ["plan", "mdi:floor-plan", t("Planta 3D")],
       ["nav", "mdi:dock-bottom", t("Navegação")], ["system", "mdi:cog-outline", t("Sistema")],
     ];
     let main = "";
@@ -356,6 +371,10 @@ class Pine3ViewPanel extends HTMLElement {
         <p style="margin:14px 0 0;font-size:14px">${t("Tamanho na Casa 3D: A = automático, P = pequeno, M = médio, G = grande. Os pisos vêm dos pisos do Home Assistant.")}</p></div>
         ${hiddenDev.length ? `<div class="panel glass"><h3 style="margin-top:0">${t("Dispositivos escondidos")}</h3><p>${t("Escondidos no modo de edição ou na folha de detalhe.")}</p><div class="list big">${hiddenDev.map((x) => `<div class="it"><span>${esc(x.name)} <small>${esc(x.room)}</small></span><button class="pill" data-unhide="${esc(x.id)}">${t("Mostrar")}</button></div>`).join("")}</div></div>` : ""}`;
       this._order = order;
+    } else if (sec === "entities") {
+      main = this._entitiesSection(d);
+    } else if (sec === "plan") {
+      main = planView(this, d, this._planRooms());
     } else if (sec === "nav") {
       main = `<div class="panel glass"><h3 style="margin-top:0">${t("Dock")}</h3><p>${t("Botões da barra de navegação. A Casa está sempre presente.")}</p><div class="opts">
         ${DOCK_ITEMS.filter(([k]) => k !== "home").map(([k, , label, sub]) => this._toggle("dock:" + k, d.dock.includes(k), t(label), t(sub))).join("")}
@@ -385,9 +404,55 @@ class Pine3ViewPanel extends HTMLElement {
     </div>`;
   }
 
+  _planRooms() {
+    if (this._model) return this._model.rooms.map((r) => ({ ...r, count: r.devices.length }));
+    return this._localRooms();
+  }
+
+  _entShown(d, e) { return e.primary ? !d.hidden.includes(e.id) : d.shown.includes(e.id) && !d.hidden.includes(e.id); }
+
+  _entitiesSection(d) {
+    if (!this._model) return `<div class="panel glass"><p>${t("Esta secção precisa da integração Pine3 View instalada.")}</p></div>`;
+    const q = (this._entQ || "").trim().toLowerCase();
+    const tag = (e) => (e.primary ? t("Principal") : e.category ? t("Diagnóstico") : e.ha_hidden ? t("Escondida no HA") : t("Secundária"));
+    const groups = this._model.rooms.map((r) => {
+      const all = r.entities || [];
+      const list = all.filter((e) => (this._entAll || (!e.category && !e.ha_hidden) || this._entShown(d, e))
+        && (!q || e.name.toLowerCase().includes(q) || e.id.includes(q)));
+      if (!list.length) return "";
+      const n = all.filter((e) => this._entShown(d, e)).length;
+      return `<div class="panel glass"><h3 style="margin-top:0;display:flex;align-items:center;gap:10px"><ha-icon icon="${r.icon || "mdi:home-outline"}"></ha-icon>${esc(this._roomName(r))}
+          <small style="font-size:14px;color:var(--muted);font-family:inherit">${t("{a} de {b} visíveis", { a: n, b: all.length })}</small></h3>
+        <div class="list big">${list.map((e) => `<div class="it ${this._entShown(d, e) ? "" : "off"}">
+          <ha-icon icon="${this._s(e.id) ? this._icon(e.id) : "mdi:help-circle-outline"}"></ha-icon>
+          <span>${esc(e.name)} <small>${esc(e.id)}</small></span><em class="tag ${e.primary ? "pri" : ""}">${tag(e)}</em>
+          <div class="tg ${this._entShown(d, e) ? "on" : ""}" data-enttg="${esc(e.id)}" data-primary="${e.primary ? 1 : 0}"><i></i></div></div>`).join("")}</div></div>`;
+    }).join("");
+    return `<div class="panel glass"><h3 style="margin-top:0">${t("Entidades")}</h3>
+        <p>${t("Escolhe o que aparece no painel. As entidades principais são os mosaicos criados automaticamente; as secundárias (por exemplo, o interruptor de uma TV ou o sensor de potência de uma tomada) podes mostrá-las como mosaicos próprios.")}</p>
+        <input class="search" data-entq type="search" placeholder="${t("Procurar entidades…")}" value="${esc(this._entQ || "")}">
+        <div class="opts" style="margin-top:8px">${this._toggle("_entall", !!this._entAll, t("Mostrar diagnóstico e escondidas no HA"), t("Inclui entidades de diagnóstico, de configuração e as escondidas no Home Assistant."))}</div>
+      </div>${groups || `<div class="empty">${t("Nenhuma entidade encontrada.")}</div>`}`;
+  }
+
   _bindSettings() {
     const root = this.shadowRoot, d = this._draft;
     if (!d) return;
+    if (this._section === "plan") bindPlan(this, root, d, this._planRooms());
+    const q = root.querySelector("[data-entq]");
+    if (q) {
+      q.addEventListener("input", () => { this._entQ = q.value; this._entFocus = true; this._render(); });
+      q.addEventListener("blur", () => { this._entFocus = false; });
+    }
+    root.querySelectorAll("[data-enttg]").forEach((el) => el.addEventListener("click", () => {
+      const id = el.dataset.enttg, primary = el.dataset.primary === "1";
+      const e = this._model.rooms.flatMap((r) => r.entities || []).find((x) => x.id === id);
+      const on = this._entShown(d, e);
+      if (primary) d.hidden = on ? [...d.hidden, id] : d.hidden.filter((x) => x !== id);
+      else if (on) d.shown = d.shown.filter((x) => x !== id);
+      else { d.shown = [...new Set([...d.shown, id])]; d.hidden = d.hidden.filter((x) => x !== id); }
+      this._render();
+    }));
     const on = (sel, fn) => root.querySelectorAll(sel).forEach((el) => el.addEventListener("click", (ev) => fn(el, ev)));
     const upd = () => this._render();
     on("[data-sec]", (el) => { this._section = el.dataset.sec; upd(); });
@@ -399,6 +464,7 @@ class Pine3ViewPanel extends HTMLElement {
     on("[data-choice]", (el) => { d[el.dataset.choice] = el.dataset.type === "number" ? Number(el.dataset.val) : el.dataset.val; upd(); });
     on("[data-tg]", (el) => {
       const k = el.dataset.tg;
+      if (k === "_entall") { this._entAll = !this._entAll; upd(); return; }
       if (k.startsWith("dock:")) { const it = k.slice(5); d.dock = d.dock.includes(it) ? d.dock.filter((x) => x !== it) : DOCK_ITEMS.map(([x]) => x).filter((x) => x === it || d.dock.includes(x)); }
       else d[k] = !d[k];
       upd();
@@ -556,11 +622,16 @@ class Pine3ViewPanel extends HTMLElement {
     const dock = this._view === "settings" || this._edit ? "" : `<nav class="dock">${DOCK_ITEMS.filter(([k]) => k === "home" || cfg.dock.includes(k)).map(([k, icon, label]) => nav(k, icon, label)).join("")}</nav>`;
     const editBar = this._edit ? `<div class="edbar"><button class="pill" data-edcancel>${t("Cancelar")}</button><button class="pill solid" data-eddone><ha-icon icon="mdi:check"></ha-icon>${t("Concluído")}</button></div>` : "";
 
-    this.shadowRoot.innerHTML = `<style>${css}${css3d}</style>
+    const refocus = this._entFocus;
+    this.shadowRoot.innerHTML = `<style>${css}${css3d}${cssPlan}</style>
       <div class="bg" style="background:${THEMES[cfg.theme || this._theme] || THEMES.ameixa}"></div>
       <div class="wrap ${cfg.layout === "list" ? "as-list" : ""} ${this._edit ? "editing" : ""}">${header}${body}</div>${dock}${editBar}${this._saver ? this._saverView(rooms) : this._modalView()}`;
     if (this._view === "settings") this._bindSettings();
     else this._bind(rooms);
+    if (refocus) {
+      const q = this.shadowRoot.querySelector("[data-entq]");
+      if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); this._entFocus = true; }
+    }
   }
 
   _gear() { return `<div class="iconbtn" data-act="settings" title="${t("Definições")}"><ha-icon icon="mdi:cog-outline"></ha-icon></div>`; }
@@ -651,7 +722,7 @@ class Pine3ViewPanel extends HTMLElement {
       const a = this._s(media).attributes, roomName = rooms.find((r) => r.ents.includes(media))?.name;
       const pct = a.media_duration ? Math.min(100, ((a.media_position || 0) / a.media_duration) * 100) : 0;
       cards.push(`<div class="rc glass media" data-open="${media}" style="${a.entity_picture ? `background-image:linear-gradient(rgba(30,16,32,.55),rgba(30,16,32,.85)),url('${esc(a.entity_picture)}');background-size:cover;background-position:center` : ""}">
-        <div class="eyebrow" style="color:#5ee08a;letter-spacing:.14em"><ha-icon icon="mdi:music-note" style="--mdc-icon-size:16px"></ha-icon>${esc(roomName ? `${t("A tocar")} · ${roomName}` : t("A tocar"))}</div>
+        <div class="eyebrow" style="color:#5ee08a;letter-spacing:.14em"><ha-icon icon="mdi:music-note" style="--mdc-icon-size:16px"></ha-icon>${esc([t("A tocar"), roomName, a.app_name].filter(Boolean).join(" · "))}</div>
         <div class="foot"><div class="ttl">${esc(a.media_title || this._name(media))}</div><div class="art">${esc(a.media_artist || "")}</div>
           ${pct ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ""}
           <div class="ctl"><span data-media="media_previous_track" data-ent-id="${media}"><ha-icon icon="mdi:skip-previous"></ha-icon></span><span class="pp" data-media="media_play_pause" data-ent-id="${media}"><ha-icon icon="mdi:${this._s(media).state === "playing" ? "pause" : "play"}"></ha-icon></span><span data-media="media_next_track" data-ent-id="${media}"><ha-icon icon="mdi:skip-next"></ha-icon></span></div></div></div>`);
@@ -836,7 +907,8 @@ class Pine3ViewPanel extends HTMLElement {
     on("[data-toggle]", () => this._tap(id));
     on("[data-more]", () => { this._modal = null; this._render(); this._moreInfo(id); });
     on("[data-hide]", () => {
-      this._saveSettings({ hidden: [...new Set([...(this._saved().hidden || []), id])] });
+      if (this._meta?.[id]?.extra) this._saveSettings({ shown: (this._saved().shown || []).filter((x) => x !== id) });
+      else this._saveSettings({ hidden: [...new Set([...(this._saved().hidden || []), id])] });
       this._modal = null; this._render();
     });
     on("[data-svc]", (el) => { const [d, s] = el.dataset.svc.split("."); this._call(d, s, { entity_id: id }); });

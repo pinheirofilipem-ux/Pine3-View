@@ -11,13 +11,13 @@ const SIZES = { 1: [2, 2], 2: [3, 2], 3: [4, 3] };
 
 export const view3d = { rx: 58, rz: -38, floor: "all" };
 
-function autoSize(r) {
+export function autoSize(r) {
   const n = r.count || 0;
   return n <= 3 ? 1 : n <= 7 ? 2 : 3;
 }
 
 /** Shelf-pack rooms into rows; returns {items:[{room,x,y,w,d}], W, D}. */
-function pack(rooms, sizes) {
+export function pack(rooms, sizes) {
   const boxes = rooms.map((r) => {
     const [w, d] = SIZES[sizes[r.id] || autoSize(r)];
     return { room: r, w, d };
@@ -35,17 +35,29 @@ function pack(rooms, sizes) {
 
 export function houseView(p, rooms) {
   const cfg = p._cfg();
-  const levels = [...new Set(rooms.map((r) => r.floor_level ?? 0))].sort((a, b) => a - b);
+  const layout = cfg.house_layout || {};
+  const lvOf = (r) => layout[r.id]?.f ?? r.floor_level ?? 0;
+  const levels = [...new Set(rooms.map(lvOf))].sort((a, b) => a - b);
   const floorName = (lv) => rooms.find((r) => (r.floor_level ?? 0) === lv && r.floor)?.floor || t("Piso {n}", { n: lv });
   if (view3d.floor !== "all" && !levels.includes(view3d.floor)) view3d.floor = "all";
   const shown = view3d.floor === "all" ? levels : [view3d.floor];
 
-  const plans = shown.map((lv) => ({ lv, ...pack(rooms.filter((r) => (r.floor_level ?? 0) === lv), cfg.house_size || {}) }));
+  // Rooms drawn in the floor-plan editor keep their place; the rest are packed beside them.
+  const plans = shown.map((lv) => {
+    const onFloor = rooms.filter((r) => lvOf(r) === lv);
+    const placed = onFloor.filter((r) => layout[r.id]).map((r) => ({ room: r, ...layout[r.id] }));
+    const auto = pack(onFloor.filter((r) => !layout[r.id]), cfg.house_size || {});
+    const ox = placed.length ? Math.max(...placed.map((b) => b.x + b.w)) + 1 : 0;
+    const items = [...placed, ...auto.items.map((b) => ({ ...b, x: b.x + ox }))];
+    return { lv, items, W: Math.max(1, ...items.map((b) => b.x + b.w)), D: Math.max(1, ...items.map((b) => b.y + b.d)) };
+  });
   const W = Math.max(...plans.map((pl) => pl.W), 1), D = Math.max(...plans.map((pl) => pl.D), 1);
 
   const floorsHtml = plans.map((pl, k) => {
     const z = k * FLOOR_GAP;
-    const ox = ((W - pl.W) / 2) * U, oy = ((D - pl.D) / 2) * U;
+    // drawn plans share one coordinate system across floors; only automatic plans are centred
+    const drawn = Object.keys(layout).length > 0;
+    const ox = drawn ? 0 : ((W - pl.W) / 2) * U, oy = drawn ? 0 : ((D - pl.D) / 2) * U;
     const roomsHtml = pl.items.map((b) => {
       const r = b.room, sw = p._switchables(r), lit = sw.filter((i) => p._isOn(i));
       const lights = r.ents.filter((i) => dom(i) === "light").slice(0, 6);
@@ -78,7 +90,7 @@ export function houseView(p, rooms) {
 
   const lit = rooms.filter((r) => p._switchables(r).some((i) => p._isOn(i))).length;
   return `<div class="hero"><div><div class="eyebrow">${tp(lit, "{n} divisão acesa", "{n} divisões acesas")}</div><div class="t" style="margin-top:8px">${t("Casa 3D")}</div></div>
-      <div class="right">${p._gear()}</div></div>
+      <div class="right"><button class="pill" data-editplan><ha-icon icon="mdi:floor-plan"></ha-icon>${t("Editar planta")}</button>${p._gear()}</div></div>
     ${chips}
     <div class="stage glass" data-stage>
       <div class="scene3d" style="--rx:${view3d.rx}deg;--rz:${view3d.rz}deg;--sc:1;width:${W * U}px;height:${D * U}px;--stack:${(shown.length - 1) * FLOOR_GAP}px">
@@ -139,6 +151,7 @@ export function bindHouse(p, root) {
     if (b.dataset.rot === "reset") { view3d.rx = 58; view3d.rz = -38; } else view3d.rz += Number(b.dataset.rot);
     apply();
   }));
+  root.querySelector("[data-editplan]")?.addEventListener("click", () => p._openSettings("plan"));
   root.querySelectorAll("[data-floor]").forEach((b) => b.addEventListener("click", () => {
     view3d.floor = b.dataset.floor === "all" ? "all" : Number(b.dataset.floor);
     p._render();

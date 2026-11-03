@@ -84,7 +84,7 @@ async def test_build_home(hass: HomeAssistant) -> None:
     assert rooms["Sala"]["scenes"] == [h["scene"]]
 
     coz = rooms["Cozinha"]["devices"]
-    assert coz == [{"id": h["plug_id"], "device_id": coz[0]["device_id"], "name": "Máquina de café",
+    assert coz == [{"id": h["plug_id"], "device_id": coz[0]["device_id"], "manufacturer": None, "model": None, "name": "Máquina de café",
                     "kind": "outlet", "extras": [h["power_id"]], "hidden": False}]
     assert [d["id"] for d in rooms["Outros"]["devices"]] == [h["loose"]]
     assert home["weather"] == "weather.casa"
@@ -193,3 +193,30 @@ async def test_floor_level(hass: HomeAssistant) -> None:
     assert rooms["Sala"]["floor_level"] == 1 and rooms["Sala"]["floor"] == "Primeiro andar"
     assert rooms["Cozinha"]["floor_level"] == 0
     assert h["lamp_id"]
+
+
+async def test_room_entities(hass: HomeAssistant) -> None:
+    h = await _setup_home(hass)
+    home = build_home(hass, {"hidden": [], "hidden_rooms": [], "room_order": []})
+    sala = next(r for r in home["rooms"] if r["name"] == "Sala")
+    ents = {e["id"]: e for e in sala["entities"]}
+    # primaries, merged secondaries and diagnostic entities are all listed
+    assert ents[h["lamp_id"]]["primary"] is True
+    tv_switch = next(i for i in ents if i.startswith("switch."))
+    assert ents[tv_switch]["primary"] is False
+    sig = next(i for i in ents if "signal" in i or "sig" in i)
+    assert ents[sig]["category"] is True
+    assert ents[h["hidden_id"]]["ha_hidden"] is True
+    # primaries first
+    assert sala["entities"][0]["primary"] is True
+
+
+async def test_layout_settings(hass: HomeAssistant, hass_ws_client) -> None:
+    await async_setup_api(hass)
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "pine3_view/settings", "shown": ["switch.tv"],
+                        "house_layout": {"sala": {"f": 0, "x": 0, "y": 0, "w": 5, "d": 4}}})
+    msg = await ws.receive_json()
+    assert msg["success"] and msg["result"]["house_layout"]["sala"]["w"] == 5
+    await ws.send_json({"id": 2, "type": "pine3_view/settings", "house_layout": {"sala": {"f": 0, "x": 0, "y": 0, "w": 0, "d": 4}}})
+    assert not (await ws.receive_json())["success"]

@@ -180,13 +180,41 @@ def build_home(hass: HomeAssistant, settings: dict[str, Any]) -> dict[str, Any]:
             room["devices"].append({
                 "id": primary,
                 "device_id": device.id if device else None,
+                "manufacturer": device.manufacturer if device else None,
+                "model": device.model if device else None,
                 "name": name,
                 "kind": kind_of(hass, primary, entities.async_get(primary)),
                 "extras": extras,
                 "hidden": primary in hidden,
             })
 
-    # 3. Room metadata and ordering.
+    # 3. Every entity of each room, so the user can pick extra ones to show (or hide tiles).
+    primary_ids = {d["id"] for r in rooms.values() for d in r["devices"]}
+    for entry in entities.entities.values():
+        eid = entry.entity_id
+        domain = eid.split(".")[0]
+        if domain not in SUPPORTED or domain in ("scene", "script") or entry.disabled_by:
+            continue
+        state = hass.states.get(eid)
+        if state is None:
+            continue
+        device = devices.async_get(entry.device_id) if entry.device_id else None
+        if device and device.disabled_by:
+            continue
+        area_id = entry.area_id or (device.area_id if device else None) or "_none"
+        area = areas.async_get_area(area_id) if area_id != "_none" else None
+        room = rooms.setdefault(area_id, {"devices": [], "temperature": [], "humidity": [], "scenes": []})
+        room.setdefault("entities", []).append({
+            "id": eid,
+            "name": _strip_prefix(state.attributes.get("friendly_name") or eid, area.name if area else None),
+            "primary": eid in primary_ids,
+            "category": bool(entry.entity_category),
+            "ha_hidden": bool(entry.hidden_by),
+            "manufacturer": device.manufacturer if device else None,
+            "model": device.model if device else None,
+        })
+
+    # 4. Room metadata and ordering.
     floor_level = {}
     if floors:
         for f in floors.async_list_floors():
@@ -196,7 +224,7 @@ def build_home(hass: HomeAssistant, settings: dict[str, Any]) -> dict[str, Any]:
 
     out = []
     for area_id, room in rooms.items():
-        if not room["devices"] and not room["scenes"]:
+        if not room["devices"] and not room["scenes"] and not room.get("entities"):
             continue
         area = areas.async_get_area(area_id) if area_id != "_none" else None
         name = area.name if area else "Outros"
@@ -213,6 +241,7 @@ def build_home(hass: HomeAssistant, settings: dict[str, Any]) -> dict[str, Any]:
             "temperature": room["temperature"],
             "humidity": room["humidity"],
             "scenes": room["scenes"],
+            "entities": sorted(room.get("entities", []), key=lambda e: (not e["primary"], e["category"], _fold(e["name"]))),
             "hidden": area_id in hidden_rooms,
             "_sort": (
                 order.get(area_id, 10_000),
