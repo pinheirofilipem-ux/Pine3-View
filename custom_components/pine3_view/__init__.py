@@ -19,18 +19,24 @@ from .const import (
 )
 
 FRONTEND_DIR = Path(__file__).parent / "frontend"
+STATIC_KEY = f"{DOMAIN}_static_registered"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await async_setup_api(hass)
-    await hass.http.async_register_static_paths(
-        [StaticPathConfig(STATIC_URL, str(FRONTEND_DIR), cache_headers=False)]
-    )
+    # Serve the frontend under a versioned path so that an update changes the URL of every
+    # module (the panel and the files it imports), and browsers can't keep stale copies.
+    base = f"{STATIC_URL}/{VERSION}"
+    if not hass.data.get(STATIC_KEY):
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(base, str(FRONTEND_DIR), cache_headers=False)]
+        )
+        hass.data[STATIC_KEY] = True  # routes can't be unregistered; survive integration reloads
     await panel_custom.async_register_panel(
         hass,
         webcomponent_name=PANEL_ELEMENT,
         frontend_url_path=PANEL_URL_PATH,
-        module_url=f"{STATIC_URL}/pine3-view-panel.js?v={VERSION}",
+        module_url=f"{base}/pine3-view-panel.js",
         sidebar_title=PANEL_TITLE,
         sidebar_icon=PANEL_ICON,
         require_admin=False,

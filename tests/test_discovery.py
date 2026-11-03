@@ -220,3 +220,24 @@ async def test_layout_settings(hass: HomeAssistant, hass_ws_client) -> None:
     assert msg["success"] and msg["result"]["house_layout"]["sala"]["w"] == 5
     await ws.send_json({"id": 2, "type": "pine3_view/settings", "house_layout": {"sala": {"f": 0, "x": 0, "y": 0, "w": 0, "d": 4}}})
     assert not (await ws.receive_json())["success"]
+
+
+async def test_panel_setup_and_reload(hass: HomeAssistant) -> None:
+    """The panel is served from a versioned path and the entry can be reloaded."""
+    from unittest.mock import AsyncMock, patch
+
+    from custom_components.pine3_view import async_setup_entry, async_unload_entry
+    from custom_components.pine3_view.const import DOMAIN, VERSION
+
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    hass.http = AsyncMock()
+    with patch("homeassistant.components.panel_custom.async_register_panel", new=AsyncMock()) as reg, \
+         patch("homeassistant.components.frontend.async_remove_panel"):
+        assert await async_setup_entry(hass, entry)
+        assert await async_unload_entry(hass, entry)
+        assert await async_setup_entry(hass, entry)
+    assert reg.call_args.kwargs["module_url"] == f"/pine3_view_static/{VERSION}/pine3-view-panel.js"
+    assert hass.http.async_register_static_paths.await_count == 1
+    path = hass.http.async_register_static_paths.await_args.args[0][0]
+    assert path.url_path == f"/pine3_view_static/{VERSION}"
