@@ -15,9 +15,9 @@ from .const import (
     PANEL_TITLE,
     PANEL_URL_PATH,
     STATIC_URL,
+    VERSION,
 )
 
-VERSION = "0.3.0"
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 
 

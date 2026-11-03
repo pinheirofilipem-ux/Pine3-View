@@ -131,3 +131,23 @@ async def test_websocket(hass: HomeAssistant, hass_ws_client) -> None:
     assert got[3]["result"]["theme"] == "noite"
     pushed = got[2]["event"]
     assert any(d["id"] == h["lamp_id"] and d["hidden"] for r in pushed["rooms"] for d in r["devices"])
+
+
+async def test_settings_validation(hass: HomeAssistant, hass_ws_client) -> None:
+    await async_setup_api(hass)
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "pine3_view/settings", "card_color": "#e6dcc2", "accent_color": "#4aa8ff",
+                        "dock": ["home", "security"], "clock_24h": False})
+    msg = await ws.receive_json()
+    assert msg["success"]
+    assert msg["result"]["accent_color"] == "#4aa8ff" and msg["result"]["dock"] == ["home", "security"]
+    assert msg["result"]["show_scenes"] is True  # untouched defaults survive
+
+    await ws.send_json({"id": 2, "type": "pine3_view/settings", "card_color": "red"})
+    assert not (await ws.receive_json())["success"]
+    await ws.send_json({"id": 3, "type": "pine3_view/settings", "dock": ["home", "nope"]})
+    assert not (await ws.receive_json())["success"]
+
+    await ws.send_json({"id": 4, "type": "pine3_view/home"})
+    home = (await ws.receive_json())["result"]
+    assert home["version"] and home["settings"]["card_color"] == "#e6dcc2"

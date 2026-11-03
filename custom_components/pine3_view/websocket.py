@@ -11,11 +11,27 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.storage import Store
 
-from .const import DOMAIN, EVENT_UPDATED
+from .const import DOMAIN, EVENT_UPDATED, VERSION
 from .discovery import build_home
 
 STORAGE_KEY = f"{DOMAIN}.settings"
-DEFAULT_SETTINGS: dict[str, Any] = {"hidden": [], "hidden_rooms": [], "room_order": [], "theme": "ameixa"}
+DEFAULT_SETTINGS: dict[str, Any] = {
+    "hidden": [],
+    "hidden_rooms": [],
+    "room_order": [],
+    "theme": "ameixa",
+    "card_color": "#f5efe1",
+    "accent_color": "#f6b83f",
+    "clock_24h": True,
+    "show_weather": True,
+    "show_people": True,
+    "show_status": True,
+    "show_scenes": True,
+    "show_summary": True,
+    "dock": ["home", "rooms", "scenes"],
+}
+DOCK_ITEMS = ["home", "rooms", "scenes", "security"]
+COLOR = vol.Match(r"^#[0-9a-fA-F]{6}$")
 REGISTRY_EVENTS = (
     "area_registry_updated",
     "device_registry_updated",
@@ -60,7 +76,11 @@ def async_unload_api(hass: HomeAssistant) -> None:
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/home"})
 @callback
 def ws_home(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
-    connection.send_result(msg["id"], build_home(hass, hass.data[DOMAIN]["settings"]))
+    connection.send_result(msg["id"], _model(hass))
+
+
+def _model(hass: HomeAssistant) -> dict[str, Any]:
+    return {**build_home(hass, hass.data[DOMAIN]["settings"]), "version": VERSION}
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/subscribe"})
@@ -72,7 +92,7 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
     def _forward(_event: Event) -> None:
         if DOMAIN in hass.data:
             connection.send_message(
-                websocket_api.event_message(msg["id"], build_home(hass, hass.data[DOMAIN]["settings"]))
+                websocket_api.event_message(msg["id"], _model(hass))
             )
 
     connection.subscriptions[msg["id"]] = hass.bus.async_listen(EVENT_UPDATED, _forward)
@@ -86,6 +106,15 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         vol.Optional("hidden_rooms"): [str],
         vol.Optional("room_order"): [str],
         vol.Optional("theme"): str,
+        vol.Optional("card_color"): COLOR,
+        vol.Optional("accent_color"): COLOR,
+        vol.Optional("clock_24h"): bool,
+        vol.Optional("show_weather"): bool,
+        vol.Optional("show_people"): bool,
+        vol.Optional("show_status"): bool,
+        vol.Optional("show_scenes"): bool,
+        vol.Optional("show_summary"): bool,
+        vol.Optional("dock"): [vol.In(DOCK_ITEMS)],
     }
 )
 @websocket_api.async_response

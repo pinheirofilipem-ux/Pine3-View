@@ -67,6 +67,19 @@ const THEMES = {
   areia: "radial-gradient(100% 80% at 20% 0%, #a0724a 0%, transparent 55%), radial-gradient(80% 70% at 100% 100%, #5a4a7a 0%, transparent 60%), linear-gradient(160deg, #3a2a20, #1a1420)",
   oceano: "radial-gradient(100% 80% at 90% 0%, #1e6fa8 0%, transparent 55%), radial-gradient(80% 70% at 0% 100%, #0f8a8a 0%, transparent 60%), linear-gradient(170deg, #0a1f33, #06121c)",
 };
+const CARD_COLORS = ["#f5efe1", "#efe3c8", "#e6dcc2", "#d6e2e8", "#c3d3da", "#d9d3e3", "#e6d3d6", "#cfe0cc", "#bccfc3", "#cbb9a8", "#bcc6d3", "#d8ccb4", "#cdc6d8", "#b9d3cd"];
+const ACCENTS = ["#f6b83f", "#f5a524", "#ff9f43", "#ff7a59", "#ff6b81", "#f472b6", "#a78bfa", "#7c8cff", "#4aa8ff", "#2dd4bf", "#4ade80", "#a3e635"];
+const DOCK_ITEMS = [
+  ["home", "mdi:home-outline", "Casa", ""],
+  ["rooms", "mdi:view-grid-outline", "Divisões", "Todas as divisões numa grelha."],
+  ["scenes", "mdi:creation-outline", "Cenas", "Cenas e scripts."],
+  ["security", "mdi:shield-outline", "Segurança", "Portas, janelas, fechaduras e câmaras."],
+];
+const DEFAULTS = {
+  theme: "ameixa", card_color: "#f5efe1", accent_color: "#f6b83f", clock_24h: true,
+  show_weather: true, show_people: true, show_status: true, show_scenes: true, show_summary: true,
+  dock: ["home", "rooms", "scenes"], hidden: [], hidden_rooms: [], room_order: [],
+};
 const THEME_NAMES = { ameixa: "Ameixa", pinheiro: "Pinheiro", noite: "Noite", aurora: "Aurora", areia: "Areia", oceano: "Oceano" };
 
 // Fonts: Outfit (display) + Figtree (text), both SIL OFL 1.1, shipped in ./fonts.
@@ -224,7 +237,67 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
 .list .it small{color:var(--muted)}
 .list .pill{height:36px;font-size:14px;padding:0 14px}
 .sub{font-size:12px;font-weight:600;color:var(--muted);margin:22px 2px 0;text-transform:uppercase;letter-spacing:.18em}
+.set{padding:40px 0 60px}
+.set-hd{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.set-hd .t{font-family:var(--display);font-size:clamp(38px,5vw,54px);font-weight:400;letter-spacing:-.02em;margin-top:10px;line-height:1}
+.set-hd .s{color:var(--muted);font-size:17px;margin-top:10px}
+.set-hd .actions{align-items:center}
+.pill.dim{opacity:.55;cursor:default}
+.set-body{display:grid;grid-template-columns:270px minmax(0,1fr);gap:40px;margin-top:40px;align-items:start}
+.set-nav{display:flex;flex-direction:column;gap:6px;position:sticky;top:20px}
+.set-nav button{all:unset;cursor:pointer;display:flex;align-items:center;gap:14px;height:58px;padding:0 14px;border-radius:18px;font-size:18px;font-weight:500;color:rgba(255,255,255,.85);transition:background .2s}
+.set-nav button:hover{background:rgba(255,255,255,.06)}
+.set-nav button.act{background:rgba(255,255,255,.9);color:var(--ink)}
+.set-nav .ni{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--glass-hi)}
+.set-nav button.act .ni{background:rgba(42,34,31,.08)}
+.set-nav ha-icon{--mdc-icon-size:20px}
+.set-main{display:flex;flex-direction:column;gap:22px;min-width:0}
+.panel{border-radius:32px;padding:28px}
+.panel h3{font-family:var(--display);font-size:23px;font-weight:500;margin:26px 0 4px}
+.panel p{color:var(--muted);font-size:16px;margin:0 0 16px}
+.preview{display:flex;justify-content:center;gap:22px;padding:10px 0 8px;flex-wrap:wrap}
+.pv{width:210px;min-height:230px;flex:none;cursor:default}
+.pv .ri{background:var(--amber)!important;color:var(--ink)}
+.pv.off .ri{background:var(--glass-hi)!important;color:#fff}
+.pv-badge{position:absolute;top:-12px;right:-12px;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--amber);color:var(--ink);font-weight:700;font-size:15px;border:3px solid rgba(255,255,255,.25)}
+.pv-bar{height:34px;border-radius:17px;background:rgba(42,34,31,.08);margin-top:14px;overflow:hidden}
+.pv-bar i{display:block;width:75%;height:100%;border-radius:17px;background:var(--amber)}
+.swr{display:flex;flex-wrap:wrap;gap:14px}
+.swc{width:56px;height:56px;border-radius:50%;cursor:pointer;border:3px solid rgba(255,255,255,.18);position:relative;transition:transform .12s}
+.swc:hover{transform:scale(1.06)}
+.swc.act{border-color:#fff}
+.swc.act::after{content:"";position:absolute;left:50%;top:50%;width:14px;height:8px;border-left:2.5px solid #2a221f;border-bottom:2.5px solid #2a221f;transform:translate(-50%,-65%) rotate(-45deg)}
+.bgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px}
+.bgc{cursor:pointer;border-radius:24px;padding:10px;border:3px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05)}
+.bgc div{height:110px;border-radius:16px}
+.bgc span{display:block;font-weight:600;margin:10px 4px 2px}
+.bgc.act{border-color:#fff;background:rgba(255,255,255,.14)}
+.opts{display:flex;flex-direction:column;gap:4px}
+.opt{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 4px;border-bottom:1px solid var(--line)}
+.opt:last-child{border-bottom:0}
+.opt b{display:block;font-size:17px;font-weight:600}
+.opt small{display:block;color:var(--muted);font-size:14px;margin-top:2px}
+.tg{width:58px;height:34px;border-radius:17px;background:rgba(255,255,255,.18);position:relative;cursor:pointer;flex:none;transition:background .2s}
+.tg i{position:absolute;top:3px;left:3px;width:28px;height:28px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.tg.on{background:var(--amber)}
+.tg.on i{transform:translateX(24px)}
+.list.big{max-height:none}
+.list.big .it{padding:10px 12px;gap:12px;font-size:16px}
+.ri.sm{width:40px;height:40px}.ri.sm ha-icon{--mdc-icon-size:20px}
+.mini{all:unset;cursor:pointer;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--glass-hi)}
+.mini[disabled]{opacity:.3;cursor:default}
+.facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:14px}
+.facts div{padding:16px;border-radius:20px;background:rgba(255,255,255,.06)}
+.facts small{display:block;color:var(--muted);font-size:13px}
+.facts b{display:block;font-family:var(--display);font-size:24px;font-weight:500;margin-top:4px}
+a.pill{color:inherit;text-decoration:none}
+.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:20;background:var(--cream);color:var(--ink);font-weight:600;padding:14px 22px;border-radius:999px;box-shadow:0 10px 30px rgba(0,0,0,.35);animation:pop .2s}
 @media (max-width:720px){
+  .set{padding-top:20px}.set-body{grid-template-columns:1fr;gap:18px;margin-top:22px}
+  .set-nav{flex-direction:row;overflow-x:auto;position:static;scrollbar-width:none}.set-nav::-webkit-scrollbar{display:none}
+  .set-nav button{height:46px;font-size:15px;flex:none;padding:0 14px 0 8px}.set-nav .ni{width:30px;height:30px}
+  .panel{padding:20px;border-radius:26px}.swc{width:44px;height:44px}.pv{width:160px;min-height:190px}.bgs{grid-template-columns:1fr 1fr}
+
   .wrap{padding:0 16px 116px}.top{padding-top:20px}.statusrow{margin-top:24px}
   .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.rc{min-height:190px;padding:16px;border-radius:24px}
   .rc .nm{font-size:18px}.rc .meta{font-size:14px}.ri{width:44px;height:44px}.pw{width:50px;height:50px}
@@ -297,7 +370,9 @@ class Pine3ViewPanel extends HTMLElement {
         if (!ents.length && !scenes.length) continue;
         out.push({ ...r, ents: [...ents, ...scenes], count: ents.length });
       }
-      return out;
+      const st = this._model.settings || {}, order = st.room_order || [], hid = st.hidden_rooms || [];
+      const pos = (id) => { const k = order.indexOf(id); return k < 0 ? 1e4 : k; };
+      return out.filter((r) => !hid.includes(r.id)).map((r, k) => [r, k]).sort((a, b) => pos(a[0].id) - pos(b[0].id) || a[1] - b[1]).map(([r]) => r);
     }
     return this._localRooms();
   }
@@ -316,7 +391,8 @@ class Pine3ViewPanel extends HTMLElement {
     const list = [...rooms.values()].filter((r) => r.ents.length).sort((a, b) => a.name.localeCompare(b.name, "pt"));
     if (none.ents.length) list.push(none);
     for (const r of list) r.count = r.ents.filter((i) => dom(i) !== "scene").length;
-    return list;
+    const c = { ...DEFAULTS, ...store.get("settings", {}) }, pos = (id) => { const k = c.room_order.indexOf(id); return k < 0 ? 1e4 : k; };
+    return list.filter((r) => !c.hidden_rooms.includes(r.id)).sort((a, b) => pos(a.id) - pos(b.id));
   }
 
   _s(id) { return this._hass.states[id]; }
@@ -392,9 +468,157 @@ class Pine3ViewPanel extends HTMLElement {
   }
 
   // ---------- render ----------
+  _clockText() {
+    const h12 = !this._cfg().clock_24h;
+    return new Date().toLocaleTimeString(h12 ? "en-US" : "pt-PT", { hour: "2-digit", minute: "2-digit", hour12: h12 });
+  }
   _updateClock() {
     const el = this.shadowRoot.querySelector(".clock");
-    if (el) el.textContent = new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+    if (el) el.textContent = this._clockText();
+  }
+
+  // ---------- settings ----------
+  _cfg() {
+    const saved = this._model?.settings || store.get("settings", {});
+    const base = { ...DEFAULTS, ...saved };
+    return this._view === "settings" && this._draft ? this._draft : base;
+  }
+
+  _openSettings() {
+    const c = { ...DEFAULTS, ...(this._model?.settings || store.get("settings", {})) };
+    if (!this._model?.settings?.theme && !store.get("settings", null)) c.theme = this._theme;
+    if (!c.room_order?.length) c.room_order = (this._model?.rooms || this._rooms()).map((r) => r.id);
+    this._draft = JSON.parse(JSON.stringify(c));
+    this._saved = JSON.stringify(this._draft);
+    this._prevView = this._view === "settings" ? "home" : this._view;
+    this._view = "settings";
+    this._render();
+    window.scrollTo(0, 0);
+  }
+
+  _closeSettings() { this._draft = null; this._view = this._prevView || "home"; this._render(); }
+
+  async _saveDraft() {
+    const d = this._draft;
+    this._theme = d.theme;
+    store.set("theme", d.theme);
+    if (this._model) {
+      try {
+        const res = await this._hass.callWS({ type: "pine3_view/settings", ...d });
+        this._model.settings = res;
+        this._model = await this._hass.callWS({ type: "pine3_view/home" });
+      } catch (e) { console.error("Pine3 View", e); this._toast = "Não foi possível guardar"; }
+    } else store.set("settings", d);
+    this._saved = JSON.stringify(d);
+    this._toast = this._toast || "Alterações guardadas";
+    this._render();
+    setTimeout(() => { this._toast = null; this._render(); }, 1800);
+  }
+
+  _toggle(key, on, label, sub) {
+    return `<div class="opt"><div><b>${label}</b>${sub ? `<small>${sub}</small>` : ""}</div><div class="tg ${on ? "on" : ""}" data-tg="${key}"><i></i></div></div>`;
+  }
+
+  _settingsView() {
+    const d = this._draft, sec = this._section || "look";
+    const dirty = JSON.stringify(d) !== this._saved;
+    const navItems = [
+      ["look", "mdi:palette-outline", "Aparência"], ["home", "mdi:home-outline", "Início"], ["rooms", "mdi:view-grid-outline", "Divisões"],
+      ["nav", "mdi:dock-bottom", "Navegação"], ["system", "mdi:cog-outline", "Sistema"],
+    ];
+    let main = "";
+    if (sec === "look") {
+      main = `<div class="panel glass">
+          <div class="preview">
+            <div class="rc on pv"><span class="pv-badge">2</span><div class="ri"><ha-icon icon="mdi:lightbulb-outline"></ha-icon></div>
+              <div class="foot"><div class="nm">Sala</div><div class="meta">75%</div><div class="pv-bar"><i></i></div></div></div>
+            <div class="rc glass pv off"><div class="ri"><ha-icon icon="mdi:bed"></ha-icon></div>
+              <div class="foot"><div class="nm">Quarto</div><div class="meta">Tudo desligado</div><div class="dots"><i></i><i class="on"></i><i></i></div></div></div>
+          </div>
+          <h3>Cor dos cartões</h3><p>Superfície suave dos cartões ligados.</p>
+          <div class="swr">${CARD_COLORS.map((c) => `<div class="swc ${c === d.card_color ? "act" : ""}" data-card="${c}" style="background:${c}"></div>`).join("")}</div>
+          <h3>Cor de destaque</h3><p>Ícones acesos, pontos das luzes, sliders e contadores.</p>
+          <div class="swr">${ACCENTS.map((c) => `<div class="swc ${c === d.accent_color ? "act" : ""}" data-accent="${c}" style="background:${c}"></div>`).join("")}</div>
+        </div>
+        <div class="panel glass"><h3 style="margin-top:0">Fundo</h3><p>O ambiente por trás dos cartões.</p>
+          <div class="bgs">${Object.keys(THEMES).map((k) => `<div class="bgc ${k === d.theme ? "act" : ""}" data-theme="${k}"><div style="background:${THEMES[k]}"></div><span>${THEME_NAMES[k]}</span></div>`).join("")}</div></div>`;
+    } else if (sec === "home") {
+      main = `<div class="panel glass"><h3 style="margin-top:0">Ecrã inicial</h3><p>O que aparece no início.</p><div class="opts">
+        ${this._toggle("show_weather", d.show_weather, "Meteorologia", "Pílula com a temperatura e o estado do tempo.")}
+        ${this._toggle("show_people", d.show_people, "Pessoas", "Quem está em casa.")}
+        ${this._toggle("show_status", d.show_status, "Estado da casa", "Luzes acesas e botões Acender/Apagar tudo.")}
+        ${this._toggle("show_scenes", d.show_scenes, "Cenas", "Faixa de cenas no início.")}
+        ${this._toggle("show_summary", d.show_summary, "Cartões de resumo", "Clima, Segurança e A tocar.")}
+        ${this._toggle("clock_24h", d.clock_24h, "Relógio de 24 horas", "Desliga para mostrar AM/PM.")}
+      </div></div>`;
+    } else if (sec === "rooms") {
+      const all = this._model?.rooms || this._rooms();
+      const byId = Object.fromEntries(all.map((r) => [r.id, r]));
+      const order = [...d.room_order.filter((i) => byId[i]), ...all.map((r) => r.id).filter((i) => !d.room_order.includes(i))];
+      const hiddenDev = this._model ? all.flatMap((r) => r.devices.filter((x) => d.hidden.includes(x.id)).map((x) => ({ ...x, room: r.name }))) : [];
+      main = `<div class="panel glass"><h3 style="margin-top:0">Divisões</h3><p>Criadas automaticamente a partir das áreas do Home Assistant. Ordena e esconde as que não queres ver.</p>
+        <div class="list big">${order.map((id, k) => { const r = byId[id], vis = !d.hidden_rooms.includes(id); return `<div class="it">
+          <div class="ri sm"><ha-icon icon="${r.icon || "mdi:home-outline"}"></ha-icon></div><span>${esc(r.name)} <small>${this._plural((r.devices || r.ents).length, "dispositivo", "dispositivos")}</small></span>
+          <button class="mini" data-move="${k}:-1" ${k === 0 ? "disabled" : ""}><ha-icon icon="mdi:chevron-up"></ha-icon></button>
+          <button class="mini" data-move="${k}:1" ${k === order.length - 1 ? "disabled" : ""}><ha-icon icon="mdi:chevron-down"></ha-icon></button>
+          <div class="tg ${vis ? "on" : ""}" data-roomvis="${esc(id)}"><i></i></div></div>`; }).join("")}</div></div>
+        ${hiddenDev.length ? `<div class="panel glass"><h3 style="margin-top:0">Dispositivos escondidos</h3><p>Escondidos a partir da folha de detalhe.</p><div class="list big">${hiddenDev.map((x) => `<div class="it"><span>${esc(x.name)} <small>${esc(x.room)}</small></span><button class="pill" data-unhide="${esc(x.id)}">Mostrar</button></div>`).join("")}</div></div>` : ""}`;
+      this._order = order;
+    } else if (sec === "nav") {
+      main = `<div class="panel glass"><h3 style="margin-top:0">Dock</h3><p>Botões da barra de navegação. A Casa está sempre presente.</p><div class="opts">
+        ${DOCK_ITEMS.filter(([k]) => k !== "home").map(([k, , label, sub]) => this._toggle("dock:" + k, d.dock.includes(k), label, sub)).join("")}
+      </div></div>`;
+    } else {
+      const rooms = this._model?.rooms || [];
+      const devs = rooms.reduce((a, r) => a + r.devices.length, 0);
+      main = `<div class="panel glass"><h3 style="margin-top:0">Sistema</h3><div class="facts">
+          <div><small>Versão</small><b>${esc(this._model?.version || "—")}</b></div>
+          <div><small>Modo</small><b>${this._model ? "Integração" : "Local (sem API)"}</b></div>
+          <div><small>Divisões</small><b>${rooms.length || this._rooms().length}</b></div>
+          <div><small>Dispositivos</small><b>${devs || "—"}</b></div>
+        </div>
+        <div class="row" style="justify-content:flex-start;margin-top:22px">
+          <button class="pill" data-rebuild><ha-icon icon="mdi:refresh"></ha-icon>Reconstruir agora</button>
+          <button class="pill" data-reset><ha-icon icon="mdi:backup-restore"></ha-icon>Repor predefinições</button>
+          <a class="pill" href="/config/integrations/integration/pine3_view" target="_top"><ha-icon icon="mdi:open-in-new"></ha-icon>Integração no HA</a>
+        </div></div>`;
+    }
+    return `<div class="set">
+      <div class="set-hd"><div><div class="eyebrow">Pine3 View</div><div class="t">Definições</div><div class="s">Aparência, ecrã inicial, divisões e navegação.</div></div>
+        <div class="actions"><button class="pill ${dirty ? "solid" : "dim"}" data-save ${dirty ? "" : "disabled"}><ha-icon icon="mdi:check"></ha-icon>Guardar alterações</button>
+        <div class="iconbtn" data-closeset title="Fechar"><ha-icon icon="mdi:close"></ha-icon></div></div></div>
+      <div class="set-body"><nav class="set-nav">${navItems.map(([k, icon, label]) => `<button class="${k === sec ? "act" : ""}" data-sec="${k}"><span class="ni"><ha-icon icon="${icon}"></ha-icon></span>${label}</button>`).join("")}</nav>
+        <div class="set-main">${main}</div></div>
+      ${this._toast ? `<div class="toast">${esc(this._toast)}</div>` : ""}
+    </div>`;
+  }
+
+  _bindSettings() {
+    const root = this.shadowRoot, d = this._draft;
+    if (!d) return;
+    const on = (sel, fn) => root.querySelectorAll(sel).forEach((el) => el.addEventListener("click", (ev) => fn(el, ev)));
+    const upd = () => this._render();
+    on("[data-sec]", (el) => { this._section = el.dataset.sec; upd(); });
+    on("[data-closeset]", () => this._closeSettings());
+    on("[data-save]", () => this._saveDraft());
+    on("[data-card]", (el) => { d.card_color = el.dataset.card; upd(); });
+    on("[data-accent]", (el) => { d.accent_color = el.dataset.accent; upd(); });
+    on("[data-theme]", (el) => { d.theme = el.dataset.theme; upd(); });
+    on("[data-tg]", (el) => {
+      const k = el.dataset.tg;
+      if (k.startsWith("dock:")) { const it = k.slice(5); d.dock = d.dock.includes(it) ? d.dock.filter((x) => x !== it) : DOCK_ITEMS.map(([x]) => x).filter((x) => x === it || d.dock.includes(x)); }
+      else d[k] = !d[k];
+      upd();
+    });
+    on("[data-roomvis]", (el) => { const id = el.dataset.roomvis; d.hidden_rooms = d.hidden_rooms.includes(id) ? d.hidden_rooms.filter((x) => x !== id) : [...d.hidden_rooms, id]; upd(); });
+    on("[data-move]", (el) => {
+      const [k, dir] = el.dataset.move.split(":").map(Number), o = [...this._order], j = k + dir;
+      if (j < 0 || j >= o.length) return;
+      [o[k], o[j]] = [o[j], o[k]]; d.room_order = o; upd();
+    });
+    on("[data-unhide]", (el) => { d.hidden = d.hidden.filter((x) => x !== el.dataset.unhide); upd(); });
+    on("[data-reset]", () => { Object.assign(d, JSON.parse(JSON.stringify(DEFAULTS))); d.room_order = (this._model?.rooms || []).map((r) => r.id).sort(); upd(); });
+    on("[data-rebuild]", async () => { if (this._model) { this._model = await this._hass.callWS({ type: "pine3_view/home" }); this._toast = "Casa reconstruída"; upd(); setTimeout(() => { this._toast = null; upd(); }, 1500); } });
   }
 
   _render() {
@@ -403,7 +627,11 @@ class Pine3ViewPanel extends HTMLElement {
     const room = this._view === "room" ? rooms.find((r) => r.id === this._room) : null;
     if (this._view === "room" && !room) this._view = "home";
     let body;
-    if (this._view === "room") body = this._roomView(room);
+    const cfg = this._cfg();
+    this.style.setProperty("--cream", cfg.card_color);
+    this.style.setProperty("--amber", cfg.accent_color);
+    if (this._view === "settings" && this._draft) body = this._settingsView();
+    else if (this._view === "room") body = this._roomView(room);
     else if (this._view === "scenes") body = this._scenesView(rooms);
     else if (this._view === "rooms") body = this._roomsView(rooms);
     else if (this._view === "security") body = this._securityView(rooms);
@@ -415,19 +643,20 @@ class Pine3ViewPanel extends HTMLElement {
       <div class="sp"></div>
     </header>` : "";
     const nav = (v, icon, label) => `<button class="${this._view === v || (v === "rooms" && this._view === "room") ? "act" : ""}" data-nav="${v}"><ha-icon icon="${icon}"></ha-icon><span>${label}</span></button>`;
-    const dock = `<nav class="dock">${nav("home", "mdi:home-outline", "Casa")}${nav("rooms", "mdi:view-grid-outline", "Divisões")}${nav("scenes", "mdi:creation-outline", "Cenas")}</nav>`;
+    const dock = this._view === "settings" ? "" : `<nav class="dock">${DOCK_ITEMS.filter(([k]) => k === "home" || cfg.dock.includes(k)).map(([k, icon, label]) => nav(k, icon, label)).join("")}</nav>`;
 
     this.shadowRoot.innerHTML = `<style>${css}</style>
-      <div class="bg" style="background:${THEMES[this._theme] || THEMES.ameixa}"></div>
+      <div class="bg" style="background:${THEMES[this._view === "settings" && this._draft ? this._draft.theme : cfg.theme || this._theme] || THEMES.ameixa}"></div>
       <div class="wrap">${header}${body}</div>${dock}${this._modalView()}`;
-    this._bind(rooms);
+    if (this._view === "settings") this._bindSettings();
+    else this._bind(rooms);
   }
 
-  _gear() { return `<div class="iconbtn" data-act="themes" title="Definições"><ha-icon icon="mdi:cog-outline"></ha-icon></div>`; }
+  _gear() { return `<div class="iconbtn" data-act="settings" title="Definições"><ha-icon icon="mdi:cog-outline"></ha-icon></div>`; }
   _plural(n, one, many) { return `${n} ${n === 1 ? one : many}`; }
 
   _topBar() {
-    const h = this._hass, now = new Date();
+    const h = this._hass, now = new Date(), cfg = this._cfg();
     const date = now.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
     const weather = this._model?.weather || Object.keys(h.states).find((i) => dom(i) === "weather");
     const w = weather && this._s(weather);
@@ -439,10 +668,10 @@ class Pine3ViewPanel extends HTMLElement {
       return `<div class="av ${p.state === "home" ? "home" : ""}" title="${esc(p.attributes.friendly_name)}" style="background-color:${tint[k % 4]};${pic ? `background-image:url('${esc(pic)}')` : ""}">${pic ? "" : esc(ini)}<i></i></div>`;
     }).join("")}</div>` : "";
     return `<div class="top">
-      <div><div class="eyebrow">${esc(date)}</div><div class="clock">${now.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}</div></div>
+      <div><div class="eyebrow">${esc(date)}</div><div class="clock">${this._clockText()}</div></div>
       <div class="right">
-        ${w ? `<div class="wpill glass"><ha-icon icon="${WEATHER_ICON[w.state] || "mdi:weather-partly-cloudy"}"></ha-icon><b>${num(Math.round(w.attributes.temperature ?? 0))}°</b><span>${esc(WEATHER_PT[w.state] || w.state)}</span></div>` : ""}
-        ${people}${this._gear()}
+        ${w && cfg.show_weather ? `<div class="wpill glass"><ha-icon icon="${WEATHER_ICON[w.state] || "mdi:weather-partly-cloudy"}"></ha-icon><b>${num(Math.round(w.attributes.temperature ?? 0))}°</b><span>${esc(WEATHER_PT[w.state] || w.state)}</span></div>` : ""}
+        ${cfg.show_people ? people : ""}${this._gear()}
       </div></div>`;
   }
 
@@ -463,14 +692,14 @@ class Pine3ViewPanel extends HTMLElement {
   }
 
   _homeView(rooms) {
-    const h = this._hass;
+    const h = this._hass, cfg = this._cfg();
     const all = rooms.flatMap((r) => r.ents);
     const lights = all.filter((i) => dom(i) === "light");
     const lightsOn = lights.filter((i) => this._isOn(i));
     const status = lightsOn.length ? `${this._plural(lightsOn.length, "luz acesa", "luzes acesas")} em casa` : lights.length ? "Todas as luzes apagadas" : "Tudo tranquilo em casa";
 
     const scenes = (this._model ? this._model.scenes.filter((i) => this._s(i)) : Object.keys(h.states).filter((i) => dom(i) === "scene" && !h.entities?.[i]?.hidden)).slice(0, 12);
-    const scenesHtml = scenes.length ? `<div class="sect"><div class="eyebrow">Cenas <span class="badge">${scenes.length}</span></div>
+    const scenesHtml = scenes.length && cfg.show_scenes ? `<div class="sect"><div class="eyebrow">Cenas <span class="badge">${scenes.length}</span></div>
       <div class="scenes">${scenes.map((i) => `<div class="scene glass ${this._fired === i ? "fired" : ""}" data-scene="${i}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon>${esc(this._name(i))}</div>`).join("")}</div></div>` : "";
 
     // Summary cards
@@ -504,10 +733,10 @@ class Pine3ViewPanel extends HTMLElement {
     }
 
     return `${this._topBar()}
-      <div class="statusrow"><div><div class="eyebrow">Estado da casa</div><div class="status">${status}</div></div>
-        ${lights.length ? `<div class="actions"><button class="pill" data-all="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>Acender tudo</button><button class="pill solid" data-all="off"><ha-icon icon="mdi:power"></ha-icon>Apagar tudo</button></div>` : ""}</div>
+      ${cfg.show_status ? `<div class="statusrow"><div><div class="eyebrow">Estado da casa</div><div class="status">${status}</div></div>
+        ${lights.length ? `<div class="actions"><button class="pill" data-all="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>Acender tudo</button><button class="pill solid" data-all="off"><ha-icon icon="mdi:power"></ha-icon>Apagar tudo</button></div>` : ""}</div>` : ""}
       ${scenesHtml}
-      ${rooms.length ? `<div class="grid">${rooms.map((r) => this._roomCard(r)).join("")}${cards.join("")}</div>` : `<div class="empty">Ainda não há divisões com dispositivos. Atribui áreas aos teus dispositivos no Home Assistant.</div>`}`;
+      ${rooms.length ? `<div class="grid">${rooms.map((r) => this._roomCard(r)).join("")}${cfg.show_summary ? cards.join("") : ""}</div>` : `<div class="empty">Ainda não há divisões com dispositivos. Atribui áreas aos teus dispositivos no Home Assistant.</div>`}`;
   }
 
   _roomsView(rooms) {
@@ -567,19 +796,6 @@ class Pine3ViewPanel extends HTMLElement {
   }
 
   _modalView() {
-    if (this._modal === "_themes") {
-      let extra = "";
-      if (this._model) {
-        const rooms = this._model.rooms;
-        const hiddenDev = rooms.flatMap((r) => r.devices.filter((d) => d.hidden).map((d) => ({ ...d, room: r.name })));
-        extra = `<div class="sub">Divisões</div><div class="list">${rooms.map((r) => `<div class="it"><ha-icon icon="${r.icon}"></ha-icon><span>${esc(r.name)} <small>${r.devices.length}</small></span>
-            <button class="pill ${r.hidden ? "" : "act"}" data-roomvis="${esc(r.id)}">${r.hidden ? "Escondida" : "Visível"}</button></div>`).join("")}</div>
-          ${hiddenDev.length ? `<div class="sub">Dispositivos escondidos</div><div class="list">${hiddenDev.map((d) => `<div class="it"><span>${esc(d.name)} <small>${esc(d.room)}</small></span><button class="pill" data-unhide="${esc(d.id)}">Mostrar</button></div>`).join("")}</div>` : ""}`;
-      }
-      return `<div class="ov" data-close><div class="sheet"><div class="hd"><div class="nm">Definições</div></div>
-        <div class="sub">Fundo</div>
-        <div class="themes">${Object.keys(THEMES).map((k) => `<div class="th ${k === this._theme ? "act" : ""}" data-theme="${k}" style="background:${THEMES[k]}">${THEME_NAMES[k]}</div>`).join("")}</div>${extra}</div></div>`;
-    }
     const id = this._modal, s = id && this._s(id);
     if (!s) return "";
     const d = dom(id), a = s.attributes, on = this._isOn(id);
@@ -630,7 +846,7 @@ class Pine3ViewPanel extends HTMLElement {
     const on = (sel, fn) => root.querySelectorAll(sel).forEach((el) => el.addEventListener("click", (ev) => fn(el, ev)));
     on('[data-act="back"]', () => { this._view = "home"; this._render(); });
     on('[data-act="menu"]', () => this.dispatchEvent(new Event("hass-toggle-menu", { bubbles: true, composed: true })));
-    on('[data-act="themes"]', () => this._openModal("_themes"));
+    on('[data-act="settings"]', () => this._openSettings());
     on("[data-nav]", (el) => { this._view = el.dataset.nav; this._render(); window.scrollTo(0, 0); });
     on("[data-room]", (el) => { this._view = "room"; this._room = el.dataset.room; this._render(); window.scrollTo(0, 0); });
     on("[data-roomlights]", (el, ev) => {
@@ -652,19 +868,6 @@ class Pine3ViewPanel extends HTMLElement {
       this._fired = el.dataset.scene; this._render();
       setTimeout(() => { this._fired = null; this._render(); }, 1200);
     });
-    on("[data-theme]", (el) => { this._theme = el.dataset.theme; store.set("theme", this._theme); this._saveSettings({ theme: this._theme }); this._render(); });
-    on("[data-roomvis]", (el) => {
-      const set = new Set(this._model.settings.hidden_rooms || []), id = el.dataset.roomvis;
-      set.has(id) ? set.delete(id) : set.add(id);
-      this._model.rooms.forEach((r) => { if (r.id === id) r.hidden = set.has(id); });
-      this._saveSettings({ hidden_rooms: [...set] }); this._render();
-    });
-    on("[data-unhide]", (el) => {
-      const id = el.dataset.unhide;
-      this._model.rooms.forEach((r) => r.devices.forEach((d) => { if (d.id === id) d.hidden = false; }));
-      this._saveSettings({ hidden: (this._model.settings.hidden || []).filter((x) => x !== id) }); this._render();
-    });
-
     // tiles: tap = action, long-press / right-click = details
     root.querySelectorAll("[data-ent]").forEach((el) => {
       const id = el.dataset.ent;
