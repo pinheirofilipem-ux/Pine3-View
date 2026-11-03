@@ -54,3 +54,6 @@ pytest
 
 ## Roadmap
 Modo de edição (arrastar, mudar tamanho), ecrã de descanso, layouts alternativos.
+
+## Licença
+MIT (ver `LICENSE`). As fontes Outfit e Figtree estão sob a SIL Open Font License 1.1.
