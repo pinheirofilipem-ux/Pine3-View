@@ -253,3 +253,27 @@ async def test_layout_cells(hass: HomeAssistant, hass_ws_client) -> None:
     for n, bad in enumerate([[[0]], [[0, 0, 0]], [[-1, 2]], []], start=2):
         await ws.send_json({"id": n, "type": "pine3_view/settings", "house_layout": {"sala": {**l_shape, "cells": bad}}})
         assert not (await ws.receive_json())["success"], bad
+
+
+async def test_placements(hass: HomeAssistant, hass_ws_client) -> None:
+    await async_setup_api(hass)
+    ws = await hass_ws_client(hass)
+    pl = {"light.sala_teto": {"f": 0, "x": 2.5, "y": 1.5, "t": "ceiling"}, "media_player.tv": {"f": 0, "x": 3, "y": 4}}
+    await ws.send_json({"id": 1, "type": "pine3_view/settings", "placements": pl})
+    msg = await ws.receive_json()
+    assert msg["success"] and msg["result"]["placements"]["light.sala_teto"]["t"] == "ceiling"
+    for n, bad in enumerate([{"f": 0, "x": 99, "y": 1}, {"f": 0, "x": 1, "y": 1, "t": "rocket"}, {"x": 1, "y": 1}], start=2):
+        await ws.send_json({"id": n, "type": "pine3_view/settings", "placements": {"light.a": bad}})
+        assert not (await ws.receive_json())["success"], bad
+
+
+def test_device_type_lists_match() -> None:
+    """The server's allowed device types are the same as the panel's catalogue."""
+    import re
+    from pathlib import Path
+
+    from custom_components.pine3_view.websocket import DEVICE_TYPES
+
+    js = (Path(__file__).parents[1] / "custom_components/pine3_view/frontend/devtypes.js").read_text()
+    block = js[js.index("DEVICE_TYPES = {"):js.index("};", js.index("DEVICE_TYPES = {"))]
+    assert re.findall(r"^\s+(\w+): \[", block, re.M) == DEVICE_TYPES

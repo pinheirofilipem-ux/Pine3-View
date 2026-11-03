@@ -3,6 +3,7 @@
 
 import { esc, dom } from "./const.js";
 import { t, tp } from "./i18n.js";
+import { DEVICE_TYPES, typeOf } from "./devtypes.js";
 
 const U = 56; // px per layout unit
 const WALL = 30; // wall height in px
@@ -60,7 +61,17 @@ export function houseView(p, rooms) {
     const ox = drawn ? 0 : ((W - pl.W) / 2) * U, oy = drawn ? 0 : ((D - pl.D) / 2) * U;
     const roomsHtml = pl.items.map((b) => {
       const r = b.room, sw = p._switchables(r), lit = sw.filter((i) => p._isOn(i));
-      const lights = r.ents.filter((i) => dom(i) === "light").slice(0, 6);
+      // entities placed in the floor-plan editor (only meaningful when the room itself is drawn)
+      const placements = cfg.placements || {};
+      const placed = layout[r.id] ? r.ents.filter((i) => placements[i] && placements[i].f === lvOf(r)) : [];
+      const marks = placed.map((id) => {
+        const P = placements[id], ty = typeOf(P, id, p._s(id), p._meta?.[id] || {}), [icon, , kind] = DEVICE_TYPES[ty];
+        const pos = `left:${((P.x - b.x) / b.w) * 100}%;top:${((P.y - b.y) / b.d) * 100}%`;
+        const on = p._isOn(id) ? "on" : "";
+        if (kind === "thing") return `<div class="mk3 ${on}" data-mk="${esc(id)}" title="${esc(p._name(id))}" style="${pos}"><div class="mki"><ha-icon icon="${icon}"></ha-icon></div></div>`;
+        return `<i class="pin k-${kind} ${on}" data-pin="${esc(id)}" title="${esc(p._name(id))}" style="${pos}"></i>`;
+      }).join("");
+      const lights = r.ents.filter((i) => dom(i) === "light" && !placed.includes(i)).slice(0, 6);
       const c = p._roomClimate(r);
       const open = r.ents.some((i) => (dom(i) === "binary_sensor" && ["door", "window", "garage_door", "opening"].includes(p._s(i)?.attributes.device_class) && p._s(i).state === "on") || (dom(i) === "cover" && p._isOn(i)));
       // free shapes (from the floor-plan editor): one floor tile per cell, walls only on the outline
@@ -92,7 +103,7 @@ export function houseView(p, rooms) {
       const meta = [c.temp && c.temp.replace(/,\d/, "").replace(".", "").replace("°C", "°"), lit.length ? tp(lit.length, "{n} ligado", "{n} ligados") : null].filter(Boolean).join(" · ");
       return `<div class="r3 ${lit.length ? "lit" : ""} ${open ? "open" : ""} ${cells ? "shape" : ""}" data-room="${esc(r.id)}" style="left:${ox + b.x * U}px;top:${oy + b.y * U}px;width:${b.w * U}px;height:${b.d * U}px">
         ${shape}
-        ${pins}
+        ${pins}${marks}
         <div class="lbw" ${lbl}><div class="lb"><b>${esc(r.name)}</b>${meta ? `<small>${esc(meta)}</small>` : ""}</div></div>
       </div>`;
     }).join("");
@@ -162,8 +173,10 @@ export function bindHouse(p, root) {
   // clicks: pins toggle a light, rooms open, unless the pointer was dragging
   stage.addEventListener("click", (ev) => {
     if (moved) { ev.stopPropagation(); return; }
+    const mk = ev.target.closest("[data-mk]");
+    if (mk) { ev.stopPropagation(); p._openModal(mk.dataset.mk); return; }
     const pin = ev.target.closest("[data-pin]");
-    if (pin) { ev.stopPropagation(); p._call("light", "toggle", { entity_id: pin.dataset.pin }); return; }
+    if (pin) { ev.stopPropagation(); p._call("homeassistant", "toggle", { entity_id: pin.dataset.pin }); return; }
     const room = ev.target.closest("[data-room]");
     if (room) { ev.stopPropagation(); p._go("room", room.dataset.room); }
   }, true);
@@ -209,6 +222,16 @@ export const css3d = `
 .r3 .wl.ws.w{transform-origin:left;transform:rotateY(-90deg)}
 .r3 .wl.ws.e{transform-origin:right;transform:rotateY(90deg)}
 .pin{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.6);transform:translateZ(3px);cursor:pointer}
+.pin.k-ceiling{transform:translateZ(${WALL - 2}px);width:20px;height:20px;margin:-10px 0 0 -10px}
+.pin.k-ceiling.on{box-shadow:0 0 22px 8px var(--amber)}
+.pin.k-strip{width:44px;height:8px;margin:-4px 0 0 -22px;border-radius:4px}
+.pin.k-strip.on{box-shadow:0 0 16px 5px var(--amber)}
+.mk3{position:absolute;transform-style:preserve-3d;pointer-events:auto;cursor:pointer}
+.mki{transform:translateZ(16px) rotateZ(calc(var(--rz) * -1)) rotateX(calc(var(--rx) * -1)) translate(-50%,-50%);width:32px;height:32px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(25,14,28,.8);color:#fff;border:2px solid rgba(255,255,255,.45);box-shadow:0 4px 12px rgba(0,0,0,.4);transform-origin:0 0}
+.mki ha-icon{--mdc-icon-size:18px}
+.mk3.on .mki{background:var(--cream);color:var(--ink);border-color:#fff;box-shadow:0 0 16px color-mix(in srgb,var(--amber) 60%,transparent)}
+.r3.shape .mk3{pointer-events:auto}
 .pin.on{background:#fff;border-color:var(--amber);box-shadow:0 0 14px 4px var(--amber)}
 .lbw{position:absolute;left:50%;top:50%;transform-style:preserve-3d;transform:translateZ(${WALL + 26}px) rotateZ(calc(var(--rz) * -1)) rotateX(calc(var(--rx) * -1));pointer-events:none}
 .lb{transform:translate(-50%,-100%);white-space:nowrap;text-align:center;padding:6px 12px;border-radius:14px;background:rgba(20,10,22,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.14);line-height:1.2}

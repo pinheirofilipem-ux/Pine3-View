@@ -6,10 +6,11 @@
 import { esc } from "./const.js";
 import { t } from "./i18n.js";
 import { pack, autoSize } from "./house3d.js";
+import { DEVICE_TYPES, typeOf } from "./devtypes.js";
 
 export const COLS = 24;
 export const ROWS = 16;
-export const plan = { floor: null, armed: null, selected: null, extraFloors: [], tool: "move", brush: null };
+export const plan = { floor: null, armed: null, selected: null, extraFloors: [], tool: "move", brush: null, placeRoom: null, pmArmed: null, pmSel: null };
 
 const roomLevel = (r, layout) => layout[r.id]?.f ?? r.floor_level ?? 0;
 const key = (x, y) => `${x},${y}`;
@@ -52,6 +53,50 @@ export function autoLayout(rooms, sizes) {
 
 const pct = (v, n) => `${(v / n) * 100}%`;
 
+/** Entities that can be placed for a room: the ones visible on the panel. */
+export function placeable(p, d, r) {
+  if (r.entities) return r.entities.filter((e) => p._entShown(d, e) && p._s(e.id));
+  return (r.ents || []).filter((id) => p._s(id) && !id.startsWith("scene.")).map((id) => ({ id, name: p._name(id) }));
+}
+
+function markersHtml(p, d, rooms, lv) {
+  const pl = d.placements || {};
+  const metaOf = new Map(rooms.flatMap((r) => (r.entities || []).map((e) => [e.id, e])));
+  return Object.entries(pl).filter(([id, P]) => P.f === lv && p._s(id)).map(([id, P]) => {
+    const t = typeOf(P, id, p._s(id), metaOf.get(id) || {});
+    const name = metaOf.get(id)?.name || p._name(id);
+    return `<div class="pm ${plan.pmSel === id ? "sel" : ""} ${p._isOn(id) ? "on" : ""} k-${DEVICE_TYPES[t][2]}" data-pm="${esc(id)}" title="${esc(name)}" style="left:${pct(P.x, COLS)};top:${pct(P.y, ROWS)}">
+      <ha-icon icon="${DEVICE_TYPES[t][0]}"></ha-icon></div>`;
+  }).join("");
+}
+
+function placePanel(p, d, rooms, lv) {
+  const layout = d.house_layout || {};
+  const pl = d.placements || {};
+  const onFloor = rooms.filter((r) => layout[r.id]?.f === lv);
+  const pick = [...onFloor, ...rooms.filter((r) => !onFloor.includes(r))];
+  if (!plan.placeRoom || !rooms.some((r) => r.id === plan.placeRoom)) plan.placeRoom = (onFloor[0] || rooms[0])?.id;
+  const room = rooms.find((r) => r.id === plan.placeRoom);
+  const metaOf = new Map(rooms.flatMap((r) => (r.entities || []).map((e) => [e.id, e])));
+  const ents = room ? placeable(p, d, room) : [];
+  const sel = plan.pmSel && pl[plan.pmSel] ? plan.pmSel : null;
+  const selType = sel ? typeOf(pl[sel], sel, p._s(sel), metaOf.get(sel) || {}) : null;
+  return `
+    ${sel ? `<div class="psel">
+        <b><ha-icon icon="${DEVICE_TYPES[selType][0]}"></ha-icon>${esc(metaOf.get(sel)?.name || p._name(sel))}</b>
+        <button class="pill" data-pmremove><ha-icon icon="mdi:close"></ha-icon>${t("Tirar da planta")}</button>
+        <div class="ptypes">${Object.entries(DEVICE_TYPES).map(([k, [icon, label]]) => `<button class="pill ${k === selType ? "solid" : ""}" data-pmtype="${k}" title="${t(label)}"><ha-icon icon="${icon}"></ha-icon>${t(label)}</button>`).join("")}</div>
+      </div>` : ""}
+    <div class="sub">${t("Divisão")}</div>
+    <div class="seg">${pick.map((r) => `<button class="pill ${r.id === plan.placeRoom ? "solid" : ""}" data-proom="${esc(r.id)}"><ha-icon icon="${r.icon || "mdi:home-outline"}"></ha-icon>${esc(p._roomName(r))}</button>`).join("")}</div>
+    <div class="sub">${t("Dispositivos")}</div>
+    <div class="seg">${ents.length ? ents.map((e) => {
+      const tt = typeOf(pl[e.id], e.id, p._s(e.id), e);
+      const placed = !!pl[e.id];
+      return `<button class="pill ${plan.pmArmed === e.id ? "solid" : ""} ${placed ? "placed" : ""}" data-parment="${esc(e.id)}"><ha-icon icon="${DEVICE_TYPES[tt][0]}"></ha-icon>${esc(e.name)}${placed ? ` <ha-icon class="ok" icon="mdi:check"></ha-icon>` : ""}</button>`;
+    }).join("") : `<span class="phint">${t("Esta divisão não tem dispositivos visíveis.")}</span>`}</div>`;
+}
+
 function roomHtml(p, r, L, sel, clash) {
   const name = `<span class="pn"><ha-icon icon="${r.icon || "mdi:home-outline"}"></ha-icon>${esc(p._roomName(r))}</span>`;
   const box = `left:${pct(L.x, COLS)};top:${pct(L.y, ROWS)};width:${pct(L.w, COLS)};height:${pct(L.d, ROWS)}`;
@@ -89,10 +134,13 @@ export function planView(p, d, rooms) {
   }
   const rects = here.map((r) => roomHtml(p, r, layout[r.id], plan.selected === r.id, clash.has(r.id))).join("");
 
-  const tools = [["move", "mdi:cursor-move", t("Mover e redimensionar")], ["paint", "mdi:brush", t("Pintar quadrículas")], ["erase", "mdi:eraser", t("Apagar quadrículas")]];
+  const tools = [["move", "mdi:cursor-move", t("Mover e redimensionar")], ["paint", "mdi:brush", t("Pintar quadrículas")], ["erase", "mdi:eraser", t("Apagar quadrículas")], ["place", "mdi:map-marker-plus-outline", t("Dispositivos")]];
   const brushRooms = [...here, ...unplaced];
   const brushName = plan.brush ? p._roomName(rooms.find((r) => r.id === plan.brush)) : "";
-  const hint = plan.tool === "paint"
+  const armedName = plan.pmArmed ? (rooms.flatMap((r) => r.entities || []).find((e) => e.id === plan.pmArmed)?.name || p._name(plan.pmArmed)) : "";
+  const hint = plan.tool === "place"
+    ? (plan.pmArmed ? t("Toca na planta para pôr «{e}».", { e: esc(armedName) }) : t("Escolhe um dispositivo em baixo e toca na planta para o pôr. Arrasta os que já estão na planta para os mudar de sítio."))
+    : plan.tool === "paint"
     ? (plan.brush ? t("Toca ou arrasta nas quadrículas para as juntar a «{r}». Pintar por cima de outra divisão passa essas quadrículas para esta.", { r: esc(brushName) })
       : t("Escolhe em baixo a divisão a pintar."))
     : plan.tool === "erase" ? t("Toca ou arrasta nas quadrículas para as tirar da divisão.")
@@ -106,8 +154,9 @@ export function planView(p, d, rooms) {
         <button class="pill" data-pfloor-add><ha-icon icon="mdi:plus"></ha-icon>${t("Piso")}</button></div>
       <div class="seg ptools">${tools.map(([k, icon, label]) => `<button class="pill ${plan.tool === k ? "solid" : ""}" data-ptool="${k}"><ha-icon icon="${icon}"></ha-icon>${label}</button>`).join("")}</div>
       ${plan.tool === "paint" ? `<div class="seg">${brushRooms.map((r) => `<button class="pill ${plan.brush === r.id ? "solid" : ""}" data-pbrush="${esc(r.id)}"><ha-icon icon="${r.icon || "mdi:home-outline"}"></ha-icon>${esc(p._roomName(r))}</button>`).join("")}</div>` : ""}
-      <div class="pgrid tool-${plan.tool}" data-pgrid style="--cols:${COLS};--rows:${ROWS}">${rects}<div class="pdraw" hidden></div></div>
+      <div class="pgrid tool-${plan.tool}" data-pgrid style="--cols:${COLS};--rows:${ROWS}">${rects}${markersHtml(p, d, rooms, lv)}<div class="pdraw" hidden></div></div>
       <div class="phint">${hint}</div>
+      ${plan.tool === "place" ? placePanel(p, d, rooms, lv) : ""}
       ${sel && plan.tool === "move" ? `<div class="psel">
           <b><ha-icon icon="${sel.icon || "mdi:home-outline"}"></ha-icon>${esc(p._roomName(sel))}</b>
           <span class="seg sm">${levels.map((l) => `<button class="pill ${layout[sel.id].f === l ? "solid" : ""}" data-pmove="${l}">${esc(floorName(rooms, l))}</button>`).join("")}</span>
@@ -147,6 +196,11 @@ export function bindPlan(p, root, d, rooms) {
     upd();
   });
   on("[data-pbrush]", (el) => { plan.brush = el.dataset.pbrush; upd(); });
+  const placements = () => (d.placements = { ...(d.placements || {}) });
+  on("[data-proom]", (el) => { plan.placeRoom = el.dataset.proom; plan.pmArmed = null; upd(); });
+  on("[data-parment]", (el) => { const id = el.dataset.parment; plan.pmArmed = plan.pmArmed === id ? null : id; plan.pmSel = d.placements?.[id] ? id : null; upd(); });
+  on("[data-pmremove]", () => { const P = placements(); delete P[plan.pmSel]; plan.pmSel = null; upd(); });
+  on("[data-pmtype]", (el) => { const P = placements(); P[plan.pmSel] = { ...P[plan.pmSel], t: el.dataset.pmtype }; upd(); });
   on("[data-pshape]", () => { plan.tool = "paint"; plan.brush = plan.selected; upd(); });
   on("[data-parm]", (el) => { plan.armed = plan.armed === el.dataset.parm ? null : el.dataset.parm; plan.selected = null; upd(); });
   on("[data-pmove]", (el) => { const L = layout(); L[plan.selected] = { ...L[plan.selected], f: Number(el.dataset.pmove) }; plan.floor = Number(el.dataset.pmove); upd(); });
@@ -161,6 +215,7 @@ export function bindPlan(p, root, d, rooms) {
   gridEl().addEventListener("pointerdown", (ev) => {
     ev.preventDefault();
     if (plan.tool === "paint" || plan.tool === "erase") return paintStroke(ev);
+    if (plan.tool === "place") return placeGesture(ev);
     const start = unit(ev);
     const grid = gridEl();
     const rh = ev.target.closest("[data-rh]"), pr = ev.target.closest("[data-pr]");
@@ -219,6 +274,42 @@ export function bindPlan(p, root, d, rooms) {
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
   });
+
+  // Place: tap with an armed entity to put it down, or drag a marker to move it.
+  function placeGesture(ev) {
+    const snap = (v, max) => clamp(Math.round(v * 2) / 2, 0.5, max - 0.5);
+    const mk = ev.target.closest("[data-pm]");
+    const start = unit(ev);
+    if (!mk) {
+      if (!plan.pmArmed) { plan.pmSel = null; upd(); return; }
+      const P = placements();
+      P[plan.pmArmed] = { ...(P[plan.pmArmed] || {}), f: plan.floor, x: snap(start.x, COLS), y: snap(start.y, ROWS) };
+      plan.pmSel = plan.pmArmed; plan.pmArmed = null; upd();
+      return;
+    }
+    const id = mk.dataset.pm, orig = { ...(d.placements || {})[id] };
+    let moved = false, pos = null;
+    p._drag = true;
+    const move = (mv) => {
+      const u = unit(mv);
+      if (!moved && Math.hypot(u.x - start.x, u.y - start.y) < 0.25) return;
+      moved = true;
+      pos = { x: snap(orig.x + u.x - start.x, COLS), y: snap(orig.y + u.y - start.y, ROWS) };
+      const el = gridEl().querySelector(`[data-pm="${CSS.escape(id)}"]`);
+      if (el) { el.style.left = pct(pos.x, COLS); el.style.top = pct(pos.y, ROWS); el.classList.add("drag"); }
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      p._drag = null;
+      if (pos) { const P = placements(); P[id] = { ...orig, ...pos }; }
+      plan.pmSel = id; plan.pmArmed = null; upd();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  }
 
   // Paint / erase: every cell the pointer crosses is added to the brush room (taken away from
   // whichever room had it) or removed from its room.
@@ -285,6 +376,17 @@ export const cssPlan = `
 .tool-paint .rh,.tool-erase .rh{display:none}
 .pdraw{position:absolute;border:2px dashed var(--amber);border-radius:10px;background:color-mix(in srgb,var(--amber) 20%,transparent);pointer-events:none}
 .phint{color:var(--muted);font-size:14px;margin-top:10px}
+.pm{position:absolute;z-index:3;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;display:grid;place-items:center;background:rgba(30,18,32,.85);color:#fff;border:2px solid rgba(255,255,255,.5);pointer-events:none;box-shadow:0 3px 10px rgba(0,0,0,.35)}
+.pm ha-icon{--mdc-icon-size:17px}
+.pm.on.k-light,.pm.on.k-ceiling,.pm.on.k-strip{background:var(--amber);color:var(--ink);border-color:#fff;box-shadow:0 0 14px var(--amber)}
+.pm.sel{border-color:var(--amber);box-shadow:0 0 0 4px color-mix(in srgb,var(--amber) 40%,transparent)}
+.pm.drag{transform:scale(1.2)}
+.tool-place .pm{pointer-events:auto;cursor:grab}
+.tool-place .pr,.tool-place .pc{opacity:.75;cursor:copy}
+.ptypes{display:flex;flex-wrap:wrap;gap:6px;width:100%}
+.ptypes .pill{height:34px;font-size:13px;padding:0 12px}
+.pill.placed{border-color:color-mix(in srgb,var(--amber) 60%,transparent)}
+.pill .ok{--mdc-icon-size:16px;color:var(--amber)}
 .psel{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px;padding:12px 14px;border-radius:18px;background:rgba(255,255,255,.06)}
 .psel b{display:flex;align-items:center;gap:8px;font-size:16px}
 .psel .seg.sm{flex-wrap:wrap}

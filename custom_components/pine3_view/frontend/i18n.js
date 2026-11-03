@@ -110,4 +110,12 @@ export const EN = {
   "Escolhe em baixo a divisão a pintar.": "Pick the room to paint below.",
   "Toca ou arrasta nas quadrículas para as tirar da divisão.": "Tap or drag over cells to remove them from their room.",
   "Editar forma": "Edit shape",
+  // placing devices on the plan
+  "Divisão": "Room", "Esta divisão não tem dispositivos visíveis.": "This room has no visible devices.",
+  "Toca na planta para pôr «{e}».": "Tap the plan to place “{e}”.",
+  "Escolhe um dispositivo em baixo e toca na planta para o pôr. Arrasta os que já estão na planta para os mudar de sítio.": "Pick a device below and tap the plan to place it. Drag the ones already on the plan to move them.",
+  "Luz de teto": "Ceiling light", "Candeeiro": "Lamp", "Fita LED": "LED strip", "Spot": "Spotlight", "Lâmpada": "Bulb",
+  "TV": "TV", "Apple TV": "Apple TV", "HomePod": "HomePod", "Coluna": "Speaker", "Ar condicionado": "Air conditioner",
+  "Ventoinha": "Fan", "Estore": "Blind", "Porta": "Door", "Janela": "Window", "Tomada": "Plug", "Sensor": "Sensor",
+  "Câmara": "Camera", "Fechadura": "Lock", "Aspirador": "Vacuum", "Outro": "Other",
 };
