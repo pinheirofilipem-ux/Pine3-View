@@ -151,3 +151,45 @@ async def test_settings_validation(hass: HomeAssistant, hass_ws_client) -> None:
     await ws.send_json({"id": 4, "type": "pine3_view/home"})
     home = (await ws.receive_json())["result"]
     assert home["version"] and home["settings"]["card_color"] == "#e6dcc2"
+
+
+async def test_v05_settings(hass: HomeAssistant, hass_ws_client) -> None:
+    await async_setup_api(hass)
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "pine3_view/settings", "language": "en", "layout": "list", "screensaver": 5,
+                        "weather_entity": "open-meteo", "big_rooms": ["sala"], "device_order": {"sala": ["light.a", "light.b"]},
+                        "house_size": {"sala": 3}})
+    msg = await ws.receive_json()
+    assert msg["success"], msg
+    res = msg["result"]
+    assert res["language"] == "en" and res["layout"] == "list" and res["house_size"] == {"sala": 3}
+    assert "house" in res["dock"]
+
+    for bad_id, bad in enumerate([{"language": "fr"}, {"layout": "masonry"}, {"house_size": {"sala": 9}},
+                                  {"weather_entity": "sensor.x"}, {"screensaver": -1}], start=2):
+        await ws.send_json({"id": bad_id, "type": "pine3_view/settings", **bad})
+        assert not (await ws.receive_json())["success"], bad
+
+
+async def test_dock_migration(hass: HomeAssistant, hass_storage) -> None:
+    hass_storage["pine3_view.settings"] = {"version": 1, "key": "pine3_view.settings",
+                                           "data": {"dock": ["home", "scenes"], "theme": "noite"}}
+    await async_setup_api(hass)
+    s = hass.data["pine3_view"]["settings"]
+    assert s["dock"] == ["home", "house", "scenes"]
+    assert s["theme"] == "noite" and s["settings_version"] == 2
+
+
+async def test_floor_level(hass: HomeAssistant) -> None:
+    from homeassistant.helpers import floor_registry as fr
+
+    h = await _setup_home(hass)
+    floor = fr.async_get(hass).async_create("Primeiro andar", level=1)
+    areas = ar.async_get(hass)
+    sala = areas.async_get_area_by_name("Sala")
+    areas.async_update(sala.id, floor_id=floor.floor_id)
+    home = build_home(hass, {"hidden": [], "hidden_rooms": [], "room_order": []})
+    rooms = {r["name"]: r for r in home["rooms"]}
+    assert rooms["Sala"]["floor_level"] == 1 and rooms["Sala"]["floor"] == "Primeiro andar"
+    assert rooms["Cozinha"]["floor_level"] == 0
+    assert h["lamp_id"]

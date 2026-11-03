@@ -28,9 +28,18 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "show_status": True,
     "show_scenes": True,
     "show_summary": True,
-    "dock": ["home", "rooms", "scenes"],
+    "dock": ["home", "rooms", "house", "scenes"],
+    "language": "pt",
+    "layout": "grid",
+    "weather_entity": "",
+    "screensaver": 0,
+    "big_rooms": [],
+    "big_devices": [],
+    "device_order": {},
+    "house_size": {},
+    "settings_version": 2,
 }
-DOCK_ITEMS = ["home", "rooms", "scenes", "security"]
+DOCK_ITEMS = ["home", "rooms", "house", "scenes", "security"]
 COLOR = vol.Match(r"^#[0-9a-fA-F]{6}$")
 REGISTRY_EVENTS = (
     "area_registry_updated",
@@ -42,7 +51,14 @@ REGISTRY_EVENTS = (
 
 async def async_setup_api(hass: HomeAssistant) -> None:
     store: Store = Store(hass, 1, STORAGE_KEY)
-    settings = {**DEFAULT_SETTINGS, **(await store.async_load() or {})}
+    stored = await store.async_load() or {}
+    settings = {**DEFAULT_SETTINGS, **stored}
+    if stored and stored.get("settings_version", 1) < 2:
+        # v0.5 adds the 3D Home: show it in the dock of existing installs once.
+        if "house" not in settings["dock"]:
+            settings["dock"] = [d for d in DOCK_ITEMS if d in settings["dock"] or d == "house"]
+        settings["settings_version"] = 2
+        await store.async_save(settings)
     hass.data[DOMAIN] = {"store": store, "settings": settings, "unsubs": []}
 
     websocket_api.async_register_command(hass, ws_home)
@@ -115,6 +131,15 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         vol.Optional("show_scenes"): bool,
         vol.Optional("show_summary"): bool,
         vol.Optional("dock"): [vol.In(DOCK_ITEMS)],
+        vol.Optional("language"): vol.In(["pt", "en"]),
+        vol.Optional("layout"): vol.In(["grid", "list"]),
+        vol.Optional("weather_entity"): vol.Any("", "open-meteo", vol.Match(r"^weather\.[a-z0-9_]+$")),
+        vol.Optional("screensaver"): vol.All(int, vol.Range(min=0, max=240)),
+        vol.Optional("big_rooms"): [str],
+        vol.Optional("big_devices"): [str],
+        vol.Optional("device_order"): {str: [str]},
+        vol.Optional("house_size"): {str: vol.In([1, 2, 3])},
+        vol.Optional("settings_version"): int,
     }
 )
 @websocket_api.async_response

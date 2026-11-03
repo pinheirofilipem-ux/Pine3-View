@@ -21,12 +21,21 @@ reinicia e faz um refresh forçado ao browser (Ctrl+Shift+R).
 ### Instalação manual
 Copia `custom_components/pine3_view` para `/config/custom_components/`, reinicia e adiciona a integração.
 
+## Funcionalidades
+- **Início**: relógio, tempo (toca para ver a previsão), pessoas, estado da casa, cenas, cartões de divisão e resumo (Clima, Segurança, A tocar).
+- **Tempo**: usa a entidade de tempo do Home Assistant ou, se não houver, a [Open-Meteo](https://open-meteo.com) para a localização da casa (sem chave). Previsão das próximas 12 horas e 7 dias.
+- **Casa 3D**: cada divisão é um bloco, empilhado por piso (pisos do HA). As divisões acesas brilham, as luzes aparecem como pontos que podes ligar/desligar, arrasta para rodar, toca numa divisão para a abrir.
+- **Modo de edição** (lápis ✎): arrasta para reordenar divisões e dispositivos, toca em − para esconder, nas setas para duplicar o tamanho (um cartão de divisão duplo mostra atalhos para os dispositivos).
+- **Disposição**: Grelha ou Lista.
+- **Ecrã de descanso**: relógio grande e escurecido após 1–30 min sem toques.
+- **Idioma**: Português ou English, escolhido nas definições.
+
 ## Definições
 Botão ⚙ no canto superior direito:
-- **Aparência**: cor dos cartões, cor de destaque e fundo, com pré-visualização ao vivo.
-- **Início**: meteorologia, pessoas, estado da casa, cenas, cartões de resumo e relógio 12/24 h.
-- **Divisões**: ordenar e esconder divisões; voltar a mostrar dispositivos escondidos.
-- **Navegação**: botões do dock (Divisões, Cenas, Segurança).
+- **Aparência**: idioma, disposição, cor dos cartões, cor de destaque e fundo, com pré-visualização ao vivo.
+- **Início**: meteorologia e fonte do tempo, pessoas, estado da casa, cenas, cartões de resumo, relógio 12/24 h e ecrã de descanso.
+- **Divisões**: ordenar, esconder e escolher o tamanho de cada divisão na Casa 3D; voltar a mostrar dispositivos escondidos.
+- **Navegação**: botões do dock (Divisões, Casa 3D, Cenas, Segurança).
 - **Sistema**: versão, contagens, reconstruir agora, repor predefinições.
 
 As definições ficam guardadas no Home Assistant e valem para todos os dispositivos.
@@ -53,7 +62,7 @@ pytest
 ```
 
 ## Roadmap
-Modo de edição (arrastar, mudar tamanho), ecrã de descanso, layouts alternativos.
+Plantas 3D com posições desenhadas à mão, câmaras no início, leitor Spotify.
 
 ## Licença
 MIT (ver `LICENSE`). As fontes Outfit e Figtree estão sob a SIL Open Font License 1.1.
