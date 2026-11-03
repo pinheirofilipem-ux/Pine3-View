@@ -241,3 +241,15 @@ async def test_panel_setup_and_reload(hass: HomeAssistant) -> None:
     assert hass.http.async_register_static_paths.await_count == 1
     path = hass.http.async_register_static_paths.await_args.args[0][0]
     assert path.url_path == f"/pine3_view_static/{VERSION}"
+
+
+async def test_layout_cells(hass: HomeAssistant, hass_ws_client) -> None:
+    await async_setup_api(hass)
+    ws = await hass_ws_client(hass)
+    l_shape = {"f": 0, "x": 0, "y": 0, "w": 3, "d": 3, "cells": [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]]}
+    await ws.send_json({"id": 1, "type": "pine3_view/settings", "house_layout": {"sala": l_shape}})
+    msg = await ws.receive_json()
+    assert msg["success"] and msg["result"]["house_layout"]["sala"]["cells"] == l_shape["cells"]
+    for n, bad in enumerate([[[0]], [[0, 0, 0]], [[-1, 2]], []], start=2):
+        await ws.send_json({"id": n, "type": "pine3_view/settings", "house_layout": {"sala": {**l_shape, "cells": bad}}})
+        assert not (await ws.receive_json())["success"], bad

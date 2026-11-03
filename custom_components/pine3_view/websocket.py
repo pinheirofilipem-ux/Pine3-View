@@ -148,6 +148,11 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
                 vol.Required("y"): vol.All(int, vol.Range(min=0, max=60)),
                 vol.Required("w"): vol.All(int, vol.Range(min=1, max=30)),
                 vol.Required("d"): vol.All(int, vol.Range(min=1, max=30)),
+                # free-shape rooms: the grid cells they cover
+                vol.Optional("cells"): vol.All(
+                    [vol.All([vol.All(int, vol.Range(min=0, max=60))], vol.Length(min=2, max=2))],
+                    vol.Length(min=1, max=1000),
+                ),
             }
         },
         vol.Optional("shown"): [str],

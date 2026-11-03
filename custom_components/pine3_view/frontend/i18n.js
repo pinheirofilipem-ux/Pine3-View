@@ -105,4 +105,9 @@ export const EN = {
   "Piso": "Floor", "Desenha um retângulo na grelha para colocar «{r}».": "Draw a rectangle on the grid to place “{r}”.",
   "Arrasta uma divisão para a mover e o canto para a redimensionar. Para colocar uma divisão nova, escolhe-a em baixo e desenha-a na grelha.": "Drag a room to move it and its corner to resize it. To place a new room, pick it below and draw it on the grid.",
   "Tirar da planta": "Remove from plan", "Por colocar": "Not placed yet", "Gerar planta automática": "Generate automatic plan", "Limpar este piso": "Clear this floor",
+  "Mover e redimensionar": "Move and resize", "Pintar quadrículas": "Paint cells", "Apagar quadrículas": "Erase cells",
+  "Toca ou arrasta nas quadrículas para as juntar a «{r}». Pintar por cima de outra divisão passa essas quadrículas para esta.": "Tap or drag over cells to add them to “{r}”. Painting over another room moves those cells to this one.",
+  "Escolhe em baixo a divisão a pintar.": "Pick the room to paint below.",
+  "Toca ou arrasta nas quadrículas para as tirar da divisão.": "Tap or drag over cells to remove them from their room.",
+  "Editar forma": "Edit shape",
 };
