@@ -39,9 +39,14 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "house_size": {},
     "house_layout": {},
     "shown": [],
+    "placements": {},
     "settings_version": 2,
 }
 DOCK_ITEMS = ["home", "rooms", "house", "scenes", "security"]
+DEVICE_TYPES = [
+    "ceiling", "lamp", "led", "spot", "bulb", "tv", "appletv", "homepod", "speaker", "ac", "fan",
+    "blind", "door", "window", "plug", "sensor", "motion", "camera", "lock", "vacuum", "other",
+]
 COLOR = vol.Match(r"^#[0-9a-fA-F]{6}$")
 REGISTRY_EVENTS = (
     "area_registry_updated",
@@ -148,9 +153,23 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
                 vol.Required("y"): vol.All(int, vol.Range(min=0, max=60)),
                 vol.Required("w"): vol.All(int, vol.Range(min=1, max=30)),
                 vol.Required("d"): vol.All(int, vol.Range(min=1, max=30)),
+                # free-shape rooms: the grid cells they cover
+                vol.Optional("cells"): vol.All(
+                    [vol.All([vol.All(int, vol.Range(min=0, max=60))], vol.Length(min=2, max=2))],
+                    vol.Length(min=1, max=1000),
+                ),
             }
         },
         vol.Optional("shown"): [str],
+        # entities placed on the floor plan: floor, position in grid units, optional device type
+        vol.Optional("placements"): {
+            str: {
+                vol.Required("f"): vol.All(int, vol.Range(min=-5, max=20)),
+                vol.Required("x"): vol.All(vol.Coerce(float), vol.Range(min=0, max=60)),
+                vol.Required("y"): vol.All(vol.Coerce(float), vol.Range(min=0, max=60)),
+                vol.Optional("t"): vol.In(DEVICE_TYPES),
+            }
+        },
         vol.Optional("settings_version"): int,
     }
 )

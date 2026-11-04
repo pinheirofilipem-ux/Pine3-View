@@ -3,6 +3,7 @@
 
 import { esc, dom } from "./const.js";
 import { t, tp } from "./i18n.js";
+import { DEVICE_TYPES, typeOf } from "./devtypes.js";
 
 const U = 56; // px per layout unit
 const WALL = 30; // wall height in px
@@ -60,20 +61,50 @@ export function houseView(p, rooms) {
     const ox = drawn ? 0 : ((W - pl.W) / 2) * U, oy = drawn ? 0 : ((D - pl.D) / 2) * U;
     const roomsHtml = pl.items.map((b) => {
       const r = b.room, sw = p._switchables(r), lit = sw.filter((i) => p._isOn(i));
-      const lights = r.ents.filter((i) => dom(i) === "light").slice(0, 6);
+      // entities placed in the floor-plan editor (only meaningful when the room itself is drawn)
+      const placements = cfg.placements || {};
+      const placed = layout[r.id] ? r.ents.filter((i) => placements[i] && placements[i].f === lvOf(r)) : [];
+      const marks = placed.map((id) => {
+        const P = placements[id], ty = typeOf(P, id, p._s(id), p._meta?.[id] || {}), [icon, , kind] = DEVICE_TYPES[ty];
+        const pos = `left:${((P.x - b.x) / b.w) * 100}%;top:${((P.y - b.y) / b.d) * 100}%`;
+        const on = p._isOn(id) ? "on" : "";
+        if (kind === "thing") return `<div class="mk3 ${on}" data-mk="${esc(id)}" title="${esc(p._name(id))}" style="${pos}"><div class="mki"><ha-icon icon="${icon}"></ha-icon></div></div>`;
+        return `<i class="pin k-${kind} ${on}" data-pin="${esc(id)}" title="${esc(p._name(id))}" style="${pos}"></i>`;
+      }).join("");
+      const lights = r.ents.filter((i) => dom(i) === "light" && !placed.includes(i)).slice(0, 6);
       const c = p._roomClimate(r);
       const open = r.ents.some((i) => (dom(i) === "binary_sensor" && ["door", "window", "garage_door", "opening"].includes(p._s(i)?.attributes.device_class) && p._s(i).state === "on") || (dom(i) === "cover" && p._isOn(i)));
+      // free shapes (from the floor-plan editor): one floor tile per cell, walls only on the outline
+      const cells = b.cells ? b.cells.map(([x, y]) => [x - b.x, y - b.y]) : null;
+      let shape = `<div class="fl"></div><div class="wl n"></div><div class="wl s"></div><div class="wl e"></div><div class="wl w"></div>`;
+      let spots = null, lbl = "";
+      if (cells) {
+        const set = new Set(cells.map(([x, y]) => x + "," + y));
+        const has = (x, y) => set.has(x + "," + y);
+        shape = cells.map(([x, y]) => {
+          const L = x * U, T = y * U;
+          return `<div class="fl c" style="left:${L}px;top:${T}px;width:${U}px;height:${U}px"></div>`
+            + (has(x, y - 1) ? "" : `<div class="wl ws n" style="left:${L}px;top:${T}px;width:${U}px;height:${WALL}px"></div>`)
+            + (has(x, y + 1) ? "" : `<div class="wl ws s" style="left:${L}px;top:${T + U - WALL}px;width:${U}px;height:${WALL}px"></div>`)
+            + (has(x - 1, y) ? "" : `<div class="wl ws w" style="left:${L}px;top:${T}px;width:${WALL}px;height:${U}px"></div>`)
+            + (has(x + 1, y) ? "" : `<div class="wl ws e" style="left:${L + U - WALL}px;top:${T}px;width:${WALL}px;height:${U}px"></div>`);
+        }).join("");
+        spots = lights.map((_, n) => cells[Math.floor(((n + 0.5) * cells.length) / Math.max(1, lights.length))]).map(([x, y]) => [((x + 0.5) / b.w) * 100, ((y + 0.5) / b.d) * 100]);
+        // label over the cell closest to the shape's centre of mass
+        const cx = cells.reduce((a, c) => a + c[0], 0) / cells.length, cy = cells.reduce((a, c) => a + c[1], 0) / cells.length;
+        const [mx, my] = cells.reduce((best, c) => (Math.hypot(c[0] - cx, c[1] - cy) < Math.hypot(best[0] - cx, best[1] - cy) ? c : best), cells[0]);
+        lbl = `style="left:${(mx + 0.5) * U}px;top:${(my + 0.5) * U}px"`;
+      }
       const cols = Math.min(3, Math.max(1, lights.length));
       const pins = lights.map((id, n) => {
-        const px = ((n % cols) + 1) / (cols + 1) * 100, py = (Math.floor(n / cols) + 1) / (Math.ceil(lights.length / cols) + 1) * 100;
+        const [px, py] = spots ? spots[n] : [((n % cols) + 1) / (cols + 1) * 100, (Math.floor(n / cols) + 1) / (Math.ceil(lights.length / cols) + 1) * 100];
         return `<i class="pin ${p._isOn(id) ? "on" : ""}" data-pin="${esc(id)}" title="${esc(p._name(id))}" style="left:${px}%;top:${py}%"></i>`;
       }).join("");
       const meta = [c.temp && c.temp.replace(/,\d/, "").replace(".", "").replace("°C", "°"), lit.length ? tp(lit.length, "{n} ligado", "{n} ligados") : null].filter(Boolean).join(" · ");
-      return `<div class="r3 ${lit.length ? "lit" : ""} ${open ? "open" : ""}" data-room="${esc(r.id)}" style="left:${ox + b.x * U}px;top:${oy + b.y * U}px;width:${b.w * U}px;height:${b.d * U}px">
-        <div class="fl"></div>
-        <div class="wl n"></div><div class="wl s"></div><div class="wl e"></div><div class="wl w"></div>
-        ${pins}
-        <div class="lbw"><div class="lb"><b>${esc(r.name)}</b>${meta ? `<small>${esc(meta)}</small>` : ""}</div></div>
+      return `<div class="r3 ${lit.length ? "lit" : ""} ${open ? "open" : ""} ${cells ? "shape" : ""}" data-room="${esc(r.id)}" style="left:${ox + b.x * U}px;top:${oy + b.y * U}px;width:${b.w * U}px;height:${b.d * U}px">
+        ${shape}
+        ${pins}${marks}
+        <div class="lbw" ${lbl}><div class="lb"><b>${esc(r.name)}</b>${meta ? `<small>${esc(meta)}</small>` : ""}</div></div>
       </div>`;
     }).join("");
     return `<div class="fl3" style="transform:translateZ(${z}px)">
@@ -142,8 +173,10 @@ export function bindHouse(p, root) {
   // clicks: pins toggle a light, rooms open, unless the pointer was dragging
   stage.addEventListener("click", (ev) => {
     if (moved) { ev.stopPropagation(); return; }
+    const mk = ev.target.closest("[data-mk]");
+    if (mk) { ev.stopPropagation(); p._openModal(mk.dataset.mk); return; }
     const pin = ev.target.closest("[data-pin]");
-    if (pin) { ev.stopPropagation(); p._call("light", "toggle", { entity_id: pin.dataset.pin }); return; }
+    if (pin) { ev.stopPropagation(); p._call("homeassistant", "toggle", { entity_id: pin.dataset.pin }); return; }
     const room = ev.target.closest("[data-room]");
     if (room) { ev.stopPropagation(); p._go("room", room.dataset.room); }
   }, true);
@@ -164,8 +197,10 @@ export const css3d = `
 .stage{position:relative;margin-top:20px;border-radius:32px;height:min(68vh,640px);min-height:380px;overflow:hidden;perspective:1600px;perspective-origin:50% 35%;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 .stage.dragging{cursor:grabbing}
 .scene3d{position:absolute;left:50%;top:52%;transform-style:preserve-3d;transform:translate(-50%,-50%) scale(var(--sc)) rotateX(var(--rx)) rotateZ(var(--rz)) translateZ(calc(var(--stack) / -2));transition:transform .08s linear}
-.fl3{position:absolute;inset:0;transform-style:preserve-3d}
-.slab{position:absolute;left:-18px;top:-18px;border-radius:18px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 60px rgba(0,0,0,.35);transform:translateZ(-2px)}
+.fl3{position:absolute;inset:0;transform-style:preserve-3d;pointer-events:none}
+.fl3 .r3{pointer-events:auto}
+.fl3 .r3.shape{pointer-events:none}
+.slab{position:absolute;left:-18px;top:-18px;pointer-events:none;border-radius:18px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 60px rgba(0,0,0,.35);transform:translateZ(-2px)}
 .r3{position:absolute;transform-style:preserve-3d;cursor:pointer;padding:3px}
 .r3 .fl{position:absolute;inset:3px;border-radius:10px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);transition:background .3s,box-shadow .3s}
 .r3:hover .fl{background:rgba(255,255,255,.16)}
@@ -177,7 +212,26 @@ export const css3d = `
 .r3 .wl.s{left:3px;right:3px;bottom:3px;height:${WALL}px;transform-origin:bottom;transform:rotateX(-90deg)}
 .r3 .wl.w{top:3px;bottom:3px;left:3px;width:${WALL}px;transform-origin:left;transform:rotateY(-90deg)}
 .r3 .wl.e{top:3px;bottom:3px;right:3px;width:${WALL}px;transform-origin:right;transform:rotateY(90deg)}
+.r3.shape{padding:0;pointer-events:none}
+.r3.shape .fl.c{inset:auto;border-radius:0;border:0;pointer-events:auto}
+.r3.shape.lit .fl.c{background:color-mix(in srgb,var(--amber) 62%,rgba(255,255,255,.25));box-shadow:none}
+.r3.shape .pin{pointer-events:auto}
+.r3 .wl.ws{right:auto;bottom:auto}
+.r3 .wl.ws.n{transform-origin:top;transform:rotateX(90deg)}
+.r3 .wl.ws.s{transform-origin:bottom;transform:rotateX(-90deg)}
+.r3 .wl.ws.w{transform-origin:left;transform:rotateY(-90deg)}
+.r3 .wl.ws.e{transform-origin:right;transform:rotateY(90deg)}
 .pin{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.6);transform:translateZ(3px);cursor:pointer}
+.pin.k-ceiling{transform:translateZ(${WALL - 2}px);width:20px;height:20px;margin:-10px 0 0 -10px}
+.pin.k-ceiling.on{box-shadow:0 0 22px 8px var(--amber)}
+.pin.k-strip{width:44px;height:8px;margin:-4px 0 0 -22px;border-radius:4px}
+.pin.k-strip.on{box-shadow:0 0 16px 5px var(--amber)}
+.mk3{position:absolute;transform-style:preserve-3d;pointer-events:auto;cursor:pointer}
+.mki{transform:translateZ(16px) rotateZ(calc(var(--rz) * -1)) rotateX(calc(var(--rx) * -1)) translate(-50%,-50%);width:32px;height:32px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(25,14,28,.8);color:#fff;border:2px solid rgba(255,255,255,.45);box-shadow:0 4px 12px rgba(0,0,0,.4);transform-origin:0 0}
+.mki ha-icon{--mdc-icon-size:18px}
+.mk3.on .mki{background:var(--cream);color:var(--ink);border-color:#fff;box-shadow:0 0 16px color-mix(in srgb,var(--amber) 60%,transparent)}
+.r3.shape .mk3{pointer-events:auto}
 .pin.on{background:#fff;border-color:var(--amber);box-shadow:0 0 14px 4px var(--amber)}
 .lbw{position:absolute;left:50%;top:50%;transform-style:preserve-3d;transform:translateZ(${WALL + 26}px) rotateZ(calc(var(--rz) * -1)) rotateX(calc(var(--rx) * -1));pointer-events:none}
 .lb{transform:translate(-50%,-100%);white-space:nowrap;text-align:center;padding:6px 12px;border-radius:14px;background:rgba(20,10,22,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.14);line-height:1.2}

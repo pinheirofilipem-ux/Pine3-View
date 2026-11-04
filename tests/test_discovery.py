@@ -220,3 +220,60 @@ async def test_layout_settings(hass: HomeAssistant, hass_ws_client) -> None:
     assert msg["success"] and msg["result"]["house_layout"]["sala"]["w"] == 5
     await ws.send_json({"id": 2, "type": "pine3_view/settings", "house_layout": {"sala": {"f": 0, "x": 0, "y": 0, "w": 0, "d": 4}}})
     assert not (await ws.receive_json())["success"]
+
+
+async def test_panel_setup_and_reload(hass: HomeAssistant) -> None:
+    """The panel is served from a versioned path and the entry can be reloaded."""
+    from unittest.mock import AsyncMock, patch
+
+    from custom_components.pine3_view import async_setup_entry, async_unload_entry
+    from custom_components.pine3_view.const import DOMAIN, VERSION
+
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    hass.http = AsyncMock()
+    with patch("homeassistant.components.panel_custom.async_register_panel", new=AsyncMock()) as reg, \
+         patch("homeassistant.components.frontend.async_remove_panel"):
+        assert await async_setup_entry(hass, entry)
+        assert await async_unload_entry(hass, entry)
+        assert await async_setup_entry(hass, entry)
+    assert reg.call_args.kwargs["module_url"] == f"/pine3_view_static/{VERSION}/pine3-view-panel.js"
+    assert hass.http.async_register_static_paths.await_count == 1
+    path = hass.http.async_register_static_paths.await_args.args[0][0]
+    assert path.url_path == f"/pine3_view_static/{VERSION}"
+
+
+async def test_layout_cells(hass: HomeAssistant, hass_ws_client) -> None:
+    await async_setup_api(hass)
+    ws = await hass_ws_client(hass)
+    l_shape = {"f": 0, "x": 0, "y": 0, "w": 3, "d": 3, "cells": [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]]}
+    await ws.send_json({"id": 1, "type": "pine3_view/settings", "house_layout": {"sala": l_shape}})
+    msg = await ws.receive_json()
+    assert msg["success"] and msg["result"]["house_layout"]["sala"]["cells"] == l_shape["cells"]
+    for n, bad in enumerate([[[0]], [[0, 0, 0]], [[-1, 2]], []], start=2):
+        await ws.send_json({"id": n, "type": "pine3_view/settings", "house_layout": {"sala": {**l_shape, "cells": bad}}})
+        assert not (await ws.receive_json())["success"], bad
+
+
+async def test_placements(hass: HomeAssistant, hass_ws_client) -> None:
+    await async_setup_api(hass)
+    ws = await hass_ws_client(hass)
+    pl = {"light.sala_teto": {"f": 0, "x": 2.5, "y": 1.5, "t": "ceiling"}, "media_player.tv": {"f": 0, "x": 3, "y": 4}}
+    await ws.send_json({"id": 1, "type": "pine3_view/settings", "placements": pl})
+    msg = await ws.receive_json()
+    assert msg["success"] and msg["result"]["placements"]["light.sala_teto"]["t"] == "ceiling"
+    for n, bad in enumerate([{"f": 0, "x": 99, "y": 1}, {"f": 0, "x": 1, "y": 1, "t": "rocket"}, {"x": 1, "y": 1}], start=2):
+        await ws.send_json({"id": n, "type": "pine3_view/settings", "placements": {"light.a": bad}})
+        assert not (await ws.receive_json())["success"], bad
+
+
+def test_device_type_lists_match() -> None:
+    """The server's allowed device types are the same as the panel's catalogue."""
+    import re
+    from pathlib import Path
+
+    from custom_components.pine3_view.websocket import DEVICE_TYPES
+
+    js = (Path(__file__).parents[1] / "custom_components/pine3_view/frontend/devtypes.js").read_text()
+    block = js[js.index("DEVICE_TYPES = {"):js.index("};", js.index("DEVICE_TYPES = {"))]
+    assert re.findall(r"^\s+(\w+): \[", block, re.M) == DEVICE_TYPES
