@@ -6,8 +6,8 @@ import { t, tp } from "./i18n.js";
 import { DEVICE_TYPES, typeOf } from "./devtypes.js";
 
 const U = 56; // px per layout unit
-const WALL = 30; // wall height in px
-const FLOOR_GAP = 150; // vertical distance between floors when all are shown
+export const WALL_DEFAULT = 30; // wall height in px (Settings > 3D floor plan > Wall height)
+const SLAB_MARGIN = 14; // floor slab margin around the rooms, in px
 const SIZES = { 1: [2, 2], 2: [3, 2], 3: [4, 3] };
 
 export const view3d = { rx: 58, rz: -38, floor: "all" };
@@ -50,15 +50,23 @@ export function houseView(p, rooms) {
     const auto = pack(onFloor.filter((r) => !layout[r.id]), cfg.house_size || {});
     const ox = placed.length ? Math.max(...placed.map((b) => b.x + b.w)) + 1 : 0;
     const items = [...placed, ...auto.items.map((b) => ({ ...b, x: b.x + ox }))];
-    return { lv, items, W: Math.max(1, ...items.map((b) => b.x + b.w)), D: Math.max(1, ...items.map((b) => b.y + b.d)) };
+    const x0 = items.length ? Math.min(...items.map((b) => b.x)) : 0, y0 = items.length ? Math.min(...items.map((b) => b.y)) : 0;
+    const x1 = Math.max(x0 + 1, ...items.map((b) => b.x + b.w)), y1 = Math.max(y0 + 1, ...items.map((b) => b.y + b.d));
+    return { lv, items, x0, y0, x1, y1, W: x1 - x0, D: y1 - y0 };
   });
-  const W = Math.max(...plans.map((pl) => pl.W), 1), D = Math.max(...plans.map((pl) => pl.D), 1);
+  // Drawn plans share one coordinate system across floors: crop it to the rooms actually used,
+  // so the scene (and each floor slab) is only as big as the house, not the whole editor grid.
+  const drawn = Object.keys(layout).length > 0;
+  const gx0 = drawn ? Math.min(...plans.map((pl) => pl.x0)) : 0, gy0 = drawn ? Math.min(...plans.map((pl) => pl.y0)) : 0;
+  const W = drawn ? Math.max(...plans.map((pl) => pl.x1)) - gx0 : Math.max(...plans.map((pl) => pl.W), 1);
+  const D = drawn ? Math.max(...plans.map((pl) => pl.y1)) - gy0 : Math.max(...plans.map((pl) => pl.D), 1);
+  const wall = Math.max(8, Math.min(120, cfg.wall_height || WALL_DEFAULT));
+  const gap = Math.max(110, wall + 100); // distance between floors when all are shown
 
   const floorsHtml = plans.map((pl, k) => {
-    const z = k * FLOOR_GAP;
-    // drawn plans share one coordinate system across floors; only automatic plans are centred
-    const drawn = Object.keys(layout).length > 0;
-    const ox = drawn ? 0 : ((W - pl.W) / 2) * U, oy = drawn ? 0 : ((D - pl.D) / 2) * U;
+    const z = k * gap;
+    // drawn plans keep their shared coordinates (cropped); automatic plans are centred
+    const ox = drawn ? -gx0 * U : ((W - pl.W) / 2 - pl.x0) * U, oy = drawn ? -gy0 * U : ((D - pl.D) / 2 - pl.y0) * U;
     const roomsHtml = pl.items.map((b) => {
       const r = b.room, sw = p._switchables(r), lit = sw.filter((i) => p._isOn(i));
       // entities placed in the floor-plan editor (only meaningful when the room itself is drawn)
@@ -84,10 +92,10 @@ export function houseView(p, rooms) {
         shape = cells.map(([x, y]) => {
           const L = x * U, T = y * U;
           return `<div class="fl c" style="left:${L}px;top:${T}px;width:${U}px;height:${U}px"></div>`
-            + (has(x, y - 1) ? "" : `<div class="wl ws n" style="left:${L}px;top:${T}px;width:${U}px;height:${WALL}px"></div>`)
-            + (has(x, y + 1) ? "" : `<div class="wl ws s" style="left:${L}px;top:${T + U - WALL}px;width:${U}px;height:${WALL}px"></div>`)
-            + (has(x - 1, y) ? "" : `<div class="wl ws w" style="left:${L}px;top:${T}px;width:${WALL}px;height:${U}px"></div>`)
-            + (has(x + 1, y) ? "" : `<div class="wl ws e" style="left:${L + U - WALL}px;top:${T}px;width:${WALL}px;height:${U}px"></div>`);
+            + (has(x, y - 1) ? "" : `<div class="wl ws n" style="left:${L}px;top:${T}px;width:${U}px;height:var(--wall)"></div>`)
+            + (has(x, y + 1) ? "" : `<div class="wl ws s" style="left:${L}px;top:calc(${T + U}px - var(--wall));width:${U}px;height:var(--wall)"></div>`)
+            + (has(x - 1, y) ? "" : `<div class="wl ws w" style="left:${L}px;top:${T}px;width:var(--wall);height:${U}px"></div>`)
+            + (has(x + 1, y) ? "" : `<div class="wl ws e" style="left:calc(${L + U}px - var(--wall));top:${T}px;width:var(--wall);height:${U}px"></div>`);
         }).join("");
         spots = lights.map((_, n) => cells[Math.floor(((n + 0.5) * cells.length) / Math.max(1, lights.length))]).map(([x, y]) => [((x + 0.5) / b.w) * 100, ((y + 0.5) / b.d) * 100]);
         // label over the cell closest to the shape's centre of mass
@@ -108,9 +116,9 @@ export function houseView(p, rooms) {
       </div>`;
     }).join("");
     return `<div class="fl3" style="transform:translateZ(${z}px)">
-      <div class="slab" style="width:${W * U + 36}px;height:${D * U + 36}px"></div>
+      <div class="slab" style="left:${ox + pl.x0 * U - SLAB_MARGIN}px;top:${oy + pl.y0 * U - SLAB_MARGIN}px;width:${pl.W * U + 2 * SLAB_MARGIN}px;height:${pl.D * U + 2 * SLAB_MARGIN}px"></div>
       ${roomsHtml}
-      ${shown.length > 1 ? `<div class="lbw flab" style="left:-18px;top:-18px"><div class="lb"><small>${esc(floorName(pl.lv))}</small></div></div>` : ""}
+      ${shown.length > 1 ? `<div class="lbw flab" style="left:${ox + pl.x0 * U - SLAB_MARGIN}px;top:${oy + pl.y0 * U - SLAB_MARGIN}px"><div class="lb"><small>${esc(floorName(pl.lv))}</small></div></div>` : ""}
     </div>`;
   }).join("");
 
@@ -124,13 +132,15 @@ export function houseView(p, rooms) {
       <div class="right"><button class="pill" data-editplan><ha-icon icon="mdi:floor-plan"></ha-icon>${t("Editar planta")}</button>${p._gear()}</div></div>
     ${chips}
     <div class="stage glass" data-stage>
-      <div class="scene3d" style="--rx:${view3d.rx}deg;--rz:${view3d.rz}deg;--sc:1;width:${W * U}px;height:${D * U}px;--stack:${(shown.length - 1) * FLOOR_GAP}px">
+      <div class="scene3d" style="--rx:${view3d.rx}deg;--rz:${view3d.rz}deg;--sc:1;width:${W * U}px;height:${D * U}px;--stack:${(shown.length - 1) * gap}px;--wall:${wall}px">
         ${rooms.length ? floorsHtml : ""}
       </div>
       <div class="ctl3">
         <button class="mini" data-rot="-30" title="${t("Rodar")}"><ha-icon icon="mdi:rotate-left"></ha-icon></button>
         <button class="mini" data-rot="reset" title="${t("Repor vista")}"><ha-icon icon="mdi:crosshairs"></ha-icon></button>
         <button class="mini" data-rot="30" title="${t("Rodar")}"><ha-icon icon="mdi:rotate-right"></ha-icon></button>
+        <button class="mini" data-wall="-6" title="${t("Paredes mais baixas")}"><ha-icon icon="mdi:arrow-collapse-vertical"></ha-icon></button>
+        <button class="mini" data-wall="6" title="${t("Paredes mais altas")}"><ha-icon icon="mdi:arrow-expand-vertical"></ha-icon></button>
       </div>
       <div class="hint3">${t("Arrasta para rodar · Toca numa divisão para a abrir · Toca numa luz para a ligar")}</div>
     </div>
@@ -184,6 +194,11 @@ export function bindHouse(p, root) {
     if (b.dataset.rot === "reset") { view3d.rx = 58; view3d.rz = -38; } else view3d.rz += Number(b.dataset.rot);
     apply();
   }));
+  root.querySelectorAll("[data-wall]").forEach((b) => b.addEventListener("click", () => {
+    const cur = p._cfg().wall_height || WALL_DEFAULT;
+    const next = Math.max(10, Math.min(100, cur + Number(b.dataset.wall)));
+    if (next !== cur) { p._saveSettings({ wall_height: next }); p._render(); }
+  }));
   root.querySelector("[data-editplan]")?.addEventListener("click", () => p._openSettings("plan"));
   root.querySelectorAll("[data-floor]").forEach((b) => b.addEventListener("click", () => {
     view3d.floor = b.dataset.floor === "all" ? "all" : Number(b.dataset.floor);
@@ -200,7 +215,7 @@ export const css3d = `
 .fl3{position:absolute;inset:0;transform-style:preserve-3d;pointer-events:none}
 .fl3 .r3{pointer-events:auto}
 .fl3 .r3.shape{pointer-events:none}
-.slab{position:absolute;left:-18px;top:-18px;pointer-events:none;border-radius:18px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 60px rgba(0,0,0,.35);transform:translateZ(-2px)}
+.slab{position:absolute;pointer-events:none;border-radius:14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 60px rgba(0,0,0,.35);transform:translateZ(-2px)}
 .r3{position:absolute;transform-style:preserve-3d;cursor:pointer;padding:3px}
 .r3 .fl{position:absolute;inset:3px;border-radius:10px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);transition:background .3s,box-shadow .3s}
 .r3:hover .fl{background:rgba(255,255,255,.16)}
@@ -208,10 +223,10 @@ export const css3d = `
 .r3 .wl{position:absolute;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.20);backface-visibility:visible}
 .r3.lit .wl{background:color-mix(in srgb,var(--amber) 22%,rgba(255,255,255,.12));border-color:color-mix(in srgb,var(--amber) 45%,rgba(255,255,255,.3))}
 .r3.open .wl.s,.r3.open .wl.e{border-style:dashed}
-.r3 .wl.n{left:3px;right:3px;top:3px;height:${WALL}px;transform-origin:top;transform:rotateX(90deg)}
-.r3 .wl.s{left:3px;right:3px;bottom:3px;height:${WALL}px;transform-origin:bottom;transform:rotateX(-90deg)}
-.r3 .wl.w{top:3px;bottom:3px;left:3px;width:${WALL}px;transform-origin:left;transform:rotateY(-90deg)}
-.r3 .wl.e{top:3px;bottom:3px;right:3px;width:${WALL}px;transform-origin:right;transform:rotateY(90deg)}
+.r3 .wl.n{left:3px;right:3px;top:3px;height:var(--wall);transform-origin:top;transform:rotateX(90deg)}
+.r3 .wl.s{left:3px;right:3px;bottom:3px;height:var(--wall);transform-origin:bottom;transform:rotateX(-90deg)}
+.r3 .wl.w{top:3px;bottom:3px;left:3px;width:var(--wall);transform-origin:left;transform:rotateY(-90deg)}
+.r3 .wl.e{top:3px;bottom:3px;right:3px;width:var(--wall);transform-origin:right;transform:rotateY(90deg)}
 .r3.shape{padding:0;pointer-events:none}
 .r3.shape .fl.c{inset:auto;border-radius:0;border:0;pointer-events:auto}
 .r3.shape.lit .fl.c{background:color-mix(in srgb,var(--amber) 62%,rgba(255,255,255,.25));box-shadow:none}
@@ -222,7 +237,7 @@ export const css3d = `
 .r3 .wl.ws.w{transform-origin:left;transform:rotateY(-90deg)}
 .r3 .wl.ws.e{transform-origin:right;transform:rotateY(90deg)}
 .pin{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.6);transform:translateZ(3px);cursor:pointer}
-.pin.k-ceiling{transform:translateZ(${WALL - 2}px);width:20px;height:20px;margin:-10px 0 0 -10px}
+.pin.k-ceiling{transform:translateZ(calc(var(--wall) - 2px));width:20px;height:20px;margin:-10px 0 0 -10px}
 .pin.k-ceiling.on{box-shadow:0 0 22px 8px var(--amber)}
 .pin.k-strip{width:44px;height:8px;margin:-4px 0 0 -22px;border-radius:4px}
 .pin.k-strip.on{box-shadow:0 0 16px 5px var(--amber)}
@@ -233,7 +248,7 @@ export const css3d = `
 .mk3.on .mki{background:var(--cream);color:var(--ink);border-color:#fff;box-shadow:0 0 16px color-mix(in srgb,var(--amber) 60%,transparent)}
 .r3.shape .mk3{pointer-events:auto}
 .pin.on{background:#fff;border-color:var(--amber);box-shadow:0 0 14px 4px var(--amber)}
-.lbw{position:absolute;left:50%;top:50%;transform-style:preserve-3d;transform:translateZ(${WALL + 26}px) rotateZ(calc(var(--rz) * -1)) rotateX(calc(var(--rx) * -1));pointer-events:none}
+.lbw{position:absolute;left:50%;top:50%;transform-style:preserve-3d;transform:translateZ(calc(var(--wall) + 26px)) rotateZ(calc(var(--rz) * -1)) rotateX(calc(var(--rx) * -1));pointer-events:none}
 .lb{transform:translate(-50%,-100%);white-space:nowrap;text-align:center;padding:6px 12px;border-radius:14px;background:rgba(20,10,22,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.14);line-height:1.2}
 .lb b{display:block;font-family:var(--display);font-weight:500;font-size:15px}
 .lb small{display:block;font-size:12px;color:var(--muted)}

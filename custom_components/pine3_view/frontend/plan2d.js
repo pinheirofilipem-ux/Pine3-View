@@ -150,6 +150,9 @@ export function planView(p, d, rooms) {
   return `<div class="panel glass">
       <h3 style="margin-top:0">${t("Planta da casa")}</h3>
       <p>${t("Desenha cada piso visto de cima. A Casa 3D usa esta planta: as divisões que não colocares são arrumadas automaticamente.")}</p>
+      <div class="wallh"><b>${t("Altura das paredes")}</b>
+        <input type="range" min="10" max="100" step="2" value="${d.wall_height || 30}" data-wallh>
+        <span data-wallv>${d.wall_height || 30}</span></div>
       <div class="seg">${levels.map((l) => `<button class="pill ${l === lv ? "solid" : ""}" data-pfloor="${l}">${esc(floorName(rooms, l))}</button>`).join("")}
         <button class="pill" data-pfloor-add><ha-icon icon="mdi:plus"></ha-icon>${t("Piso")}</button></div>
       <div class="seg ptools">${tools.map(([k, icon, label]) => `<button class="pill ${plan.tool === k ? "solid" : ""}" data-ptool="${k}"><ha-icon icon="${icon}"></ha-icon>${label}</button>`).join("")}</div>
@@ -184,6 +187,11 @@ export function bindPlan(p, root, d, rooms) {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const on = (sel, fn) => root.querySelectorAll(sel).forEach((el) => el.addEventListener("click", (ev) => fn(el, ev)));
 
+  const wr = root.querySelector("[data-wallh]");
+  if (wr) {
+    wr.addEventListener("input", () => { root.querySelector("[data-wallv]").textContent = wr.value; });
+    wr.addEventListener("change", () => { d.wall_height = Number(wr.value); upd(); });
+  }
   on("[data-pfloor]", (el) => { plan.floor = Number(el.dataset.pfloor); plan.selected = null; upd(); });
   on("[data-pfloor-add]", () => {
     const lv = Math.max(...floorLevels(rooms, d.house_layout || {}), -1) + 1;
@@ -376,6 +384,10 @@ export const cssPlan = `
 .tool-paint .rh,.tool-erase .rh{display:none}
 .pdraw{position:absolute;border:2px dashed var(--amber);border-radius:10px;background:color-mix(in srgb,var(--amber) 20%,transparent);pointer-events:none}
 .phint{color:var(--muted);font-size:14px;margin-top:10px}
+.wallh{display:flex;align-items:center;gap:14px;margin:4px 0 16px;flex-wrap:wrap}
+.wallh b{font-size:16px}
+.wallh input{flex:1;min-width:160px;accent-color:var(--amber);height:28px}
+.wallh span{font-variant-numeric:tabular-nums;color:var(--muted);min-width:28px;text-align:right}
 .pm{position:absolute;z-index:3;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;display:grid;place-items:center;background:rgba(30,18,32,.85);color:#fff;border:2px solid rgba(255,255,255,.5);pointer-events:none;box-shadow:0 3px 10px rgba(0,0,0,.35)}
 .pm ha-icon{--mdc-icon-size:17px}
 .pm.on.k-light,.pm.on.k-ceiling,.pm.on.k-strip{background:var(--amber);color:var(--ink);border-color:#fff;box-shadow:0 0 14px var(--amber)}

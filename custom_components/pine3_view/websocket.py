@@ -40,6 +40,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "house_layout": {},
     "shown": [],
     "placements": {},
+    "wall_height": 30,
     "settings_version": 2,
 }
 DOCK_ITEMS = ["home", "rooms", "house", "scenes", "security"]
@@ -161,6 +162,7 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
             }
         },
         vol.Optional("shown"): [str],
+        vol.Optional("wall_height"): vol.All(int, vol.Range(min=8, max=120)),
         # entities placed on the floor plan: floor, position in grid units, optional device type
         vol.Optional("placements"): {
             str: {
