@@ -277,3 +277,14 @@ def test_device_type_lists_match() -> None:
     js = (Path(__file__).parents[1] / "custom_components/pine3_view/frontend/devtypes.js").read_text()
     block = js[js.index("DEVICE_TYPES = {"):js.index("};", js.index("DEVICE_TYPES = {"))]
     assert re.findall(r"^\s+(\w+): \[", block, re.M) == DEVICE_TYPES
+
+
+async def test_wall_height(hass: HomeAssistant, hass_ws_client) -> None:
+    await async_setup_api(hass)
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "pine3_view/settings", "wall_height": 60})
+    msg = await ws.receive_json()
+    assert msg["success"] and msg["result"]["wall_height"] == 60
+    for n, bad in enumerate([0, 500, "alta"], start=2):
+        await ws.send_json({"id": n, "type": "pine3_view/settings", "wall_height": bad})
+        assert not (await ws.receive_json())["success"], bad
