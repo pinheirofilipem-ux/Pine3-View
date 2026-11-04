@@ -39,12 +39,24 @@ class Pine3ViewPanel extends HTMLElement {
 
   connectedCallback() {
     this._tick = setInterval(() => this._onTick(), 15000);
+    this._onFs = () => this._render();
+    document.addEventListener("fullscreenchange", this._onFs);
+    this._onVis = () => { if (document.visibilityState === "visible") this._applyWakeLock(); };
+    document.addEventListener("visibilitychange", this._onVis);
+    // per-device kiosk options (and ?kiosk in the URL) hide the Home Assistant sidebar
+    const kiosk = /[?&#]kiosk\b/.test(location.search + location.hash);
+    if (kiosk || store.get("hide_sidebar", false)) this._dockSidebar(true);
+    this._applyWakeLock();
     this._onResize = () => this._fit3d?.();
     window.addEventListener("resize", this._onResize);
     if (this._hass) this._connect();
   }
   disconnectedCallback() {
     clearInterval(this._tick);
+    document.removeEventListener("fullscreenchange", this._onFs);
+    document.removeEventListener("visibilitychange", this._onVis);
+    this._wake?.release?.().catch(() => {});
+    this._wake = null;
     window.removeEventListener("resize", this._onResize);
     this._unsub?.then?.((u) => u()).catch(() => {});
     this._unsub = null;
@@ -235,6 +247,28 @@ class Pine3ViewPanel extends HTMLElement {
     this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true }));
   }
 
+  // ---------- full screen & kiosk (per device) ----------
+  _fsSupported() { return !!(document.fullscreenEnabled && document.documentElement.requestFullscreen); }
+  _toggleFullscreen() {
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else document.documentElement.requestFullscreen?.({ navigationUI: "hide" }).catch((e) => console.warn("Pine3 View: fullscreen", e));
+  }
+  /** Ask the Home Assistant frontend to hide (or dock again) its sidebar. */
+  _dockSidebar(hide) {
+    this.dispatchEvent(new CustomEvent("hass-dock-sidebar", { detail: { dock: hide ? "always_hidden" : "docked" }, bubbles: true, composed: true }));
+  }
+  async _applyWakeLock() {
+    if (!store.get("wake_lock", false) || !navigator.wakeLock || this._wake) return;
+    try {
+      this._wake = await navigator.wakeLock.request("screen");
+      this._wake.addEventListener("release", () => { this._wake = null; });
+    } catch (e) { console.warn("Pine3 View: wake lock", e); }
+  }
+  _localToggle(key, label, sub, disabled) {
+    const on = store.get(key, false);
+    return `<div class="opt ${disabled ? "dis" : ""}"><div><b>${label}</b>${sub ? `<small>${sub}</small>` : ""}</div><div class="tg ${on ? "on" : ""}" data-local="${key}"><i></i></div></div>`;
+  }
+
   // ---------- clock & weather ----------
   _clockText() {
     const h12 = !this._cfg().clock_24h;
@@ -352,6 +386,11 @@ class Pine3ViewPanel extends HTMLElement {
         ${this._toggle("show_summary", d.show_summary, t("Cartões de resumo"), t("Clima, Segurança e A tocar."))}
         ${this._toggle("clock_24h", d.clock_24h, t("Relógio de 24 horas"), t("Desliga para mostrar AM/PM."))}
       </div></div>
+      <div class="panel glass"><h3 style="margin-top:0">${t("Este dispositivo")}</h3><p>${t("Opções guardadas só neste browser, para um tablet na parede ficar diferente do telemóvel.")}</p><div class="opts">
+        ${this._localToggle("hide_sidebar", t("Esconder a barra lateral do Home Assistant"), t("O painel ocupa a largura toda. Também podes abrir o painel com ?kiosk no endereço."))}
+        ${this._localToggle("wake_lock", t("Manter o ecrã ligado"), navigator.wakeLock ? t("Impede o ecrã de adormecer enquanto o painel está aberto.") : t("Este browser não suporta manter o ecrã ligado."), !navigator.wakeLock)}
+        ${this._fsSupported() ? `<div class="opt"><div><b>${t("Ecrã inteiro")}</b><small>${t("Esconde as barras do browser. Também há um botão no topo do painel.")}</small></div><button class="pill" data-fs><ha-icon icon="mdi:fullscreen"></ha-icon>${document.fullscreenElement ? t("Sair do ecrã inteiro") : t("Ecrã inteiro")}</button></div>` : ""}
+      </div></div>
       <div class="panel glass"><div class="opts">
         ${this._choice("screensaver", d.screensaver, SAVER_STEPS.map((m) => [m, m ? t("{n} min", { n: m }) : t("Desligado")]), t("Ecrã de descanso"), t("Relógio grande e escurecido depois de algum tempo sem toques. Ideal para tablets na parede."))}
       </div></div>`;
@@ -456,6 +495,14 @@ class Pine3ViewPanel extends HTMLElement {
     const on = (sel, fn) => root.querySelectorAll(sel).forEach((el) => el.addEventListener("click", (ev) => fn(el, ev)));
     const upd = () => this._render();
     on("[data-sec]", (el) => { this._section = el.dataset.sec; upd(); });
+    on("[data-fs]", () => this._toggleFullscreen());
+    on("[data-local]", (el) => {
+      const k = el.dataset.local, v = !store.get(k, false);
+      store.set(k, v);
+      if (k === "hide_sidebar") this._dockSidebar(v);
+      if (k === "wake_lock") { if (v) this._applyWakeLock(); else { this._wake?.release?.().catch(() => {}); this._wake = null; } }
+      upd();
+    });
     on("[data-closeset]", () => this._closeSettings());
     on("[data-save]", () => this._saveDraft());
     on("[data-card]", (el) => { d.card_color = el.dataset.card; upd(); });
@@ -634,7 +681,10 @@ class Pine3ViewPanel extends HTMLElement {
     }
   }
 
-  _gear() { return `<div class="iconbtn" data-act="settings" title="${t("Definições")}"><ha-icon icon="mdi:cog-outline"></ha-icon></div>`; }
+  _gear() {
+    const fs = this._fsSupported() ? `<div class="iconbtn" data-fs title="${document.fullscreenElement ? t("Sair do ecrã inteiro") : t("Ecrã inteiro")}"><ha-icon icon="mdi:${document.fullscreenElement ? "fullscreen-exit" : "fullscreen"}"></ha-icon></div>` : "";
+    return `${fs}<div class="iconbtn" data-act="settings" title="${t("Definições")}"><ha-icon icon="mdi:cog-outline"></ha-icon></div>`;
+  }
   _hint() { return this._edit ? `<div class="edhint">${t(EDIT_HINT)}</div>` : ""; }
 
   _saverView(rooms) {
@@ -855,6 +905,7 @@ class Pine3ViewPanel extends HTMLElement {
     on('[data-act="menu"]', () => this.dispatchEvent(new Event("hass-toggle-menu", { bubbles: true, composed: true })));
     on('[data-act="settings"]', () => this._openSettings());
     on("[data-editstart]", () => this._startEdit());
+    on("[data-fs]", () => this._toggleFullscreen());
     on("[data-wx]", () => this._openForecast());
     if (this._edit) {
       this._bindEdit(root);
