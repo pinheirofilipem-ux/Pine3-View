@@ -1,98 +1,108 @@
-# Pine3 View
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/dark_logo@2x.png">
+    <img src="docs/brand/logo@2x.png" alt="Pine3 View" width="420">
+  </picture>
+</p>
 
-Painel pessoal para o Home Assistant, inspirado no Apple Home. Organiza a casa
-automaticamente por divisão (Áreas → Dispositivos → Entidades), sem YAML.
-Código original, feito de raiz.
+<p align="center"><b>English</b> · <a href="README.pt.md">Português</a></p>
 
-## Capturas de ecrã
+A personal dashboard for Home Assistant, inspired by Apple Home. It organises your home
+by room automatically (Areas → Devices → Entities), with no YAML, and adds a 3D view of
+your house that you can draw yourself. Original code, built from scratch.
 
-| Início | Casa 3D |
+## Screenshots
+
+| Home | 3D Home |
 |---|---|
-| ![Início com relógio, tempo, estado da casa, cenas e divisões](docs/screenshots/home.jpg) | ![Casa 3D com dois pisos, uma sala em L e dispositivos no sítio](docs/screenshots/house-3d.jpg) |
-| **Divisão** | **Previsão do tempo** |
-| ![Vista de uma divisão com os dispositivos agrupados por tipo](docs/screenshots/room.jpg) | ![Previsão das próximas horas e dos próximos dias](docs/screenshots/forecast.jpg) |
-| **Planta: formas livres** | **Planta: dispositivos** |
-| ![Editor da planta a pintar quadrículas para uma sala em L](docs/screenshots/plan-shapes.jpg) | ![Editor da planta a pôr dispositivos e escolher o tipo](docs/screenshots/plan-devices.jpg) |
-| **Casa 3D, rés-do-chão** | **Modo de edição** |
-| ![Casa 3D só com o rés-do-chão](docs/screenshots/house-3d-ground-floor.jpg) | ![Modo de edição com cartões para esconder e duplicar](docs/screenshots/edit-mode.jpg) |
-| **Definições: aparência** | **Definições: entidades** |
-| ![Cores dos cartões, cor de destaque, fundo, idioma e disposição](docs/screenshots/settings-appearance.jpg) | ![Escolher que entidades aparecem](docs/screenshots/settings-entities.jpg) |
-| **Este dispositivo (ecrã inteiro)** | **Lista, em inglês** |
-| ![Opções por dispositivo: esconder a barra lateral, manter o ecrã ligado, ecrã inteiro](docs/screenshots/settings-device.jpg) | ![Disposição em lista com o painel em inglês](docs/screenshots/list-english.jpg) |
-| **Ecrã de descanso** | |
-| ![Relógio grande do ecrã de descanso](docs/screenshots/screensaver.jpg) | |
+| ![Home screen with clock, weather, home status, scenes and rooms](docs/screenshots/home.jpg) | ![3D Home with two floors, an L-shaped living room and devices in place](docs/screenshots/house-3d.jpg) |
+| **Room** | **Weather forecast** |
+| ![A room with its devices grouped by type](docs/screenshots/room.jpg) | ![Forecast for the next hours and days](docs/screenshots/forecast.jpg) |
+| **Floor plan: free shapes** | **Floor plan: devices** |
+| ![Floor-plan editor painting cells for an L-shaped room](docs/screenshots/plan-shapes.jpg) | ![Floor-plan editor placing devices and choosing their type](docs/screenshots/plan-devices.jpg) |
+| **3D Home, ground floor** | **Edit mode** |
+| ![3D Home showing only the ground floor](docs/screenshots/house-3d-ground-floor.jpg) | ![Edit mode with cards to hide and resize](docs/screenshots/edit-mode.jpg) |
+| **Settings: appearance** | **Settings: entities** |
+| ![Card colour, highlight colour, background, language and layout](docs/screenshots/settings-appearance.jpg) | ![Choosing which entities are shown](docs/screenshots/settings-entities.jpg) |
+| **This device (full screen)** | **List layout, in English** |
+| ![Per-device options: hide the sidebar, keep the screen on, full screen](docs/screenshots/settings-device.jpg) | ![List layout with the panel in English](docs/screenshots/list-english.jpg) |
+| **Screensaver** | |
+| ![Large screensaver clock](docs/screenshots/screensaver.jpg) | |
 
-No telemóvel:
+On a phone:
 
-| Início | Detalhe de uma luz | Casa 3D |
+| Home | Light details | 3D Home |
 |---|---|---|
-| ![Início no telemóvel](docs/screenshots/phone-home.jpg) | ![Folha de detalhe com luminosidade e cores](docs/screenshots/phone-light.jpg) | ![Casa 3D no telemóvel](docs/screenshots/phone-3d.jpg) |
+| ![Home screen on a phone](docs/screenshots/phone-home.jpg) | ![Detail sheet with brightness and colours](docs/screenshots/phone-light.jpg) | ![3D Home on a phone](docs/screenshots/phone-3d.jpg) |
 
-*Capturas feitas com uma casa de exemplo.*
+*Screenshots taken with a sample home; most show the Portuguese interface (English is one tap away in Settings).*
 
-## Instalar com HACS
-1. No Home Assistant abre **HACS** → menu **⋮** → **Repositórios personalizados**.
-2. Repositório: `https://github.com/pinheirofilipem-ux/pine3-view`, categoria **Integração** → **Adicionar**.
-3. Procura **Pine3 View**, abre e carrega em **Transferir**.
-4. Reinicia o Home Assistant.
-5. **Definições → Dispositivos e serviços → Adicionar integração → Pine3 View**.
-6. Abre **Pine3 View** na barra lateral.
+## Install with HACS
+1. In Home Assistant open **HACS** → **⋮** menu → **Custom repositories**.
+2. Repository: `https://github.com/pinheirofilipem-ux/pine3-view`, type **Integration** → **Add**.
+3. Search for **Pine3 View**, open it and select **Download**.
+4. Restart Home Assistant.
+5. **Settings → Devices & services → Add integration → Pine3 View**.
+6. Open **Pine3 View** in the sidebar.
 
-Requer Home Assistant 2024.7 ou mais recente. Para atualizar: o HACS mostra a nova versão; transfere,
-reinicia e faz um refresh forçado ao browser (Ctrl+Shift+R).
+Requires Home Assistant 2024.7 or newer (the integration icon needs 2026.3 or newer). To update,
+download the new version in HACS and restart Home Assistant; the browser picks up the new files on its own.
 
-> O HACS só consegue ler repositórios **públicos**, e instala a partir do ramo principal (`main`)
-> ou da última *release* do GitHub.
+### Manual install
+Copy `custom_components/pine3_view` to `/config/custom_components/`, restart and add the integration.
 
-### Instalação manual
-Copia `custom_components/pine3_view` para `/config/custom_components/`, reinicia e adiciona a integração.
+## Features
+- **Home**: clock, weather (tap for the forecast), people, home status with *Turn all on/off*, scenes, room cards and summary cards (Climate, Security, Now playing).
+- **Weather**: uses your Home Assistant weather entity or, if there is none, [Open-Meteo](https://open-meteo.com) for your home's location (no API key). Forecast for the next 12 hours and 7 days.
+- **3D Home**: every room is a block, stacked by floor (Home Assistant floors). Lit rooms glow, lights show as points you can toggle, drag to rotate, tap a room to open it. Each floor's slab is only as big as its rooms, and the **wall height** is adjustable (↕ buttons in the 3D Home or a slider in Settings).
+- **Floor-plan editor** (*Settings → 3D floor plan*, or *Edit floor plan* in the 3D Home), a top view of one floor at a time:
+  - **Move and resize**: draw rooms as rectangles, drag to move, drag the corner to resize, move rooms between floors or add floors. *Generate automatic plan* gives you a starting point.
+  - **Paint / erase cells**: give a room any right-angled shape (L, U, T…). Painting over another room hands those cells over.
+  - **Devices**: put each entity where it really is. Its type is detected automatically (ceiling light, lamp, LED strip, spotlight, TV, Apple TV, HomePod, speaker, air conditioner, blind, door, window, plug, sensor, camera…) and can be changed. In the 3D Home lights glow in place (ceiling lights up high, LED strips as a line) and other devices are icons that open their details.
+  - Rooms you don't place are arranged automatically.
+- **Entities** (*Settings → Entities*): every entity of each room, with search. Hide tiles you don't want, or show secondary entities (a TV's power switch, a plug's power sensor, diagnostic sensors) as tiles of their own.
+- **Apple TV and HomePod** (Home Assistant's *Apple TV* integration): their own icons and the app or song that's playing.
+- **Edit mode** (✎): drag to reorder rooms and devices, tap − to hide, tap the arrows to make a card double size (a double room card gets shortcuts to its devices).
+- **Layout**: grid or list.
+- **Screensaver**: a large dimmed clock after 1–30 minutes without touches.
+- **Full screen and kiosk mode**: the ⛶ button switches the browser to full screen. In *Settings → Home → This device* you can hide the Home Assistant sidebar and keep the screen on (on that device only). Opening the panel with `?kiosk` in the address (e.g. `http://homeassistant.local:8123/pine3-view?kiosk`) also hides the sidebar, ideal for a wall tablet.
+- **Language**: Português or English, chosen in Settings.
 
-## Funcionalidades
-- **Início**: relógio, tempo (toca para ver a previsão), pessoas, estado da casa, cenas, cartões de divisão e resumo (Clima, Segurança, A tocar).
-- **Tempo**: usa a entidade de tempo do Home Assistant ou, se não houver, a [Open-Meteo](https://open-meteo.com) para a localização da casa (sem chave). Previsão das próximas 12 horas e 7 dias.
-- **Casa 3D**: cada divisão é um bloco, empilhado por piso (pisos do HA). As divisões acesas brilham, as luzes aparecem como pontos que podes ligar/desligar, arrasta para rodar, toca numa divisão para a abrir.
-- **Planta 3D** (Definições → Planta 3D, ou «Editar planta» na Casa 3D): editor 2D visto de cima, um piso de cada vez. Desenha cada divisão como um retângulo na grelha, arrasta para mover, puxa o canto para redimensionar, muda de piso ou cria pisos novos. Com **Pintar quadrículas** dás qualquer forma de ângulos retos a uma divisão (L, U, T…): tocas ou arrastas nas quadrículas, e pintar por cima de outra divisão passa-lhe essas quadrículas; **Apagar quadrículas** tira-as. Na Casa 3D o chão segue a forma e as paredes só aparecem no contorno. A base de cada piso tem só o tamanho das divisões desse piso, e a **altura das paredes** ajusta-se em *Planta 3D* (controlo deslizante) ou diretamente na Casa 3D (botões ↕). Com **Dispositivos** colocas cada entidade no sítio certo da planta (escolhes a divisão, tocas no dispositivo e depois na planta; arrastas para mover). O tipo é detetado automaticamente — luz de teto, candeeiro, fita LED, spot, TV, Apple TV, HomePod, coluna, ar condicionado, estore, porta, janela, tomada, sensor, câmara… — e podes mudá-lo. Na Casa 3D as luzes brilham no sítio (as de teto no alto, a fita LED como uma faixa) e os outros aparelhos aparecem como ícones que abrem o detalhe. A Casa 3D usa esta planta; as divisões por colocar são arrumadas automaticamente. Há também «Gerar planta automática» como ponto de partida.
-- **Entidades** (Definições → Entidades): lista todas as entidades de cada divisão, com pesquisa. Esconde mosaicos que não queres ou mostra entidades secundárias (o interruptor de uma TV, a potência de uma tomada, sensores de diagnóstico) como mosaicos próprios.
-- **Apple TV e HomePod** (integração *Apple TV* do HA): ícones próprios e a app/música que está a tocar.
-- **Modo de edição** (lápis ✎): arrasta para reordenar divisões e dispositivos, toca em − para esconder, nas setas para duplicar o tamanho (um cartão de divisão duplo mostra atalhos para os dispositivos).
-- **Disposição**: Grelha ou Lista.
-- **Ecrã de descanso**: relógio grande e escurecido após 1–30 min sem toques.
-- **Ecrã inteiro e modo quiosque**: botão ⛶ no topo para o ecrã inteiro do browser; em *Definições → Início → Este dispositivo* escondes a barra lateral do Home Assistant e manténs o ecrã ligado (só nesse dispositivo). Abrir o painel com `?kiosk` no endereço (ex.: `http://homeassistant.local:8123/pine3-view?kiosk`) também esconde a barra lateral — ideal para um tablet na parede.
-- **Idioma**: Português ou English, escolhido nas definições.
+## Settings
+⚙ button in the top-right corner:
+- **Appearance**: language, layout, card colour, highlight colour and background, with a live preview.
+- **Home**: weather and its source, people, home status, scenes, summary cards, 12/24-hour clock, screensaver, and the per-device options (sidebar, keep screen on, full screen).
+- **Rooms**: reorder and hide rooms, choose their size in the automatic 3D layout, show hidden devices again.
+- **Entities**: pick exactly what appears.
+- **3D floor plan**: the editor above and the wall height.
+- **Navigation**: dock buttons (Rooms, 3D Home, Scenes, Security).
+- **System**: version, counts, rebuild now, reset to defaults.
 
-## Definições
-Botão ⚙ no canto superior direito:
-- **Aparência**: idioma, disposição, cor dos cartões, cor de destaque e fundo, com pré-visualização ao vivo.
-- **Início**: meteorologia e fonte do tempo, pessoas, estado da casa, cenas, cartões de resumo, relógio 12/24 h e ecrã de descanso.
-- **Divisões**: ordenar, esconder e escolher o tamanho de cada divisão na Casa 3D; voltar a mostrar dispositivos escondidos.
-- **Navegação**: botões do dock (Divisões, Casa 3D, Cenas, Segurança).
-- **Sistema**: versão, contagens, reconstruir agora, repor predefinições.
+Settings are stored in Home Assistant and apply to every device, except the *This device* options, which stay in each browser.
 
-As definições ficam guardadas no Home Assistant e valem para todos os dispositivos.
+## How it builds itself
+The server side (`discovery.py`) reads Home Assistant's registries and assembles the home:
+- **Areas → rooms**, ordered by floor and name, with an icon picked from the name (Kitchen, Bedroom, Bathroom… in English or Portuguese).
+- **Devices → tiles**: one tile per device, driven by its main entity (climate > media > covers > light > plug…). Sensors of the same device (power, battery, humidity) appear as extras on that tile.
+- Multi-channel relays get one tile per channel. The room name is removed from device names ("Living room Lamp" → "Lamp").
+- Hidden, disabled, diagnostic and configuration entities are left out (you can bring them back in *Entities*).
+- Temperature and humidity sensors feed each room's summary.
+- When you add or change devices or areas in Home Assistant, the panel updates by itself.
 
-## Como se constrói sozinho
-O servidor (`discovery.py`) lê os registos do Home Assistant e monta a casa:
-- **Áreas → divisões**, ordenadas por piso e nome; ícone escolhido pelo nome (Cozinha, Quarto, Casa de banho…).
-- **Dispositivos → mosaicos**: cada dispositivo dá um mosaico, com a entidade principal (clima > multimédia > estores > luz > tomada…). Os sensores do mesmo dispositivo (potência, bateria, humidade) aparecem como extras no mosaico.
-- Relés de vários canais dão um mosaico por canal. O nome da divisão é retirado do nome do dispositivo ("Sala Candeeiro" → "Candeeiro").
-- Entidades escondidas, desativadas, de diagnóstico ou configuração são ignoradas.
-- Sensores de temperatura e humidade alimentam o resumo de cada divisão.
-- Quando adicionas ou mudas dispositivos/áreas no HA, o painel atualiza-se sozinho.
-- Podes esconder divisões e dispositivos no próprio painel (guardado no HA, não no browser).
+## Look and feel
+Plum background (plus 5 others), cream cards when something is on, a power button per room and per device,
+status dots, Climate / Security / Now playing cards, a pill-shaped dock.
+Typefaces: [Outfit](https://github.com/Outfitio/Outfit-Fonts) and [Figtree](https://github.com/erikdkennedy/figtree), both SIL OFL 1.1 (licences in `frontend/fonts/`).
+The icon and logo live in `custom_components/pine3_view/brand/` (source: `docs/brand/source.html`).
 
-## Visual
-Fundo ameixa (e mais 5), cartões creme quando ligados, botão de energia por divisão e por dispositivo,
-pontos de estado, cartões de Clima, Segurança e "A tocar", dock em pílula.
-Tipografia: [Outfit](https://github.com/Outfitio/Outfit-Fonts) e [Figtree](https://github.com/erikdkennedy/figtree), ambas SIL OFL 1.1 (licenças em `frontend/fonts/`).
-
-## Testes
+## Tests
 ```
 pip install -r requirements_test.txt
 pytest
 ```
 
 ## Roadmap
-Plantas 3D com posições desenhadas à mão, câmaras no início, leitor Spotify.
+Cameras on the home screen, a Spotify player, more device types for the floor plan.
 
-## Licença
-MIT (ver `LICENSE`). As fontes Outfit e Figtree estão sob a SIL Open Font License 1.1 (ver `NOTICE`).
+## License
+MIT (see `LICENSE`). The Outfit and Figtree fonts are under the SIL Open Font License 1.1 (see `NOTICE`).
