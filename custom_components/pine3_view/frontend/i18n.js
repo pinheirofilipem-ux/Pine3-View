@@ -118,4 +118,12 @@ export const EN = {
   "TV": "TV", "Apple TV": "Apple TV", "HomePod": "HomePod", "Coluna": "Speaker", "Ar condicionado": "Air conditioner",
   "Ventoinha": "Fan", "Estore": "Blind", "Porta": "Door", "Janela": "Window", "Tomada": "Plug", "Sensor": "Sensor",
   "Câmara": "Camera", "Fechadura": "Lock", "Aspirador": "Vacuum", "Outro": "Other",
+  // full screen & kiosk
+  "Ecrã inteiro": "Full screen", "Sair do ecrã inteiro": "Exit full screen", "Este dispositivo": "This device",
+  "Opções guardadas só neste browser, para um tablet na parede ficar diferente do telemóvel.": "Options saved in this browser only, so a wall tablet can differ from your phone.",
+  "Esconder a barra lateral do Home Assistant": "Hide the Home Assistant sidebar",
+  "O painel ocupa a largura toda. Também podes abrir o painel com ?kiosk no endereço.": "The panel uses the full width. You can also open the panel with ?kiosk in the address.",
+  "Manter o ecrã ligado": "Keep the screen on", "Impede o ecrã de adormecer enquanto o painel está aberto.": "Stops the screen from sleeping while the panel is open.",
+  "Este browser não suporta manter o ecrã ligado.": "This browser can't keep the screen on.",
+  "Esconde as barras do browser. Também há um botão no topo do painel.": "Hides the browser bars. There's also a button at the top of the panel.",
 };

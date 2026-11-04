@@ -4,6 +4,32 @@ Painel pessoal para o Home Assistant, inspirado no Apple Home. Organiza a casa
 automaticamente por divisão (Áreas → Dispositivos → Entidades), sem YAML.
 Código original, feito de raiz.
 
+## Capturas de ecrã
+
+| Início | Casa 3D |
+|---|---|
+| ![Início com relógio, tempo, estado da casa, cenas e divisões](docs/screenshots/home.jpg) | ![Casa 3D com dois pisos, uma sala em L e dispositivos no sítio](docs/screenshots/house-3d.jpg) |
+| **Divisão** | **Previsão do tempo** |
+| ![Vista de uma divisão com os dispositivos agrupados por tipo](docs/screenshots/room.jpg) | ![Previsão das próximas horas e dos próximos dias](docs/screenshots/forecast.jpg) |
+| **Planta: formas livres** | **Planta: dispositivos** |
+| ![Editor da planta a pintar quadrículas para uma sala em L](docs/screenshots/plan-shapes.jpg) | ![Editor da planta a pôr dispositivos e escolher o tipo](docs/screenshots/plan-devices.jpg) |
+| **Casa 3D, rés-do-chão** | **Modo de edição** |
+| ![Casa 3D só com o rés-do-chão](docs/screenshots/house-3d-ground-floor.jpg) | ![Modo de edição com cartões para esconder e duplicar](docs/screenshots/edit-mode.jpg) |
+| **Definições: aparência** | **Definições: entidades** |
+| ![Cores dos cartões, cor de destaque, fundo, idioma e disposição](docs/screenshots/settings-appearance.jpg) | ![Escolher que entidades aparecem](docs/screenshots/settings-entities.jpg) |
+| **Este dispositivo (ecrã inteiro)** | **Lista, em inglês** |
+| ![Opções por dispositivo: esconder a barra lateral, manter o ecrã ligado, ecrã inteiro](docs/screenshots/settings-device.jpg) | ![Disposição em lista com o painel em inglês](docs/screenshots/list-english.jpg) |
+| **Ecrã de descanso** | |
+| ![Relógio grande do ecrã de descanso](docs/screenshots/screensaver.jpg) | |
+
+No telemóvel:
+
+| Início | Detalhe de uma luz | Casa 3D |
+|---|---|---|
+| ![Início no telemóvel](docs/screenshots/phone-home.jpg) | ![Folha de detalhe com luminosidade e cores](docs/screenshots/phone-light.jpg) | ![Casa 3D no telemóvel](docs/screenshots/phone-3d.jpg) |
+
+*Capturas feitas com uma casa de exemplo.*
+
 ## Instalar com HACS
 1. No Home Assistant abre **HACS** → menu **⋮** → **Repositórios personalizados**.
 2. Repositório: `https://github.com/pinheirofilipem-ux/pine3-view`, categoria **Integração** → **Adicionar**.
@@ -31,6 +57,7 @@ Copia `custom_components/pine3_view` para `/config/custom_components/`, reinicia
 - **Modo de edição** (lápis ✎): arrasta para reordenar divisões e dispositivos, toca em − para esconder, nas setas para duplicar o tamanho (um cartão de divisão duplo mostra atalhos para os dispositivos).
 - **Disposição**: Grelha ou Lista.
 - **Ecrã de descanso**: relógio grande e escurecido após 1–30 min sem toques.
+- **Ecrã inteiro e modo quiosque**: botão ⛶ no topo para o ecrã inteiro do browser; em *Definições → Início → Este dispositivo* escondes a barra lateral do Home Assistant e manténs o ecrã ligado (só nesse dispositivo). Abrir o painel com `?kiosk` no endereço (ex.: `http://homeassistant.local:8123/pine3-view?kiosk`) também esconde a barra lateral — ideal para um tablet na parede.
 - **Idioma**: Português ou English, escolhido nas definições.
 
 ## Definições

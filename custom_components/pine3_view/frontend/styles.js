@@ -267,6 +267,8 @@ a.pill{color:inherit;text-decoration:none}
 .it ha-icon{--mdc-icon-size:20px;flex:none}
 .tag{font-style:normal;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--muted);white-space:nowrap}
 .tag.pri{background:color-mix(in srgb,var(--amber) 30%,transparent);color:#fff}
+.opt.dis{opacity:.5;pointer-events:none}
+:host(:fullscreen),:host-context(:fullscreen){min-height:100vh}
 @media (max-width:720px){
   .tag{display:none}
 
