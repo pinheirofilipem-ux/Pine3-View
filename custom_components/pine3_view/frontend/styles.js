@@ -337,7 +337,7 @@ a.pill{color:inherit;text-decoration:none}
 .dv-sv b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dv-sel .chev{--mdc-icon-size:18px;color:var(--muted);transition:transform .25s}
 .dv-sel.open{background:rgba(255,255,255,.14)}.dv-sel.open .chev{transform:rotate(180deg)}
-.dv-opts{grid-column:1/-1;padding:2px 2px 4px;animation:pop .2s}
+.dv-opts{grid-column:1/-1;padding:2px 2px 4px}.dv-opts.enter{animation:pop .2s}
 .dv-opts .row.presets{margin-top:0}
 .dv-opts .pill{height:36px;font-size:14px;padding:0 14px}
 .sheet.dev .sub{margin-top:16px}

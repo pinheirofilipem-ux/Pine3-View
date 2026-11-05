@@ -952,7 +952,7 @@ class Pine3ViewPanel extends HTMLElement {
     const sel = (e) => {
       const opts = this._s(e).attributes.options || [], cur = this._selValue(e), open = this._selOpen === e;
       return `<button class="dv-t dv-sel ${open ? "open" : ""}" data-dvopensel="${esc(e)}"><ha-icon icon="${this._icon(e)}"></ha-icon><span class="dv-sv"><small>${esc(this._memberName(id, e))}</small><b>${opts.includes(cur) ? esc(this._optLabel(e, cur)) : "–"}</b></span><ha-icon class="chev" icon="mdi:chevron-down"></ha-icon></button>
-        ${open ? `<div class="dv-opts"><div class="row presets">${opts.map((o) => `<button class="pill ${o === cur ? "act" : ""}" data-dvsel="${esc(e)}" data-opt="${esc(o)}">${esc(this._optLabel(e, o))}</button>`).join("")}</div></div>` : ""}`;
+        ${open ? `<div class="dv-opts ${this._selShown !== e ? "enter" : ""}"><div class="row presets">${opts.map((o) => `<button class="pill ${o === cur ? "act" : ""}" data-dvsel="${esc(e)}" data-opt="${esc(o)}">${esc(this._optLabel(e, o))}</button>`).join("")}</div></div>` : ""}`;
     };
     const value = (e) => (dom(e) === "sensor" ? this._sensorVal(e) : this._stateText(e));
     const ctl = (e) => {
@@ -971,11 +971,13 @@ class Pine3ViewPanel extends HTMLElement {
       if (d === "button") return `<div class="dv-c"><ha-icon icon="${this._icon(e)}"></ha-icon><span>${name}</span><button class="pill" data-dvbtn="${esc(e)}">${t("Executar")}</button></div>`;
       return `<div class="dv-c"><ha-icon icon="${this._icon(e)}"></ha-icon><span>${name}</span><small>${esc(this._stateText(e))}</small><button class="mini" data-dvopen="${esc(e)}"><ha-icon icon="mdi:chevron-right"></ha-icon></button></div>`;
     };
-    return `${readings.length ? `<div class="sub">${t("Leituras")}</div><div class="dv-grid">${readings.map((e) =>
+    const html = `${readings.length ? `<div class="sub">${t("Leituras")}</div><div class="dv-grid">${readings.map((e) =>
         `<div class="dv-r"><div class="dv-rv"><ha-icon icon="${this._icon(e)}"></ha-icon><b>${esc(value(e))}</b></div><small>${esc(this._memberName(id, e))}</small></div>`).join("")}</div>` : ""}
       ${toggles.length || selects.length || controls.length ? `<div class="sub">${t("Controlos")}</div>` : ""}
       ${toggles.length || selects.length ? `<div class="dv-tgrid" style="grid-auto-flow:row dense">${toggles.map((e) => `<button class="dv-t ${this._isOn(e) ? "on" : ""}" data-dvtg="${esc(e)}"><ha-icon icon="${this._icon(e)}"></ha-icon><span>${esc(this._memberName(id, e))}</span></button>`).join("")}${selects.map(sel).join("")}</div>` : ""}
       ${controls.length ? `<div class="dv-list">${controls.map(ctl).join("")}</div>` : ""}`;
+    this._selShown = this._selOpen; // the open option row animates once, not on every redraw
+    return html;
   }
 
   _extras(id) {
