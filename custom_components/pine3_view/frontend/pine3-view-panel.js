@@ -68,6 +68,8 @@ class Pine3ViewPanel extends HTMLElement {
     this._hass = h;
     if (!this._connecting) this._connect();
     if (this._drag) return; // don't redraw under a finger
+    // an open native option list would close if its <select> were redrawn: wait until it is done
+    if (this.shadowRoot?.activeElement?.tagName === "SELECT") { this._pending = true; return; }
     // Home Assistant pushes a new hass object whenever *any* entity changes; only redraw
     // when something this screen shows has changed (redraws restart animations and flicker).
     if (prev && !this._affects(prev, h)) return;
@@ -268,6 +270,23 @@ class Pine3ViewPanel extends HTMLElement {
 
   // ---------- actions ----------
   _call(d, svc, data) { return this._hass.callService(d, svc, data); }
+  /** The dock's glass lens: slides from the previous tab to the active one, stretching like a drop on the way. */
+  _placeBlob() {
+    const nav = this.shadowRoot.querySelector(".dock"), blob = nav?.querySelector(".blob");
+    const act = nav?.querySelector("button.act");
+    if (!blob || !act) { if (blob) blob.style.opacity = "0"; this._blob = null; return; }
+    const to = { x: act.offsetLeft, w: act.offsetWidth }, from = this._blob;
+    if (from && (from.x !== to.x || from.w !== to.w)) {
+      blob.style.transition = "none";
+      blob.style.transform = `translateX(${from.x}px)`; blob.style.width = `${from.w}px`;
+      blob.getBoundingClientRect(); // commit the start position
+      blob.style.transition = "";
+      blob.classList.add("go");
+    }
+    blob.style.transform = `translateX(${to.x}px)`; blob.style.width = `${to.w}px`;
+    this._blob = to;
+  }
+
   _go(view, room = null) {
     this._view = view;
     if (room) this._room = room;
@@ -710,7 +729,7 @@ class Pine3ViewPanel extends HTMLElement {
       <div class="sp"></div>
     </header>` : "";
     const nav = (v, icon, label) => `<button class="${this._view === v || (v === "rooms" && this._view === "room") ? "act" : ""}" data-nav="${v}"><ha-icon icon="${icon}"></ha-icon><span>${t(label)}</span></button>`;
-    const dock = this._view === "settings" || this._edit ? "" : `<nav class="dock">${DOCK_ITEMS.filter(([k]) => k === "home" || cfg.dock.includes(k)).map(([k, icon, label]) => nav(k, icon, label)).join("")}</nav>`;
+    const dock = this._view === "settings" || this._edit ? "" : `<nav class="dock"><i class="blob"></i>${DOCK_ITEMS.filter(([k]) => k === "home" || cfg.dock.includes(k)).map(([k, icon, label]) => nav(k, icon, label)).join("")}</nav>`;
     const editBar = this._edit ? `<div class="edbar"><button class="pill" data-edcancel>${t("Cancelar")}</button><button class="pill solid" data-eddone><ha-icon icon="mdi:check"></ha-icon>${t("Concluído")}</button></div>` : "";
 
     const refocus = this._entFocus;
@@ -719,10 +738,16 @@ class Pine3ViewPanel extends HTMLElement {
     const scrolls = [".sheet", ".scenes", ".fhs", ".set-nav"].map((sel) => [sel, [...root.querySelectorAll(sel)].map((e) => [e.scrollTop, e.scrollLeft])]);
     if (!this._modal && !this._saver) this._ovShown = null;
     this._collectWatch(rooms);
+    // entering another screen: the content flows in (no blur on the 3D Home, a filter would flatten it)
+    const viewKey = `${this._view}:${this._view === "room" ? this._room : ""}`;
+    const vin = this._viewKey && this._viewKey !== viewKey ? (this._view === "house" ? "vin flat" : "vin") : "";
+    this._viewKey = viewKey;
+    this._pending = false;
     this.shadowRoot.innerHTML = `<style>${css}${css3d}${cssPlan}</style>
       <div class="bg" style="background:${THEMES[cfg.theme || this._theme] || THEMES.ameixa}"></div>
-      <div class="wrap ${cfg.layout === "list" ? "as-list" : ""} ${this._edit ? "editing" : ""}">${header}${body}</div>${dock}${editBar}${this._saver ? this._saverView(rooms) : this._modalView()}`;
+      <div class="wrap ${vin} ${cfg.layout === "list" ? "as-list" : ""} ${this._edit ? "editing" : ""}">${header}${body}</div>${dock}${editBar}${this._saver ? this._saverView(rooms) : this._modalView()}`;
     for (const [sel, pos] of scrolls) root.querySelectorAll(sel).forEach((e, k) => { if (pos[k]) { e.scrollTop = pos[k][0]; e.scrollLeft = pos[k][1]; } });
+    this._placeBlob();
     if (this._view === "settings") this._bindSettings();
     else this._bind(rooms);
     if (refocus) {
@@ -875,13 +900,30 @@ class Pine3ViewPanel extends HTMLElement {
   }
 
   /** Every other entity of the device behind a tile: readings in a grid, then its controls. */
+  /** Readable label for a select option: our translations, then Home Assistant's, then "snake_case" -> "Snake case". */
+  _optLabel(e, o) {
+    const k = String(o).toLowerCase();
+    if (STATE_PT[k]) return t(STATE_PT[k]);
+    const ha = this._hass?.formatEntityState?.(this._s(e), o);
+    if (ha && ha !== o) return ha;
+    const txt = String(o).replace(/_/g, " ");
+    return txt.charAt(0).toUpperCase() + txt.slice(1);
+  }
+
   _deviceSection(id) {
     const mem = (this._meta?.[id]?.members || []).filter((e) => this._s(e) && this._s(e).state !== "unavailable");
     if (!mem.length) return "";
     const readings = mem.filter((e) => ["sensor", "binary_sensor"].includes(dom(e)));
     const isToggle = (e) => ["switch", "input_boolean", "light", "fan"].includes(dom(e));
     const toggles = mem.filter(isToggle);
-    const controls = mem.filter((e) => !["sensor", "binary_sensor"].includes(dom(e)) && !isToggle(e));
+    const selects = mem.filter((e) => dom(e) === "select" || dom(e) === "input_select");
+    const controls = mem.filter((e) => !["sensor", "binary_sensor"].includes(dom(e)) && !isToggle(e) && !selects.includes(e));
+    // an option list is a tile with its current value; tapping opens the native picker (one line instead of a wall of chips)
+    const sel = (e) => {
+      const st = this._s(e), opts = st.attributes.options || [];
+      return `<label class="dv-t dv-sel"><ha-icon icon="${this._icon(e)}"></ha-icon><span class="dv-sv"><small>${esc(this._memberName(id, e))}</small><b>${opts.includes(st.state) ? esc(this._optLabel(e, st.state)) : "–"}</b></span><ha-icon class="chev" icon="mdi:unfold-more-horizontal"></ha-icon>
+        <select data-dvselect="${esc(e)}" aria-label="${esc(this._memberName(id, e))}">${opts.includes(st.state) ? "" : `<option selected disabled>–</option>`}${opts.map((o) => `<option value="${esc(o)}" ${o === st.state ? "selected" : ""}>${esc(this._optLabel(e, o))}</option>`).join("")}</select></label>`;
+    };
     const value = (e) => (dom(e) === "sensor" ? this._sensorVal(e) : this._stateText(e));
     const ctl = (e) => {
       const s = this._s(e), a = s.attributes, d = dom(e), name = esc(this._memberName(id, e));
@@ -901,8 +943,8 @@ class Pine3ViewPanel extends HTMLElement {
     };
     return `${readings.length ? `<div class="sub">${t("Leituras")}</div><div class="dv-grid">${readings.map((e) =>
         `<div class="dv-r"><div class="dv-rv"><ha-icon icon="${this._icon(e)}"></ha-icon><b>${esc(value(e))}</b></div><small>${esc(this._memberName(id, e))}</small></div>`).join("")}</div>` : ""}
-      ${toggles.length || controls.length ? `<div class="sub">${t("Controlos")}</div>` : ""}
-      ${toggles.length ? `<div class="dv-tgrid">${toggles.map((e) => `<button class="dv-t ${this._isOn(e) ? "on" : ""}" data-dvtg="${esc(e)}"><ha-icon icon="${this._icon(e)}"></ha-icon><span>${esc(this._memberName(id, e))}</span></button>`).join("")}</div>` : ""}
+      ${toggles.length || selects.length || controls.length ? `<div class="sub">${t("Controlos")}</div>` : ""}
+      ${toggles.length || selects.length ? `<div class="dv-tgrid">${toggles.map((e) => `<button class="dv-t ${this._isOn(e) ? "on" : ""}" data-dvtg="${esc(e)}"><ha-icon icon="${this._icon(e)}"></ha-icon><span>${esc(this._memberName(id, e))}</span></button>`).join("")}${selects.map(sel).join("")}</div>` : ""}
       ${controls.length ? `<div class="dv-list">${controls.map(ctl).join("")}</div>` : ""}`;
   }
 
@@ -1083,6 +1125,10 @@ class Pine3ViewPanel extends HTMLElement {
     on("[data-color]", (el) => { const h = el.dataset.color; this._call("light", "turn_on", { entity_id: id, rgb_color: [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) }); });
     on("[data-preset]", (el) => this._call(dom(id), "set_preset_mode", { entity_id: id, preset_mode: el.dataset.preset }));
     on("[data-dvtg]", (el) => this._call("homeassistant", "toggle", { entity_id: el.dataset.dvtg }));
+    root.querySelectorAll("[data-dvselect]").forEach((el) => {
+      el.addEventListener("change", () => { this._call(dom(el.dataset.dvselect) === "input_select" ? "input_select" : "select", "select_option", { entity_id: el.dataset.dvselect, option: el.value }); el.blur(); });
+      el.addEventListener("blur", () => { if (this._pending) { this._pending = false; setTimeout(() => this._render(), 0); } });
+    });
     on("[data-dvsel]", (el) => this._call("select", "select_option", { entity_id: el.dataset.dvsel, option: el.dataset.opt }));
     on("[data-dvbtn]", (el) => this._call("button", "press", { entity_id: el.dataset.dvbtn }));
     on("[data-dvopen]", (el) => this._openModal(el.dataset.dvopen));

@@ -58,6 +58,9 @@ export const STATE_PT = {
   heating: "A aquecer", cooling: "A arrefecer", drying: "A desumidificar", fan: "A ventilar",
   preheating: "A pré-aquecer", defrosting: "A descongelar", middle: "Médio", quiet: "Silencioso",
   focus: "Focado", diffuse: "Difuso", both: "Ambos", vertical: "Vertical", horizontal: "Horizontal",
+  // option lists of air purifiers (e.g. Philips)
+  air_quality: "Qualidade do ar", ambient_light_mode: "Luz ambiente", indoor_allergen_index: "Índice de alérgenos",
+  pm25: "PM2.5", humidity: "Humidade", temperature: "Temperatura", gas: "Gás",
   away: "Ausente", home: "Em casa", comfort: "Conforto", activity: "Atividade", none: "Nenhum",
 };
 export const WEATHER_PT = {
