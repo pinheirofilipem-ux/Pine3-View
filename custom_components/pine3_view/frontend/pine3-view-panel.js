@@ -212,6 +212,7 @@ class Pine3ViewPanel extends HTMLElement {
     if (d === "light") return this._isOn(id) ? "mdi:lightbulb-on" : "mdi:lightbulb-outline";
     if (d === "lock") return s?.state === "locked" ? "mdi:lock" : "mdi:lock-open-variant";
     if (d === "cover") return s?.state === "closed" ? "mdi:window-shutter" : "mdi:window-shutter-open";
+    if (d === "climate") return (s?.attributes.hvac_modes || []).includes("cool") ? "mdi:air-conditioner" : "mdi:thermostat";
     if (DEVICE_CLASS_ICON[dc]) return DEVICE_CLASS_ICON[dc];
     if (["fan", "switch", "select", "number", "sensor", "button"].includes(d)) {
       const n = `${m?.name || ""} ${s?.attributes.friendly_name || ""}`;
@@ -233,7 +234,11 @@ class Pine3ViewPanel extends HTMLElement {
     if (s.state === "unavailable") return t("Indisponível");
     if (d === "light" && s.state === "on" && a.brightness != null) return `${Math.round((a.brightness / 255) * 100)}%`;
     if (d === "cover" && a.current_position != null && s.state !== "closed") return t("{n}% aberto", { n: a.current_position });
-    if (d === "climate") return `${this._st(s.state)}${a.current_temperature != null ? ` · ${num(a.current_temperature)}°` : ""}`;
+    if (d === "climate") {
+      const act = s.state !== "off" && a.hvac_action && !["off", "idle"].includes(a.hvac_action) ? a.hvac_action : null;
+      const tgt = a.temperature ?? (a.target_temp_low != null && a.target_temp_high != null ? `${num(a.target_temp_low)}–${num(a.target_temp_high)}` : null);
+      return `${this._st(act || s.state)}${a.current_temperature != null ? ` · ${num(a.current_temperature)}°` : ""}${s.state !== "off" && tgt != null ? ` → ${typeof tgt === "number" ? num(tgt) : tgt}°` : ""}`;
+    }
     if (d === "media_player") {
       const title = a.media_title ? (a.media_artist ? `${a.media_title} · ${a.media_artist}` : a.media_title) : null;
       if (["playing", "paused"].includes(s.state) && (title || a.app_name)) return title || a.app_name;
@@ -797,7 +802,7 @@ class Pine3ViewPanel extends HTMLElement {
     const cards = [];
     const temps = all.filter((i) => dom(i) === "sensor" && this._s(i).attributes.device_class === "temperature").map((i) => Number(this._s(i).state)).filter(Number.isFinite);
     const hums = rooms.flatMap((r) => r.humidity || []).map((i) => Number(this._s(i)?.state)).filter(Number.isFinite);
-    const climate = all.find((i) => dom(i) === "climate");
+    const climate = all.find((i) => dom(i) === "climate" && this._isOn(i)) || all.find((i) => dom(i) === "climate");
     if (temps.length || climate) {
       const tt = temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : this._s(climate).attributes.current_temperature;
       const heating = climate && this._isOn(climate);
@@ -963,14 +968,29 @@ class Pine3ViewPanel extends HTMLElement {
       content = `${this._slider("position", pct, compact)}
         <div class="row"><button class="pill" data-svc="cover.open_cover">${t("Abrir")}</button><button class="pill" data-svc="cover.stop_cover">${t("Parar")}</button><button class="pill" data-svc="cover.close_cover">${t("Fechar")}</button></div>`;
     } else if (d === "climate") {
-      const tg = a.temperature, step = a.target_temp_step || 0.5;
+      // single target ("temperature") or a range (heat_cool / auto: target_temp_low + target_temp_high, e.g. Tado via HomeKit)
+      const step = a.target_temp_step || 0.5, min = a.min_temp ?? 7, max = a.max_temp ?? 35;
+      const lo = a.target_temp_low, hi = a.target_temp_high;
+      const range = a.temperature == null && lo != null && hi != null;
+      const tg = range ? null : a.temperature;
+      const pos = (v) => Math.min(100, Math.max(0, ((v - min) / (max - min)) * 100));
+      const off = s.state === "off" || s.state === "unavailable";
+      const act = off ? null : a.hvac_action; // what it is doing right now: heating, cooling, idle…
+      const mode = { heating: "heat", preheating: "heat", cooling: "cool", defrosting: "cool", drying: "dry", fan: "fan_only", idle: "idle" }[act] || s.state;
+      const col = off ? "rgba(255,255,255,.2)" : { cool: "#5ac8fa", dry: "#64d2ff", fan_only: "#a8b0bd", idle: "rgba(255,255,255,.4)" }[mode] || "#ff9f0a";
+      const dim = "rgba(255,255,255,.12)";
+      const grad = range ? `${dim} 0 ${pos(lo)}%, ${col} 0 ${pos(hi)}%, ${dim} 0` : `${col} 0 ${tg != null ? pos(tg) : 0}%, ${dim} 0`;
+      const info = [a.current_temperature != null ? `${t("Atual")} ${num(a.current_temperature)}°` : "", a.current_humidity != null ? `${Math.round(a.current_humidity)}% ${t("hum.")}` : ""].filter(Boolean).join(" · ");
+      const setter = (end, v, label) => `<div class="tset"><span>${label}</span><button class="round" data-temp="${-step}" data-end="${end}">−</button><b>${num(v)}°</b><button class="round" data-temp="${step}" data-end="${end}">+</button></div>`;
+      const chips = (label, list, cur, attr) => list?.length > 1 ? `<div class="sub">${label}</div><div class="row presets">${list.map((m) => `<button class="pill ${m === cur ? "act" : ""}" data-cmode="${attr}" data-v="${esc(m)}">${esc(this._st(m))}</button>`).join("")}</div>` : "";
       const modes = a.hvac_modes || [];
-      const col = s.state === "cool" ? "#5ac8fa" : s.state === "off" ? "rgba(255,255,255,.2)" : "#ff9f0a";
-      content = `<div class="ring" style="background:conic-gradient(${col} 0 ${tg != null ? Math.min(100, Math.max(0, ((tg - (a.min_temp ?? 7)) / ((a.max_temp ?? 35) - (a.min_temp ?? 7))) * 100)) : 0}%, rgba(255,255,255,.12) 0)">
+      content = `<div class="ring ${compact ? "sm" : ""}" style="background:conic-gradient(${grad})">
         <div style="position:absolute;inset:14px;border-radius:50%;background:#202329"></div>
-        <div style="position:relative;text-align:center"><div class="tgt">${tg != null ? num(tg) + "°" : "–"}</div><div class="cur">${t("Atual")} ${num(a.current_temperature ?? "–")}°</div></div></div>
-        ${tg != null ? `<div class="row"><button class="round" data-temp="${-step}">−</button><button class="round" data-temp="${step}">+</button></div>` : ""}
-        <div class="row">${modes.map((m) => `<button class="pill ${m === s.state ? "act" : ""}" data-hvac="${m}">${this._st(m)}</button>`).join("")}</div>`;
+        <div style="position:relative;text-align:center"><div class="tgt ${range ? "rng" : ""}">${range ? `${num(lo)}–${num(hi)}°` : tg != null ? num(tg) + "°" : "–"}</div>
+        ${act && act !== "off" ? `<div class="act" style="color:${col}">${esc(this._st(act))}</div>` : ""}${info ? `<div class="cur">${info}</div>` : ""}</div></div>
+        ${range ? setter("low", lo, t("Mínima")) + setter("high", hi, t("Máxima")) : tg != null ? `<div class="row"><button class="round" data-temp="${-step}">−</button><button class="round" data-temp="${step}">+</button></div>` : ""}
+        ${modes.length ? `<div class="row ${modes.length > 4 || compact ? "presets" : ""}">${modes.map((m) => `<button class="pill ${m === s.state ? "act" : ""}" data-hvac="${m}">${this._st(m)}</button>`).join("")}</div>` : ""}
+        ${chips(t("Velocidade"), a.fan_modes, a.fan_mode, "fan_mode")}${chips(t("Oscilação"), a.swing_modes, a.swing_mode, "swing_mode")}${chips(t("Perfil"), a.preset_modes, a.preset_mode, "preset_mode")}`;
     } else if (d === "media_player") {
       const vol = Math.round((a.volume_level ?? 0) * 100);
       content = `${a.entity_picture ? `<img src="${esc(a.entity_picture)}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:20px;margin-top:18px">` : ""}
@@ -993,7 +1013,7 @@ class Pine3ViewPanel extends HTMLElement {
     return `<div class="ov ${this._ovEnter(id)} ${device ? "dev" : ""}" data-close><div class="sheet ${device ? "wide dev" : ""}" style="--acc:${this._accent(id)}">
       <div class="hd"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div><div style="flex:1;min-width:0"><div class="nm">${esc(this._name(id))}</div><div class="st">${esc(this._stateText(id))}</div></div>
       ${canToggle ? `<button class="pill ${on ? "act" : ""}" data-toggle>${on ? t("Desligar") : t("Ligar")}</button>` : ""}</div>
-      ${content}${device}<button class="more" data-more>${t("Mais definições")}</button>${this._meta?.[id] ? `<button class="more" data-hide style="margin-top:6px">${t("Esconder do Pine3 View")}</button>` : ""}</div></div>`;
+      ${content}${device}<div class="more"><button data-more title="${t("Mais definições")}" aria-label="${t("Mais definições")}"><ha-icon icon="mdi:cog-outline"></ha-icon></button></div></div></div>`;
   }
 
   _bind() {
@@ -1059,14 +1079,9 @@ class Pine3ViewPanel extends HTMLElement {
     const id = this._modal;
     on("[data-toggle]", () => this._tap(id));
     on("[data-more]", () => { this._modal = null; this._render(); this._moreInfo(id); });
-    on("[data-hide]", () => {
-      if (this._meta?.[id]?.extra) this._saveSettings({ shown: (this._saved().shown || []).filter((x) => x !== id) });
-      else this._saveSettings({ hidden: [...new Set([...(this._saved().hidden || []), id])] });
-      this._modal = null; this._render();
-    });
     on("[data-svc]", (el) => { const [d, s] = el.dataset.svc.split("."); this._call(d, s, { entity_id: id }); });
     on("[data-color]", (el) => { const h = el.dataset.color; this._call("light", "turn_on", { entity_id: id, rgb_color: [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) }); });
-    on("[data-preset]", (el) => this._call("fan", "set_preset_mode", { entity_id: id, preset_mode: el.dataset.preset }));
+    on("[data-preset]", (el) => this._call(dom(id), "set_preset_mode", { entity_id: id, preset_mode: el.dataset.preset }));
     on("[data-dvtg]", (el) => this._call("homeassistant", "toggle", { entity_id: el.dataset.dvtg }));
     on("[data-dvsel]", (el) => this._call("select", "select_option", { entity_id: el.dataset.dvsel, option: el.dataset.opt }));
     on("[data-dvbtn]", (el) => this._call("button", "press", { entity_id: el.dataset.dvbtn }));
@@ -1077,10 +1092,19 @@ class Pine3ViewPanel extends HTMLElement {
       this._call("number", "set_value", { entity_id: e, value: Math.round(v * 1000) / 1000 });
     });
     on("[data-hvac]", (el) => this._call("climate", "set_hvac_mode", { entity_id: id, hvac_mode: el.dataset.hvac }));
+    on("[data-cmode]", (el) => {
+      const attr = el.dataset.cmode;
+      this._call("climate", `set_${attr}`, { entity_id: id, [attr]: el.dataset.v });
+    });
     on("[data-temp]", (el) => {
       const a = this._s(id).attributes;
-      const tg = Math.min(a.max_temp ?? 35, Math.max(a.min_temp ?? 7, Math.round(((a.temperature ?? 20) + Number(el.dataset.temp)) * 10) / 10));
-      this._call("climate", "set_temperature", { entity_id: id, temperature: tg });
+      const clamp = (v) => Math.min(a.max_temp ?? 35, Math.max(a.min_temp ?? 7, Math.round(v * 10) / 10));
+      const dt = Number(el.dataset.temp), end = el.dataset.end;
+      if (!end) return this._call("climate", "set_temperature", { entity_id: id, temperature: clamp((a.temperature ?? 20) + dt) });
+      // range: move one end, never past the other
+      let lo = a.target_temp_low, hi = a.target_temp_high;
+      if (end === "low") lo = Math.min(clamp(lo + dt), hi); else hi = Math.max(clamp(hi + dt), lo);
+      this._call("climate", "set_temperature", { entity_id: id, target_temp_low: lo, target_temp_high: hi });
     });
     root.querySelectorAll("[data-slider]").forEach((el) => this._bindSlider(el, id));
   }

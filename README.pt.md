@@ -62,6 +62,7 @@ Copia `custom_components/pine3_view` para `/config/custom_components/`, reinicia
   - As divisões que não colocares são arrumadas automaticamente.
 - **Entidades** (*Definições → Entidades*): todas as entidades de cada divisão, com pesquisa. Esconde mosaicos que não queres ou mostra entidades secundárias (o interruptor de uma TV, a potência de uma tomada, sensores de diagnóstico) como mosaicos próprios.
 - **Cartão do dispositivo inteiro**: o cartão de detalhe mostra tudo o que o dispositivo expõe — leituras numa grelha (PM2.5, índice de alérgenos, humidade, vida do filtro…) e os controlos (interruptores, opções, números, botões), além dos modos de ventoinhas e purificadores. Ideal para purificadores de ar (ex.: Philips), aspiradores ou ar condicionado; um mosaico em tamanho duplo mostra até 6 leituras.
+- **Clima e ar condicionado** (ex.: Tado via HomeKit): anel com a temperatura-alvo ou o intervalo de aquecer/arrefecer (mínima e máxima), o que o aparelho está a fazer (a aquecer, a arrefecer, inativo…), temperatura e humidade atuais, os modos e, quando o aparelho os expõe, velocidade da ventilação, oscilação e perfis. Termóstatos e ar condicionado têm ícones próprios.
 - **Apple TV e HomePod** (integração *Apple TV* do HA): ícones próprios e a app ou música que está a tocar.
 - **Modo de edição** (✎): arrasta para reordenar divisões e dispositivos, toca em − para esconder e nas setas para duplicar o tamanho (um cartão de divisão duplo mostra atalhos para os dispositivos).
 - **Disposição**: grelha ou lista.

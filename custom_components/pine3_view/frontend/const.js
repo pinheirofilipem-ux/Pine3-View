@@ -54,6 +54,11 @@ export const STATE_PT = {
   sleep: "Noturno", turbo: "Turbo", manual: "Manual", silent: "Silencioso", eco: "Eco", boost: "Reforço",
   allergen: "Alérgenos", bacteria: "Bactérias", night: "Noturno", smart: "Inteligente", natural: "Natural",
   low: "Baixo", medium: "Médio", high: "Alto",
+  // climate: what it is doing now (hvac_action), fan / swing / preset modes (e.g. Tado via HomeKit)
+  heating: "A aquecer", cooling: "A arrefecer", drying: "A desumidificar", fan: "A ventilar",
+  preheating: "A pré-aquecer", defrosting: "A descongelar", middle: "Médio", quiet: "Silencioso",
+  focus: "Focado", diffuse: "Difuso", both: "Ambos", vertical: "Vertical", horizontal: "Horizontal",
+  away: "Ausente", home: "Em casa", comfort: "Conforto", activity: "Atividade", none: "Nenhum",
 };
 export const WEATHER_PT = {
   "clear-night": "Céu limpo", cloudy: "Nublado", exceptional: "Excecional", fog: "Nevoeiro", hail: "Granizo",
@@ -69,6 +74,7 @@ export const WEATHER_ICON = {
 export const BIN_PT = {
   door: ["Fechada", "Aberta"], window: ["Fechada", "Aberta"], garage_door: ["Fechada", "Aberta"],
   motion: ["Sem movimento", "Movimento"], occupancy: ["Livre", "Ocupado"], moisture: ["Seco", "Fuga"],
+  battery: ["Normal", "Fraca"], smoke: ["Sem fumo", "Fumo"], problem: ["OK", "Problema"],
 };
 
 export const THEMES = {

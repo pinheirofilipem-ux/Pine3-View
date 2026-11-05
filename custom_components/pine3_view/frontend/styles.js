@@ -124,7 +124,17 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
 .round{all:unset;cursor:pointer;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.14);font-size:26px}
 .attrs{margin-top:14px;font-size:13px;color:var(--muted);display:grid;grid-template-columns:auto 1fr;gap:6px 14px}
 .attrs b{color:#fff;font-weight:500;text-align:right;overflow:hidden;text-overflow:ellipsis}
-.more{all:unset;cursor:pointer;display:block;width:100%;text-align:center;margin-top:18px;color:var(--muted);font-size:14px}
+.more{display:flex;justify-content:center;margin-top:18px}
+.more button{all:unset;cursor:pointer;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;color:var(--muted);background:rgba(255,255,255,.08)}
+.more button:hover{color:#fff;background:rgba(255,255,255,.16)}
+.more ha-icon{--mdc-icon-size:20px}
+.ring.sm{width:180px;height:180px;margin-top:16px}.ring.sm .tgt{font-size:44px}.ring.sm .cur{font-size:12px;max-width:130px;margin:0 auto}
+.ring .tgt.rng{font-size:38px}.ring.sm .tgt.rng{font-size:30px}
+.ring .act{font-size:13px;font-weight:600;letter-spacing:.04em;margin-top:2px}
+.tset{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:12px}
+.tset span{width:78px;color:var(--muted);font-size:14px}
+.tset b{width:58px;text-align:center;font-size:20px;font-weight:500}
+.tset .round{width:46px;height:46px;font-size:22px}
 .themes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
 .themes .th{height:64px;border-radius:18px;cursor:pointer;display:flex;align-items:flex-end;padding:8px 10px;font-size:12px;font-weight:600;border:2px solid transparent}
 .themes .th.act{border-color:#fff}
