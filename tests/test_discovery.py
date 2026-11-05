@@ -137,11 +137,12 @@ async def test_settings_validation(hass: HomeAssistant, hass_ws_client) -> None:
     await async_setup_api(hass)
     ws = await hass_ws_client(hass)
     await ws.send_json({"id": 1, "type": "pine3_view/settings", "card_color": "#e6dcc2", "accent_color": "#4aa8ff",
-                        "dock": ["home", "security"], "clock_24h": False})
+                        "dock": ["home", "security"], "clock_24h": False, "animations": False})
     msg = await ws.receive_json()
     assert msg["success"]
     assert msg["result"]["accent_color"] == "#4aa8ff" and msg["result"]["dock"] == ["home", "security"]
     assert msg["result"]["show_scenes"] is True  # untouched defaults survive
+    assert msg["result"]["animations"] is False
 
     await ws.send_json({"id": 2, "type": "pine3_view/settings", "card_color": "red"})
     assert not (await ws.receive_json())["success"]

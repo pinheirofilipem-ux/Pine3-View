@@ -101,7 +101,7 @@ export const DEFAULTS = {
   theme: "ameixa", card_color: "#f5efe1", accent_color: "#f6b83f", clock_24h: true,
   show_weather: true, show_people: true, show_status: true, show_scenes: true, show_summary: true,
   dock: ["home", "rooms", "house", "scenes"], hidden: [], hidden_rooms: [], room_order: [],
-  language: "pt", layout: "grid", weather_entity: "", screensaver: 0,
+  language: "pt", layout: "grid", weather_entity: "", screensaver: 0, animations: true,
   big_rooms: [], big_devices: [], device_order: {}, house_size: {}, house_layout: {}, shown: [], placements: {}, wall_height: 30,
 };
 export const THEME_NAMES = { ameixa: "Ameixa", pinheiro: "Pinheiro", noite: "Noite", aurora: "Aurora", areia: "Areia", oceano: "Oceano" };
