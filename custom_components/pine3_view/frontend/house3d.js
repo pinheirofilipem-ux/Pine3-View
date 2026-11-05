@@ -173,13 +173,13 @@ export function bindHouse(p, root) {
   stage.addEventListener("pointermove", (ev) => {
     if (!start) return;
     const dx = ev.clientX - start.x, dy = ev.clientY - start.y;
-    if (!moved && Math.hypot(dx, dy) > 6) { moved = true; stage.setPointerCapture(ev.pointerId); p._drag = true; stage.classList.add("dragging"); }
+    if (!moved && Math.hypot(dx, dy) > 6) { moved = true; stage.setPointerCapture(ev.pointerId); p._drag = true; stage.classList.add("rotating"); }
     if (!moved) return;
     view3d.rz = start.rz + dx * 0.35;
     view3d.rx = Math.min(78, Math.max(18, start.rx - dy * 0.25));
     apply();
   });
-  const end = () => { start = null; p._drag = null; stage.classList.remove("dragging"); setTimeout(() => { moved = false; }, 0); };
+  const end = () => { start = null; p._drag = null; stage.classList.remove("rotating"); setTimeout(() => { moved = false; }, 0); };
   stage.addEventListener("pointerup", end);
   stage.addEventListener("pointercancel", end);
   // clicks: pins toggle a light, rooms open, unless the pointer was dragging
@@ -212,7 +212,7 @@ export function bindHouse(p, root) {
 export const css3d = `
 .chips3{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
 .stage{position:relative;margin-top:20px;border-radius:32px;height:min(68vh,640px);min-height:380px;overflow:hidden;perspective:1600px;perspective-origin:50% 35%;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
-.stage.dragging{cursor:grabbing}
+.stage.rotating{cursor:grabbing}
 .scene3d{position:absolute;left:50%;top:52%;transform-style:preserve-3d;transform:translate(-50%,-50%) scale(var(--sc)) rotateX(var(--rx)) rotateZ(var(--rz)) translateZ(calc(var(--stack) / -2));transition:transform .08s linear}
 .fl3{position:absolute;inset:0;transform-style:preserve-3d;pointer-events:none}
 .fl3 .r3{pointer-events:auto}

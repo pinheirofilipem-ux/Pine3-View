@@ -130,4 +130,5 @@ export const EN = {
   "Leituras": "Readings", "Controlos": "Controls", "Executar": "Run",
   "Noturno": "Sleep", "Turbo": "Turbo", "Manual": "Manual", "Silencioso": "Silent", "Eco": "Eco", "Reforço": "Boost",
   "Alérgenos": "Allergen", "Bactérias": "Bacteria", "Inteligente": "Smart", "Natural": "Natural", "Purificador": "Air purifier",
+  "Baixo": "Low", "Médio": "Medium", "Alto": "High",
 };

@@ -30,13 +30,14 @@ export const DEVICE_CLASS_ICON = {
   illuminance: "mdi:brightness-5", garage_door: "mdi:garage", blind: "mdi:blinds", curtain: "mdi:curtains",
   pm25: "mdi:blur", pm10: "mdi:blur", pm1: "mdi:blur", aqi: "mdi:air-filter", carbon_dioxide: "mdi:molecule-co2",
   volatile_organic_compounds: "mdi:molecule", volatile_organic_compounds_parts: "mdi:molecule",
+  signal_strength: "mdi:wifi", duration: "mdi:timer-outline",
 };
 // Icon hints from an entity's name, for integrations that don't set icons or device classes
 // (e.g. an air purifier's filter life, child lock, display light, beep).
 export const NAME_ICON = [
   [/purif|air ?clean/i, "mdi:air-purifier"], [/filtr|filter|hepa/i, "mdi:air-filter"], [/bloqueio|child ?lock|\block\b/i, "mdi:lock"],
   [/al[ée]rg|allerg/i, "mdi:flower-pollen"], [/luz|light|display|ecr[ãa]/i, "mdi:lightbulb-on-outline"], [/beep|som|buzzer|sound/i, "mdi:volume-high"],
-  [/modo|mode/i, "mdi:tune-variant"], [/velocidade|speed/i, "mdi:fan"], [/timer|temporizador/i, "mdi:timer-outline"],
+  [/modo|mode/i, "mdi:tune-variant"], [/velocidade|speed/i, "mdi:fan"], [/timer|temporizador|remaining|restante/i, "mdi:timer-outline"], [/rssi|wi-?fi|sinal|signal/i, "mdi:wifi"],
 ];
 export const ACCENT = {
   light: "#ffb340", switch: "#5ac8fa", fan: "#64d2ff", cover: "#5e9cff", lock: "#30d158", climate: "#ff9f0a",
@@ -52,6 +53,7 @@ export const STATE_PT = {
   // fan / air purifier preset modes
   sleep: "Noturno", turbo: "Turbo", manual: "Manual", silent: "Silencioso", eco: "Eco", boost: "Reforço",
   allergen: "Alérgenos", bacteria: "Bactérias", night: "Noturno", smart: "Inteligente", natural: "Natural",
+  low: "Baixo", medium: "Médio", high: "Alto",
 };
 export const WEATHER_PT = {
   "clear-night": "Céu limpo", cloudy: "Nublado", exceptional: "Excecional", fog: "Nevoeiro", hail: "Granizo",

@@ -202,7 +202,8 @@ class Pine3ViewPanel extends HTMLElement {
   }
   _icon(id) {
     const s = this._s(id), d = dom(id), dc = s?.attributes.device_class;
-    if (s?.attributes.icon) return s.attributes.icon;
+    // integration icon sets (e.g. the Philips purifier's "pap:") may not be loaded here: use mdi/hass only
+    if (/^(mdi|hass):/.test(s?.attributes.icon || "")) return s.attributes.icon;
     const m = this._meta?.[id];
     if (d === "media_player" && /apple/i.test(m?.manufacturer || "")) {
       if (/homepod/i.test(m.model || "")) return "mdi:speaker";
@@ -873,7 +874,9 @@ class Pine3ViewPanel extends HTMLElement {
     const mem = (this._meta?.[id]?.members || []).filter((e) => this._s(e) && this._s(e).state !== "unavailable");
     if (!mem.length) return "";
     const readings = mem.filter((e) => ["sensor", "binary_sensor"].includes(dom(e)));
-    const controls = mem.filter((e) => !["sensor", "binary_sensor"].includes(dom(e)));
+    const isToggle = (e) => ["switch", "input_boolean", "light", "fan"].includes(dom(e));
+    const toggles = mem.filter(isToggle);
+    const controls = mem.filter((e) => !["sensor", "binary_sensor"].includes(dom(e)) && !isToggle(e));
     const value = (e) => (dom(e) === "sensor" ? this._sensorVal(e) : this._stateText(e));
     const ctl = (e) => {
       const s = this._s(e), a = s.attributes, d = dom(e), name = esc(this._memberName(id, e));
@@ -892,8 +895,10 @@ class Pine3ViewPanel extends HTMLElement {
       return `<div class="dv-c"><ha-icon icon="${this._icon(e)}"></ha-icon><span>${name}</span><small>${esc(this._stateText(e))}</small><button class="mini" data-dvopen="${esc(e)}"><ha-icon icon="mdi:chevron-right"></ha-icon></button></div>`;
     };
     return `${readings.length ? `<div class="sub">${t("Leituras")}</div><div class="dv-grid">${readings.map((e) =>
-        `<div class="dv-r"><ha-icon icon="${this._icon(e)}"></ha-icon><b>${esc(value(e))}</b><small>${esc(this._memberName(id, e))}</small></div>`).join("")}</div>` : ""}
-      ${controls.length ? `<div class="sub">${t("Controlos")}</div><div class="dv-list">${controls.map(ctl).join("")}</div>` : ""}`;
+        `<div class="dv-r"><div class="dv-rv"><ha-icon icon="${this._icon(e)}"></ha-icon><b>${esc(value(e))}</b></div><small>${esc(this._memberName(id, e))}</small></div>`).join("")}</div>` : ""}
+      ${toggles.length || controls.length ? `<div class="sub">${t("Controlos")}</div>` : ""}
+      ${toggles.length ? `<div class="dv-tgrid">${toggles.map((e) => `<button class="dv-t ${this._isOn(e) ? "on" : ""}" data-dvtg="${esc(e)}"><ha-icon icon="${this._icon(e)}"></ha-icon><span>${esc(this._memberName(id, e))}</span></button>`).join("")}</div>` : ""}
+      ${controls.length ? `<div class="dv-list">${controls.map(ctl).join("")}</div>` : ""}`;
   }
 
   _extras(id) {
@@ -935,20 +940,27 @@ class Pine3ViewPanel extends HTMLElement {
       ${!sc.length && !sp.length ? `<div class="empty">${t("Não há cenas nem scripts.")}</div>` : ""}`;
   }
 
+  _slider(kind, pct, compact) {
+    return compact
+      ? `<div class="hslider" data-slider="${kind}" data-val="${pct}"><div class="fill" style="width:${pct}%"></div><div class="lbl">${pct}%</div></div>`
+      : `<div class="vslider" data-slider="${kind}" data-val="${pct}"><div class="fill" style="height:${pct}%"></div><div class="lbl">${pct}%</div></div>`;
+  }
+
   _modalView() {
     if (this._modal === "_wx") return this._forecastSheet();
     const id = this._modal, s = id && this._s(id);
     if (!s) return "";
     const d = dom(id), a = s.attributes, on = this._isOn(id);
+    const compact = !!this._meta?.[id]?.members?.some((e) => this._s(e)); // a whole-device card: keep it short
     let content = "";
     if (d === "light" && (a.supported_color_modes || []).some((m) => m !== "onoff")) {
       const pct = on ? Math.round(((a.brightness ?? 255) / 255) * 100) : 0;
       const colors = (a.supported_color_modes || []).some((m) => ["hs", "rgb", "rgbw", "rgbww", "xy"].includes(m));
-      content = `<div class="vslider" data-slider="brightness" data-val="${pct}"><div class="fill" style="height:${pct}%"></div><div class="lbl">${pct}%</div></div>
+      content = `${this._slider("brightness", pct, compact)}
         ${colors ? `<div class="swatches">${["#ffffff", "#ffd28a", "#ff8a5c", "#ff5ca8", "#8a7cff", "#5cc8ff", "#5cff9d"].map((c) => `<div class="sw" data-color="${c}" style="background:${c}"></div>`).join("")}</div>` : ""}`;
     } else if (d === "cover" && a.current_position != null) {
       const pct = a.current_position;
-      content = `<div class="vslider" data-slider="position" data-val="${pct}"><div class="fill" style="height:${pct}%"></div><div class="lbl">${pct}%</div></div>
+      content = `${this._slider("position", pct, compact)}
         <div class="row"><button class="pill" data-svc="cover.open_cover">${t("Abrir")}</button><button class="pill" data-svc="cover.stop_cover">${t("Parar")}</button><button class="pill" data-svc="cover.close_cover">${t("Fechar")}</button></div>`;
     } else if (d === "climate") {
       const tg = a.temperature, step = a.target_temp_step || 0.5;
@@ -966,8 +978,8 @@ class Pine3ViewPanel extends HTMLElement {
         <div class="row"><button class="round" data-svc="media_player.media_previous_track">⏮</button><button class="round" data-svc="media_player.media_play_pause">${s.state === "playing" ? "⏸" : "▶"}</button><button class="round" data-svc="media_player.media_next_track">⏭</button></div>
         ${a.volume_level != null ? `<div class="vslider" data-slider="volume" data-val="${vol}" style="height:200px;width:100px"><div class="fill" style="height:${vol}%"></div><div class="lbl">${vol}%</div></div>` : ""}`;
     } else if (d === "fan" && (a.percentage != null || a.preset_modes?.length)) {
-      content = `${a.percentage != null ? `<div class="vslider" data-slider="fan" data-val="${on ? a.percentage : 0}"><div class="fill" style="height:${on ? a.percentage : 0}%"></div><div class="lbl">${on ? a.percentage : 0}%</div></div>` : ""}
-        ${a.preset_modes?.length ? `<div class="row">${a.preset_modes.map((m) => `<button class="pill ${on && m === a.preset_mode ? "act" : ""}" data-preset="${esc(m)}">${esc(this._st(m))}</button>`).join("")}</div>` : ""}`;
+      content = `${a.percentage != null ? this._slider("fan", on ? a.percentage : 0, compact) : ""}
+        ${a.preset_modes?.length ? `<div class="row ${compact ? "presets" : ""}">${a.preset_modes.map((m) => `<button class="pill ${on && m === a.preset_mode ? "act" : ""}" data-preset="${esc(m)}">${esc(this._st(m))}</button>`).join("")}</div>` : ""}`;
     } else if (d === "camera") {
       content = `<img src="/api/camera_proxy/${esc(id)}?token=${esc(a.access_token || "")}&t=${Date.now()}" style="width:100%;border-radius:18px;margin-top:18px;background:#000">`;
     } else {
@@ -978,7 +990,7 @@ class Pine3ViewPanel extends HTMLElement {
     }
     const canToggle = TOGGLE.has(d) && d !== "media_player";
     const device = this._deviceSection(id);
-    return `<div class="ov ${this._ovEnter(id)}" data-close><div class="sheet ${device ? "wide" : ""}" style="--acc:${this._accent(id)}">
+    return `<div class="ov ${this._ovEnter(id)} ${device ? "dev" : ""}" data-close><div class="sheet ${device ? "wide dev" : ""}" style="--acc:${this._accent(id)}">
       <div class="hd"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div><div style="flex:1;min-width:0"><div class="nm">${esc(this._name(id))}</div><div class="st">${esc(this._stateText(id))}</div></div>
       ${canToggle ? `<button class="pill ${on ? "act" : ""}" data-toggle>${on ? t("Desligar") : t("Ligar")}</button>` : ""}</div>
       ${content}${device}<button class="more" data-more>${t("Mais definições")}</button>${this._meta?.[id] ? `<button class="more" data-hide style="margin-top:6px">${t("Esconder do Pine3 View")}</button>` : ""}</div></div>`;
@@ -1077,8 +1089,13 @@ class Pine3ViewPanel extends HTMLElement {
     const fill = el.querySelector(".fill"), lbl = el.querySelector(".lbl");
     const kind = el.dataset.slider;
     let val = Number(el.dataset.val);
-    const at = (ev) => { const r = el.getBoundingClientRect(); return Math.round(Math.min(100, Math.max(0, ((r.bottom - ev.clientY) / r.height) * 100))); };
-    const show = (v) => { fill.style.height = v + "%"; lbl.textContent = v + "%"; };
+    const horiz = el.classList.contains("hslider");
+    const at = (ev) => {
+      const r = el.getBoundingClientRect();
+      const f = horiz ? (ev.clientX - r.left) / r.width : (r.bottom - ev.clientY) / r.height;
+      return Math.round(Math.min(100, Math.max(0, f * 100)));
+    };
+    const show = (v) => { fill.style[horiz ? "width" : "height"] = v + "%"; lbl.textContent = v + "%"; };
     el.addEventListener("pointerdown", (ev) => { el.setPointerCapture(ev.pointerId); this._drag = true; val = at(ev); show(val); });
     el.addEventListener("pointermove", (ev) => { if (this._drag) { val = at(ev); show(val); } });
     const end = () => {
