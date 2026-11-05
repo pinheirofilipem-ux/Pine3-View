@@ -68,8 +68,6 @@ class Pine3ViewPanel extends HTMLElement {
     this._hass = h;
     if (!this._connecting) this._connect();
     if (this._drag) return; // don't redraw under a finger
-    // an open native option list would close if its <select> were redrawn: wait until it is done
-    if (this.shadowRoot?.activeElement?.tagName === "SELECT") { this._pending = true; return; }
     // Home Assistant pushes a new hass object whenever *any* entity changes; only redraw
     // when something this screen shows has changed (redraws restart animations and flicker).
     if (prev && !this._affects(prev, h)) return;
@@ -270,21 +268,40 @@ class Pine3ViewPanel extends HTMLElement {
 
   // ---------- actions ----------
   _call(d, svc, data) { return this._hass.callService(d, svc, data); }
-  /** The dock's glass lens: slides from the previous tab to the active one, stretching like a drop on the way. */
-  _placeBlob() {
-    const nav = this.shadowRoot.querySelector(".dock"), blob = nav?.querySelector(".blob");
-    const act = nav?.querySelector("button.act");
-    if (!blob || !act) { if (blob) blob.style.opacity = "0"; this._blob = null; return; }
-    const to = { x: act.offsetLeft, w: act.offsetWidth }, from = this._blob;
-    if (from && (from.x !== to.x || from.w !== to.w)) {
-      blob.style.transition = "none";
-      blob.style.transform = `translateX(${from.x}px)`; blob.style.width = `${from.w}px`;
-      blob.getBoundingClientRect(); // commit the start position
-      blob.style.transition = "";
-      blob.classList.add("go");
+  /** Dock buttons: rebuilt only when the items or the language change; otherwise just the active one moves. */
+  _updateDock(cfg) {
+    const nav = this._dockEl, show = this._view !== "settings" && !this._edit;
+    const items = DOCK_ITEMS.filter(([k]) => k === "home" || cfg.dock.includes(k));
+    const key = items.map(([k]) => k).join() + lang();
+    if (nav._key !== key) {
+      nav.querySelectorAll("button").forEach((b) => b.remove());
+      nav.insertAdjacentHTML("beforeend", items.map(([k, icon, label]) => `<button data-dock="${k}"><ha-icon icon="${icon}"></ha-icon><span>${t(label)}</span></button>`).join(""));
+      nav.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { this._edit = null; this._go(b.dataset.dock); }));
+      nav._key = key;
+      this._blobAt = null;
     }
-    blob.style.transform = `translateX(${to.x}px)`; blob.style.width = `${to.w}px`;
-    this._blob = to;
+    nav.hidden = !show;
+    const active = this._view === "room" ? "rooms" : this._view;
+    nav.querySelectorAll("button").forEach((b) => b.classList.toggle("act", b.dataset.dock === active));
+    if (!show) { this._blobAt = null; return; }
+    this._placeBlob(this._blobAt != null && this._blobAt !== active);
+    this._blobAt = active;
+  }
+
+  /** The glass lens under the active tab; with `animate` it slides there and stretches like a drop on the way. */
+  _placeBlob(animate) {
+    const nav = this._dockEl, blob = nav?.querySelector(".blob"), act = nav?.querySelector("button.act");
+    if (!blob) return;
+    if (!act || nav.hidden) { blob.style.opacity = "0"; return; }
+    const nr = nav.getBoundingClientRect(), ar = act.getBoundingClientRect();
+    if (!nr.width) return;
+    blob.style.opacity = "";
+    const anim = animate && !this.classList.contains("noanim");
+    if (anim) { blob.classList.remove("go"); void blob.offsetWidth; blob.classList.add("go"); }
+    else blob.style.transition = "none";
+    blob.style.transform = `translateX(${ar.left - nr.left - nav.clientLeft}px)`;
+    blob.style.width = `${ar.width}px`;
+    if (!anim) { void blob.offsetWidth; blob.style.transition = ""; }
   }
 
   _go(view, room = null) {
@@ -422,6 +439,7 @@ class Pine3ViewPanel extends HTMLElement {
       main = `<div class="panel glass"><div class="opts">
           ${this._choice("language", d.language, [["pt", "Português"], ["en", "English"]], t("Idioma"), t("Idioma de todo o painel."))}
           ${this._choice("layout", d.layout, [["grid", t("Grelha")], ["list", t("Lista")]], t("Disposição"), t("Como as divisões e os dispositivos aparecem."))}
+          ${this._toggle("animations", d.animations !== false, t("Animações"), t("Transições ao mudar de ecrã, a lente da dock e a abertura dos cartões. Desliga para um painel mais leve."))}
         </div></div>
         <div class="panel glass">
           <div class="preview">
@@ -728,8 +746,6 @@ class Pine3ViewPanel extends HTMLElement {
       ${this._view === "room" ? `<div class="iconbtn" data-act="back"><ha-icon icon="mdi:chevron-left"></ha-icon></div>` : ""}
       <div class="sp"></div>
     </header>` : "";
-    const nav = (v, icon, label) => `<button class="${this._view === v || (v === "rooms" && this._view === "room") ? "act" : ""}" data-nav="${v}"><ha-icon icon="${icon}"></ha-icon><span>${t(label)}</span></button>`;
-    const dock = this._view === "settings" || this._edit ? "" : `<nav class="dock"><i class="blob"></i>${DOCK_ITEMS.filter(([k]) => k === "home" || cfg.dock.includes(k)).map(([k, icon, label]) => nav(k, icon, label)).join("")}</nav>`;
     const editBar = this._edit ? `<div class="edbar"><button class="pill" data-edcancel>${t("Cancelar")}</button><button class="pill solid" data-eddone><ha-icon icon="mdi:check"></ha-icon>${t("Concluído")}</button></div>` : "";
 
     const refocus = this._entFocus;
@@ -740,14 +756,20 @@ class Pine3ViewPanel extends HTMLElement {
     this._collectWatch(rooms);
     // entering another screen: the content flows in (no blur on the 3D Home, a filter would flatten it)
     const viewKey = `${this._view}:${this._view === "room" ? this._room : ""}`;
-    const vin = this._viewKey && this._viewKey !== viewKey ? (this._view === "house" ? "vin flat" : "vin") : "";
+    const vin = this._viewKey && this._viewKey !== viewKey && cfg.animations !== false ? (this._view === "house" ? "vin flat" : "vin") : "";
+    this.classList.toggle("noanim", cfg.animations === false);
+    if (!this._app) {
+      // the dock lives outside the redrawn part, so it doesn't flicker or replay its animation on every update
+      root.innerHTML = `<style>${css}${css3d}${cssPlan}</style><div id="app"></div><nav class="dock" hidden><i class="blob"></i></nav>`;
+      this._app = root.getElementById("app");
+      this._dockEl = root.querySelector(".dock");
+      new ResizeObserver(() => this._placeBlob(false)).observe(this._dockEl); // fonts loading, window size…
+    }
     this._viewKey = viewKey;
-    this._pending = false;
-    this.shadowRoot.innerHTML = `<style>${css}${css3d}${cssPlan}</style>
-      <div class="bg" style="background:${THEMES[cfg.theme || this._theme] || THEMES.ameixa}"></div>
-      <div class="wrap ${vin} ${cfg.layout === "list" ? "as-list" : ""} ${this._edit ? "editing" : ""}">${header}${body}</div>${dock}${editBar}${this._saver ? this._saverView(rooms) : this._modalView()}`;
+    this._app.innerHTML = `<div class="bg" style="background:${THEMES[cfg.theme || this._theme] || THEMES.ameixa}"></div>
+      <div class="wrap ${vin} ${cfg.layout === "list" ? "as-list" : ""} ${this._edit ? "editing" : ""}">${header}${body}</div>${editBar}${this._saver ? this._saverView(rooms) : this._modalView()}`;
     for (const [sel, pos] of scrolls) root.querySelectorAll(sel).forEach((e, k) => { if (pos[k]) { e.scrollTop = pos[k][0]; e.scrollLeft = pos[k][1]; } });
-    this._placeBlob();
+    this._updateDock(cfg);
     if (this._view === "settings") this._bindSettings();
     else this._bind(rooms);
     if (refocus) {
@@ -910,6 +932,14 @@ class Pine3ViewPanel extends HTMLElement {
     return txt.charAt(0).toUpperCase() + txt.slice(1);
   }
 
+  /** A select's value, showing the option just chosen until Home Assistant reports it (devices can lag a few seconds). */
+  _selValue(e) {
+    const st = this._s(e).state, want = this._selWant?.[e];
+    if (!want) return st;
+    if (st === want.o || Date.now() - want.t > 15000) { delete this._selWant[e]; return st; }
+    return want.o;
+  }
+
   _deviceSection(id) {
     const mem = (this._meta?.[id]?.members || []).filter((e) => this._s(e) && this._s(e).state !== "unavailable");
     if (!mem.length) return "";
@@ -918,11 +948,11 @@ class Pine3ViewPanel extends HTMLElement {
     const toggles = mem.filter(isToggle);
     const selects = mem.filter((e) => dom(e) === "select" || dom(e) === "input_select");
     const controls = mem.filter((e) => !["sensor", "binary_sensor"].includes(dom(e)) && !isToggle(e) && !selects.includes(e));
-    // an option list is a tile with its current value; tapping opens the native picker (one line instead of a wall of chips)
+    // an option list is a tile with its current value; tapping it opens a row of chips right below
     const sel = (e) => {
-      const st = this._s(e), opts = st.attributes.options || [];
-      return `<label class="dv-t dv-sel"><ha-icon icon="${this._icon(e)}"></ha-icon><span class="dv-sv"><small>${esc(this._memberName(id, e))}</small><b>${opts.includes(st.state) ? esc(this._optLabel(e, st.state)) : "–"}</b></span><ha-icon class="chev" icon="mdi:unfold-more-horizontal"></ha-icon>
-        <select data-dvselect="${esc(e)}" aria-label="${esc(this._memberName(id, e))}">${opts.includes(st.state) ? "" : `<option selected disabled>–</option>`}${opts.map((o) => `<option value="${esc(o)}" ${o === st.state ? "selected" : ""}>${esc(this._optLabel(e, o))}</option>`).join("")}</select></label>`;
+      const opts = this._s(e).attributes.options || [], cur = this._selValue(e), open = this._selOpen === e;
+      return `<button class="dv-t dv-sel ${open ? "open" : ""}" data-dvopensel="${esc(e)}"><ha-icon icon="${this._icon(e)}"></ha-icon><span class="dv-sv"><small>${esc(this._memberName(id, e))}</small><b>${opts.includes(cur) ? esc(this._optLabel(e, cur)) : "–"}</b></span><ha-icon class="chev" icon="mdi:chevron-down"></ha-icon></button>
+        ${open ? `<div class="dv-opts"><div class="row presets">${opts.map((o) => `<button class="pill ${o === cur ? "act" : ""}" data-dvsel="${esc(e)}" data-opt="${esc(o)}">${esc(this._optLabel(e, o))}</button>`).join("")}</div></div>` : ""}`;
     };
     const value = (e) => (dom(e) === "sensor" ? this._sensorVal(e) : this._stateText(e));
     const ctl = (e) => {
@@ -944,7 +974,7 @@ class Pine3ViewPanel extends HTMLElement {
     return `${readings.length ? `<div class="sub">${t("Leituras")}</div><div class="dv-grid">${readings.map((e) =>
         `<div class="dv-r"><div class="dv-rv"><ha-icon icon="${this._icon(e)}"></ha-icon><b>${esc(value(e))}</b></div><small>${esc(this._memberName(id, e))}</small></div>`).join("")}</div>` : ""}
       ${toggles.length || selects.length || controls.length ? `<div class="sub">${t("Controlos")}</div>` : ""}
-      ${toggles.length || selects.length ? `<div class="dv-tgrid">${toggles.map((e) => `<button class="dv-t ${this._isOn(e) ? "on" : ""}" data-dvtg="${esc(e)}"><ha-icon icon="${this._icon(e)}"></ha-icon><span>${esc(this._memberName(id, e))}</span></button>`).join("")}${selects.map(sel).join("")}</div>` : ""}
+      ${toggles.length || selects.length ? `<div class="dv-tgrid" style="grid-auto-flow:row dense">${toggles.map((e) => `<button class="dv-t ${this._isOn(e) ? "on" : ""}" data-dvtg="${esc(e)}"><ha-icon icon="${this._icon(e)}"></ha-icon><span>${esc(this._memberName(id, e))}</span></button>`).join("")}${selects.map(sel).join("")}</div>` : ""}
       ${controls.length ? `<div class="dv-list">${controls.map(ctl).join("")}</div>` : ""}`;
   }
 
@@ -1125,11 +1155,14 @@ class Pine3ViewPanel extends HTMLElement {
     on("[data-color]", (el) => { const h = el.dataset.color; this._call("light", "turn_on", { entity_id: id, rgb_color: [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) }); });
     on("[data-preset]", (el) => this._call(dom(id), "set_preset_mode", { entity_id: id, preset_mode: el.dataset.preset }));
     on("[data-dvtg]", (el) => this._call("homeassistant", "toggle", { entity_id: el.dataset.dvtg }));
-    root.querySelectorAll("[data-dvselect]").forEach((el) => {
-      el.addEventListener("change", () => { this._call(dom(el.dataset.dvselect) === "input_select" ? "input_select" : "select", "select_option", { entity_id: el.dataset.dvselect, option: el.value }); el.blur(); });
-      el.addEventListener("blur", () => { if (this._pending) { this._pending = false; setTimeout(() => this._render(), 0); } });
+    on("[data-dvopensel]", (el) => { this._selOpen = this._selOpen === el.dataset.dvopensel ? null : el.dataset.dvopensel; this._render(); });
+    on("[data-dvsel]", (el) => {
+      const e = el.dataset.dvsel;
+      (this._selWant ||= {})[e] = { o: el.dataset.opt, t: Date.now() };
+      this._selOpen = null;
+      this._call(dom(e) === "input_select" ? "input_select" : "select", "select_option", { entity_id: e, option: el.dataset.opt });
+      this._render();
     });
-    on("[data-dvsel]", (el) => this._call("select", "select_option", { entity_id: el.dataset.dvsel, option: el.dataset.opt }));
     on("[data-dvbtn]", (el) => this._call("button", "press", { entity_id: el.dataset.dvbtn }));
     on("[data-dvopen]", (el) => this._openModal(el.dataset.dvopen));
     on("[data-dvnum]", (el) => {

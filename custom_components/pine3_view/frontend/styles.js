@@ -98,6 +98,7 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
 .tile .ex{font-size:13px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dock{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:5;display:flex;gap:6px;padding:7px;border-radius:999px;background:rgba(60,40,62,.55);backdrop-filter:blur(30px) saturate(150%);-webkit-backdrop-filter:blur(30px) saturate(150%);border:1px solid var(--line)}
 .dock button{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;height:50px;padding:0 24px;border-radius:999px;font-size:18px;font-weight:500;color:var(--muted);transition:background .2s,color .2s}
+.dock[hidden]{display:none}
 .dock button{position:relative;z-index:1;transition:color .35s}
 .dock button.act{color:var(--ink)}
 .dock .blob{position:absolute;left:0;top:7px;bottom:7px;border-radius:999px;pointer-events:none;transition:transform .55s cubic-bezier(.34,1.36,.5,1),width .55s cubic-bezier(.34,1.36,.5,1)}
@@ -115,6 +116,8 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
 .wrap.vin.flat{animation-name:vinflat}
 @keyframes vin{from{opacity:0;transform:translateY(14px) scale(.985);filter:blur(10px)}to{opacity:1;transform:none;filter:blur(0)}}
 @keyframes vinflat{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+/* Settings → Appearance → Animations off */
+:host(.noanim) *,:host(.noanim) *::before,:host(.noanim) *::after{animation:none!important;transition:none!important}
 @media (prefers-reduced-motion:reduce){.wrap.vin,.dock .blob.go::before{animation:none}.dock .blob{transition:none}}
 .dock ha-icon{--mdc-icon-size:22px}
 .empty{color:var(--muted);padding:40px 4px}
@@ -328,13 +331,15 @@ a.pill{color:inherit;text-decoration:none}
 .dv-t ha-icon{--mdc-icon-size:19px;flex:none}
 .dv-t.on{background:var(--cream);color:var(--ink)}
 .dv-t.on ha-icon{color:var(--ink)}
-.dv-sel{position:relative;padding:8px 10px 8px 12px}
+.dv-sel{padding:8px 10px 8px 12px;text-align:left}
 .dv-sv{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
 .dv-sv small{font-size:11px;font-weight:500;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dv-sv b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dv-sel .chev{--mdc-icon-size:18px;color:var(--muted)}
-.dv-sel select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px;border:0}
-.dv-sel:focus-within{outline:2px solid var(--cream);outline-offset:-2px}
+.dv-sel .chev{--mdc-icon-size:18px;color:var(--muted);transition:transform .25s}
+.dv-sel.open{background:rgba(255,255,255,.14)}.dv-sel.open .chev{transform:rotate(180deg)}
+.dv-opts{grid-column:1/-1;padding:2px 2px 4px;animation:pop .2s}
+.dv-opts .row.presets{margin-top:0}
+.dv-opts .pill{height:36px;font-size:14px;padding:0 14px}
 .sheet.dev .sub{margin-top:16px}
 @media (max-width:720px){
   .ov.dev{place-items:end center}
