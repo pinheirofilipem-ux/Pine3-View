@@ -62,6 +62,7 @@ Copy `custom_components/pine3_view` to `/config/custom_components/`, restart and
   - Rooms you don't place are arranged automatically.
 - **Entities** (*Settings → Entities*): every entity of each room, with search. Hide tiles you don't want, or show secondary entities (a TV's power switch, a plug's power sensor, diagnostic sensors) as tiles of their own.
 - **Whole-device cards**: a device's detail card shows everything it exposes — readings in a grid (PM2.5, allergen index, humidity, filter life…) and its controls (switches, options, numbers, buttons), plus fan/purifier preset modes. Great for air purifiers (e.g. Philips), vacuums or AC units; a double-size tile shows up to 6 readings.
+- **Climate and air conditioning** (e.g. Tado via HomeKit): a ring with the target temperature or the heat/cool range (low and high), what the unit is doing now (heating, cooling, idle…), current temperature and humidity, the HVAC modes and, when the unit exposes them, fan speed, swing and preset chips. Thermostats and AC units get their own icons.
 - **Apple TV and HomePod** (Home Assistant's *Apple TV* integration): their own icons and the app or song that's playing.
 - **Edit mode** (✎): drag to reorder rooms and devices, tap − to hide, tap the arrows to make a card double size (a double room card gets shortcuts to its devices).
 - **Layout**: grid or list.
