@@ -61,6 +61,7 @@ Copy `custom_components/pine3_view` to `/config/custom_components/`, restart and
   - **Devices**: put each entity where it really is. Its type is detected automatically (ceiling light, lamp, LED strip, spotlight, TV, Apple TV, HomePod, speaker, air conditioner, blind, door, window, plug, sensor, camera…) and can be changed. In the 3D Home lights glow in place (ceiling lights up high, LED strips as a line) and other devices are icons that open their details.
   - Rooms you don't place are arranged automatically.
 - **Entities** (*Settings → Entities*): every entity of each room, with search. Hide tiles you don't want, or show secondary entities (a TV's power switch, a plug's power sensor, diagnostic sensors) as tiles of their own.
+- **Whole-device cards**: a device's detail card shows everything it exposes — readings in a grid (PM2.5, allergen index, humidity, filter life…) and its controls (switches, options, numbers, buttons), plus fan/purifier preset modes. Great for air purifiers (e.g. Philips), vacuums or AC units; a double-size tile shows up to 6 readings.
 - **Apple TV and HomePod** (Home Assistant's *Apple TV* integration): their own icons and the app or song that's playing.
 - **Edit mode** (✎): drag to reorder rooms and devices, tap − to hide, tap the arrows to make a card double size (a double room card gets shortcuts to its devices).
 - **Layout**: grid or list.

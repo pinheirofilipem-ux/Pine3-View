@@ -61,6 +61,7 @@ Copia `custom_components/pine3_view` para `/config/custom_components/`, reinicia
   - **Dispositivos**: pões cada entidade no sítio certo. O tipo é detetado automaticamente (luz de teto, candeeiro, fita LED, spot, TV, Apple TV, HomePod, coluna, ar condicionado, estore, porta, janela, tomada, sensor, câmara…) e podes mudá-lo. Na Casa 3D as luzes brilham no sítio (as de teto no alto, a fita LED como uma faixa) e os outros aparelhos são ícones que abrem o detalhe.
   - As divisões que não colocares são arrumadas automaticamente.
 - **Entidades** (*Definições → Entidades*): todas as entidades de cada divisão, com pesquisa. Esconde mosaicos que não queres ou mostra entidades secundárias (o interruptor de uma TV, a potência de uma tomada, sensores de diagnóstico) como mosaicos próprios.
+- **Cartão do dispositivo inteiro**: o cartão de detalhe mostra tudo o que o dispositivo expõe — leituras numa grelha (PM2.5, índice de alérgenos, humidade, vida do filtro…) e os controlos (interruptores, opções, números, botões), além dos modos de ventoinhas e purificadores. Ideal para purificadores de ar (ex.: Philips), aspiradores ou ar condicionado; um mosaico em tamanho duplo mostra até 6 leituras.
 - **Apple TV e HomePod** (integração *Apple TV* do HA): ícones próprios e a app ou música que está a tocar.
 - **Modo de edição** (✎): arrasta para reordenar divisões e dispositivos, toca em − para esconder e nas setas para duplicar o tamanho (um cartão de divisão duplo mostra atalhos para os dispositivos).
 - **Disposição**: grelha ou lista.

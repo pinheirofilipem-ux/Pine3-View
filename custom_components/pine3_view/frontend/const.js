@@ -28,7 +28,16 @@ export const DEVICE_CLASS_ICON = {
   temperature: "mdi:thermometer", humidity: "mdi:water-percent", power: "mdi:flash", energy: "mdi:lightning-bolt",
   door: "mdi:door", window: "mdi:window-closed-variant", motion: "mdi:motion-sensor", battery: "mdi:battery",
   illuminance: "mdi:brightness-5", garage_door: "mdi:garage", blind: "mdi:blinds", curtain: "mdi:curtains",
+  pm25: "mdi:blur", pm10: "mdi:blur", pm1: "mdi:blur", aqi: "mdi:air-filter", carbon_dioxide: "mdi:molecule-co2",
+  volatile_organic_compounds: "mdi:molecule", volatile_organic_compounds_parts: "mdi:molecule",
 };
+// Icon hints from an entity's name, for integrations that don't set icons or device classes
+// (e.g. an air purifier's filter life, child lock, display light, beep).
+export const NAME_ICON = [
+  [/purif|air ?clean/i, "mdi:air-purifier"], [/filtr|filter|hepa/i, "mdi:air-filter"], [/bloqueio|child ?lock|\block\b/i, "mdi:lock"],
+  [/al[ée]rg|allerg/i, "mdi:flower-pollen"], [/luz|light|display|ecr[ãa]/i, "mdi:lightbulb-on-outline"], [/beep|som|buzzer|sound/i, "mdi:volume-high"],
+  [/modo|mode/i, "mdi:tune-variant"], [/velocidade|speed/i, "mdi:fan"], [/timer|temporizador/i, "mdi:timer-outline"],
+];
 export const ACCENT = {
   light: "#ffb340", switch: "#5ac8fa", fan: "#64d2ff", cover: "#5e9cff", lock: "#30d158", climate: "#ff9f0a",
   media_player: "#bf5af2", input_boolean: "#5ac8fa", vacuum: "#30d158", script: "#5e5ce6", button: "#5e5ce6",
@@ -40,6 +49,9 @@ export const STATE_PT = {
   standby: "Em espera", unavailable: "Indisponível", unknown: "Desconhecido", heat: "Aquecer", cool: "Arrefecer",
   auto: "Automático", heat_cool: "Aquecer/Arrefecer", dry: "Desumidificar", fan_only: "Ventilação",
   cleaning: "A limpar", docked: "Na base", returning: "A regressar",
+  // fan / air purifier preset modes
+  sleep: "Noturno", turbo: "Turbo", manual: "Manual", silent: "Silencioso", eco: "Eco", boost: "Reforço",
+  allergen: "Alérgenos", bacteria: "Bactérias", night: "Noturno", smart: "Inteligente", natural: "Natural",
 };
 export const WEATHER_PT = {
   "clear-night": "Céu limpo", cloudy: "Nublado", exceptional: "Excecional", fog: "Nevoeiro", hail: "Granizo",

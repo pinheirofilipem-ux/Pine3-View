@@ -45,7 +45,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
 }
 DOCK_ITEMS = ["home", "rooms", "house", "scenes", "security"]
 DEVICE_TYPES = [
-    "ceiling", "lamp", "led", "spot", "bulb", "tv", "appletv", "homepod", "speaker", "ac", "fan",
+    "ceiling", "lamp", "led", "spot", "bulb", "tv", "appletv", "homepod", "speaker", "ac", "fan", "purifier",
     "blind", "door", "window", "plug", "sensor", "motion", "camera", "lock", "vacuum", "other",
 ]
 COLOR = vol.Match(r"^#[0-9a-fA-F]{6}$")

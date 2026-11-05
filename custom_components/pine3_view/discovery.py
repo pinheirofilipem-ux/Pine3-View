@@ -29,8 +29,11 @@ PRIMARY_RANK = {
 }
 SUPPORTED = set(PRIMARY_RANK) | {"scene", "script"}
 ROOM_CLIMATE = {"temperature", "humidity"}
-EXTRA_SENSOR_CLASSES = {"power", "energy", "battery", "temperature", "humidity", "illuminance", "pm25", "co2"}
-SENSOR_PRIORITY = ["temperature", "humidity", "co2", "pm25", "illuminance", "power", "energy", "battery"]
+AIR_QUALITY = ["pm25", "pm10", "pm1", "aqi", "carbon_dioxide", "volatile_organic_compounds", "volatile_organic_compounds_parts"]
+EXTRA_SENSOR_CLASSES = {"power", "energy", "battery", "temperature", "humidity", "illuminance", *AIR_QUALITY}
+SENSOR_PRIORITY = ["temperature", "humidity", *AIR_QUALITY, "illuminance", "power", "energy", "battery"]
+# Everything a device can expose on its detail card (readings and controls), beyond the tile domains.
+MEMBER_DOMAINS = {"sensor", "binary_sensor", "switch", "light", "fan", "select", "number", "button", "cover", "lock", "climate", "media_player", "vacuum", "input_boolean"}
 BINARY_PRIORITY = ["door", "window", "garage_door", "opening", "motion", "occupancy", "presence", "moisture", "smoke", "gas"]
 
 # Room icon from the area name (pt + en keywords, accent-insensitive).
@@ -213,6 +216,21 @@ def build_home(hass: HomeAssistant, settings: dict[str, Any]) -> dict[str, Any]:
             "manufacturer": device.manufacturer if device else None,
             "model": device.model if device else None,
         })
+
+    # 3b. Every entity of each device ("members"), for a detail card that shows the whole device
+    # (e.g. an air purifier's fan, air quality, filter life, child lock, modes...).
+    by_device: dict[str, list[str]] = {}
+    for entry in entities.entities.values():
+        if not entry.device_id or entry.disabled_by or entry.hidden_by:
+            continue
+        if entry.entity_id.split(".")[0] not in MEMBER_DOMAINS or hass.states.get(entry.entity_id) is None:
+            continue
+        by_device.setdefault(entry.device_id, []).append(entry.entity_id)
+    for room in rooms.values():
+        for dev in room["devices"]:
+            members = [e for e in by_device.get(dev["device_id"] or "", []) if e != dev["id"]]
+            # readings first (air quality, climate...), then controls
+            dev["members"] = sorted(members, key=lambda e: (e.split(".")[0] not in ("sensor", "binary_sensor"), _rank(hass, e, entities.async_get(e))))
 
     # 4. Room metadata and ordering.
     floor_level = {}
