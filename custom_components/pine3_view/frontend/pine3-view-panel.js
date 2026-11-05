@@ -3,7 +3,7 @@
 
 import {
   SHOWN, TOGGLE, DETAIL, SECTIONS, DOMAIN_ICON, DEVICE_CLASS_ICON, ACCENT, STATE_PT, WEATHER_PT, WEATHER_ICON,
-  BIN_PT, THEMES, CARD_COLORS, ACCENTS, DOCK_ITEMS, DEFAULTS, THEME_NAMES, esc, dom, store, loadFonts,
+  BIN_PT, NAME_ICON, THEMES, CARD_COLORS, ACCENTS, DOCK_ITEMS, DEFAULTS, THEME_NAMES, esc, dom, store, loadFonts,
 } from "./const.js";
 import { css } from "./styles.js";
 import { t, tp, num, locale, setLang, lang } from "./i18n.js";
@@ -64,10 +64,41 @@ class Pine3ViewPanel extends HTMLElement {
   }
   set narrow(n) { this._narrow = n; }
   set hass(h) {
+    const prev = this._hass;
     this._hass = h;
     if (!this._connecting) this._connect();
     if (this._drag) return; // don't redraw under a finger
+    // Home Assistant pushes a new hass object whenever *any* entity changes; only redraw
+    // when something this screen shows has changed (redraws restart animations and flicker).
+    if (prev && !this._affects(prev, h)) return;
     this._render();
+  }
+
+  /** Did anything the current screen depends on change between two hass objects? */
+  _affects(prev, h) {
+    if (!this._watch || prev.language !== h.language || prev.entities !== h.entities || prev.areas !== h.areas) return true;
+    for (const id of this._watch) if (prev.states[id] !== h.states[id]) return true;
+    return false;
+  }
+
+  /** Every entity the last render read, so state changes elsewhere don't trigger a redraw. */
+  _collectWatch(rooms) {
+    if (!this._model) { this._watch = null; return; } // local discovery reads registries too: always redraw
+    const w = new Set();
+    const add = (ids) => (ids || []).forEach((i) => w.add(i));
+    for (const r of rooms) { add(r.ents); add(r.temperature); add(r.humidity); }
+    for (const m of Object.values(this._meta || {})) { add(m.extras); add(m.members); }
+    add(this._model.persons); add(this._model.scenes); add(this._model.scripts);
+    add(Object.keys(this._hass.states).filter((i) => i.startsWith("weather.")));
+    if (this._modal && !this._modal.startsWith("_")) w.add(this._modal);
+    this._watch = w;
+  }
+
+  /** Overlay class: the opening animation runs once, not on every redraw. */
+  _ovEnter(key) {
+    const enter = this._ovShown !== key;
+    this._ovShown = key;
+    return enter ? "enter" : "";
   }
 
   _onTick() {
@@ -180,7 +211,14 @@ class Pine3ViewPanel extends HTMLElement {
     if (d === "light") return this._isOn(id) ? "mdi:lightbulb-on" : "mdi:lightbulb-outline";
     if (d === "lock") return s?.state === "locked" ? "mdi:lock" : "mdi:lock-open-variant";
     if (d === "cover") return s?.state === "closed" ? "mdi:window-shutter" : "mdi:window-shutter-open";
-    return DEVICE_CLASS_ICON[dc] || DOMAIN_ICON[d] || "mdi:circle-outline";
+    if (DEVICE_CLASS_ICON[dc]) return DEVICE_CLASS_ICON[dc];
+    if (["fan", "switch", "select", "number", "sensor", "button"].includes(d)) {
+      const n = `${m?.name || ""} ${s?.attributes.friendly_name || ""}`;
+      // the purifier hint is for the fan itself; its other entities ("Purifier filter") use the rest
+      const hit = NAME_ICON.find(([re, icon]) => (icon === "mdi:air-purifier") === (d === "fan") && re.test(n));
+      if (hit) return hit[1];
+    }
+    return DOMAIN_ICON[d] || "mdi:circle-outline";
   }
   _accent(id) {
     const s = this._s(id);
@@ -300,7 +338,7 @@ class Pine3ViewPanel extends HTMLElement {
     const day = (f, k) => `<div class="fd"><span>${k === 0 ? t("Hoje") : cap(f.time.toLocaleDateString(locale(), { weekday: "long" }))}</span><ha-icon icon="${icon(f.cond)}"></ha-icon>
       <small class="pp">${f.precip != null ? Math.round(f.precip) + "%" : ""}</small><b>${num(Math.round(f.temp))}°</b><small>${f.low != null ? num(Math.round(f.low)) + "°" : ""}</small></div>`;
     const sub = [w?.humidity != null ? t("Humidade {n}%", { n: Math.round(w.humidity) }) : null, w?.wind != null ? `${t("Vento")} ${Math.round(w.wind)} ${esc(w.windUnit)}` : null, esc(src)].filter(Boolean).join(" · ");
-    return `<div class="ov" data-close><div class="sheet wide">
+    return `<div class="ov ${this._ovEnter("_wx")}" data-close><div class="sheet wide">
       <div class="hd"><div class="ic" style="background:var(--amber);color:var(--ink)"><ha-icon icon="${w ? icon(w.cond) : "mdi:weather-partly-cloudy"}"></ha-icon></div>
         <div style="flex:1;min-width:0"><div class="nm">${w ? `${num(Math.round(w.temp))}° · ${esc(this._wxLabel(w.cond))}` : t("Tempo")}</div><div class="st">${sub}</div></div></div>
       ${!fc ? `<div class="empty" style="text-align:center">${t("A carregar a previsão…")}</div>` : `
@@ -670,9 +708,15 @@ class Pine3ViewPanel extends HTMLElement {
     const editBar = this._edit ? `<div class="edbar"><button class="pill" data-edcancel>${t("Cancelar")}</button><button class="pill solid" data-eddone><ha-icon icon="mdi:check"></ha-icon>${t("Concluído")}</button></div>` : "";
 
     const refocus = this._entFocus;
+    // keep scroll positions of inner scrollers across the redraw
+    const root = this.shadowRoot;
+    const scrolls = [".sheet", ".scenes", ".fhs", ".set-nav"].map((sel) => [sel, [...root.querySelectorAll(sel)].map((e) => [e.scrollTop, e.scrollLeft])]);
+    if (!this._modal && !this._saver) this._ovShown = null;
+    this._collectWatch(rooms);
     this.shadowRoot.innerHTML = `<style>${css}${css3d}${cssPlan}</style>
       <div class="bg" style="background:${THEMES[cfg.theme || this._theme] || THEMES.ameixa}"></div>
       <div class="wrap ${cfg.layout === "list" ? "as-list" : ""} ${this._edit ? "editing" : ""}">${header}${body}</div>${dock}${editBar}${this._saver ? this._saverView(rooms) : this._modalView()}`;
+    for (const [sel, pos] of scrolls) root.querySelectorAll(sel).forEach((e, k) => { if (pos[k]) { e.scrollTop = pos[k][0]; e.scrollLeft = pos[k][1]; } });
     if (this._view === "settings") this._bindSettings();
     else this._bind(rooms);
     if (refocus) {
@@ -690,7 +734,7 @@ class Pine3ViewPanel extends HTMLElement {
   _saverView(rooms) {
     const w = this._wx();
     const lit = rooms.flatMap((r) => r.ents).filter((i) => dom(i) === "light" && this._isOn(i)).length;
-    return `<div class="saver" data-saver><div class="sv-in">
+    return `<div class="saver ${this._ovEnter("_saver")}" data-saver><div class="sv-in">
       <div class="clock sv-clock">${this._clockText()}</div>
       <div class="sv-date">${esc(this._dateText())}</div>
       <div class="sv-meta">${w ? `<span><ha-icon icon="${WEATHER_ICON[w.cond] || "mdi:weather-partly-cloudy"}"></ha-icon>${num(Math.round(w.temp))}° ${esc(this._wxLabel(w.cond))}</span>` : ""}
@@ -811,8 +855,52 @@ class Pine3ViewPanel extends HTMLElement {
     </div>`;
   }
 
+  /** Name of a device's entity without the device/room prefix ("Purifier PM2.5" -> "PM2.5"). */
+  _memberName(primary, e) {
+    const n = this._s(e)?.attributes.friendly_name || e;
+    const fold = (x) => (x || "").toLowerCase();
+    for (const pre of [this._s(primary)?.attributes.friendly_name, this._meta?.[primary]?.name]) {
+      if (pre && fold(n).startsWith(fold(pre) + " ") && n.length > pre.length + 1) {
+        const rest = n.slice(pre.length + 1);
+        return rest[0].toUpperCase() + rest.slice(1);
+      }
+    }
+    return n;
+  }
+
+  /** Every other entity of the device behind a tile: readings in a grid, then its controls. */
+  _deviceSection(id) {
+    const mem = (this._meta?.[id]?.members || []).filter((e) => this._s(e) && this._s(e).state !== "unavailable");
+    if (!mem.length) return "";
+    const readings = mem.filter((e) => ["sensor", "binary_sensor"].includes(dom(e)));
+    const controls = mem.filter((e) => !["sensor", "binary_sensor"].includes(dom(e)));
+    const value = (e) => (dom(e) === "sensor" ? this._sensorVal(e) : this._stateText(e));
+    const ctl = (e) => {
+      const s = this._s(e), a = s.attributes, d = dom(e), name = esc(this._memberName(id, e));
+      if (["switch", "input_boolean", "light", "fan"].includes(d)) {
+        return `<div class="dv-c"><ha-icon icon="${this._icon(e)}"></ha-icon><span>${name}</span><div class="tg ${this._isOn(e) ? "on" : ""}" data-dvtg="${esc(e)}"><i></i></div></div>`;
+      }
+      if (d === "select") {
+        return `<div class="dv-c col"><div class="dv-h"><ha-icon icon="${this._icon(e)}"></ha-icon><span>${name}</span></div>
+          <div class="seg">${(a.options || []).map((o) => `<button class="pill ${o === s.state ? "solid" : ""}" data-dvsel="${esc(e)}" data-opt="${esc(o)}">${esc(this._st(o))}</button>`).join("")}</div></div>`;
+      }
+      if (d === "number") {
+        return `<div class="dv-c"><ha-icon icon="${this._icon(e)}"></ha-icon><span>${name}</span>
+          <button class="mini" data-dvnum="${esc(e)}" data-step="-1">−</button><b class="dv-v">${esc(this._sensorVal(e))}</b><button class="mini" data-dvnum="${esc(e)}" data-step="1">+</button></div>`;
+      }
+      if (d === "button") return `<div class="dv-c"><ha-icon icon="${this._icon(e)}"></ha-icon><span>${name}</span><button class="pill" data-dvbtn="${esc(e)}">${t("Executar")}</button></div>`;
+      return `<div class="dv-c"><ha-icon icon="${this._icon(e)}"></ha-icon><span>${name}</span><small>${esc(this._stateText(e))}</small><button class="mini" data-dvopen="${esc(e)}"><ha-icon icon="mdi:chevron-right"></ha-icon></button></div>`;
+    };
+    return `${readings.length ? `<div class="sub">${t("Leituras")}</div><div class="dv-grid">${readings.map((e) =>
+        `<div class="dv-r"><ha-icon icon="${this._icon(e)}"></ha-icon><b>${esc(value(e))}</b><small>${esc(this._memberName(id, e))}</small></div>`).join("")}</div>` : ""}
+      ${controls.length ? `<div class="sub">${t("Controlos")}</div><div class="dv-list">${controls.map(ctl).join("")}</div>` : ""}`;
+  }
+
   _extras(id) {
-    const ex = (this._meta?.[id]?.extras || []).filter((e) => this._s(e) && this._s(e).state !== "unavailable");
+    const m = this._meta?.[id] || {};
+    const big = this._cfg().big_devices?.includes(id);
+    const pool = big ? (m.members || []).filter((e) => ["sensor", "binary_sensor"].includes(dom(e))).slice(0, 6) : m.extras;
+    const ex = (pool || []).filter((e) => this._s(e) && this._s(e).state !== "unavailable");
     if (!ex.length) return "";
     const txt = ex.map((e) => {
       const dc = this._s(e).attributes.device_class;
@@ -877,8 +965,9 @@ class Pine3ViewPanel extends HTMLElement {
         ${a.media_title ? `<div style="text-align:center;margin-top:14px;font-weight:700">${esc(a.media_title)}</div><div style="text-align:center;color:var(--muted);font-size:13px">${esc(a.media_artist || "")}</div>` : ""}
         <div class="row"><button class="round" data-svc="media_player.media_previous_track">⏮</button><button class="round" data-svc="media_player.media_play_pause">${s.state === "playing" ? "⏸" : "▶"}</button><button class="round" data-svc="media_player.media_next_track">⏭</button></div>
         ${a.volume_level != null ? `<div class="vslider" data-slider="volume" data-val="${vol}" style="height:200px;width:100px"><div class="fill" style="height:${vol}%"></div><div class="lbl">${vol}%</div></div>` : ""}`;
-    } else if (d === "fan" && a.percentage != null) {
-      content = `<div class="vslider" data-slider="fan" data-val="${on ? a.percentage : 0}"><div class="fill" style="height:${on ? a.percentage : 0}%"></div><div class="lbl">${on ? a.percentage : 0}%</div></div>`;
+    } else if (d === "fan" && (a.percentage != null || a.preset_modes?.length)) {
+      content = `${a.percentage != null ? `<div class="vslider" data-slider="fan" data-val="${on ? a.percentage : 0}"><div class="fill" style="height:${on ? a.percentage : 0}%"></div><div class="lbl">${on ? a.percentage : 0}%</div></div>` : ""}
+        ${a.preset_modes?.length ? `<div class="row">${a.preset_modes.map((m) => `<button class="pill ${on && m === a.preset_mode ? "act" : ""}" data-preset="${esc(m)}">${esc(this._st(m))}</button>`).join("")}</div>` : ""}`;
     } else if (d === "camera") {
       content = `<img src="/api/camera_proxy/${esc(id)}?token=${esc(a.access_token || "")}&t=${Date.now()}" style="width:100%;border-radius:18px;margin-top:18px;background:#000">`;
     } else {
@@ -888,10 +977,11 @@ class Pine3ViewPanel extends HTMLElement {
         ${rows.length ? `<div class="attrs">${rows.map(([k, v]) => `<span>${esc(k.replace(/_/g, " "))}</span><b>${esc(v)}</b>`).join("")}</div>` : ""}`;
     }
     const canToggle = TOGGLE.has(d) && d !== "media_player";
-    return `<div class="ov" data-close><div class="sheet" style="--acc:${this._accent(id)}">
+    const device = this._deviceSection(id);
+    return `<div class="ov ${this._ovEnter(id)}" data-close><div class="sheet ${device ? "wide" : ""}" style="--acc:${this._accent(id)}">
       <div class="hd"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div><div style="flex:1;min-width:0"><div class="nm">${esc(this._name(id))}</div><div class="st">${esc(this._stateText(id))}</div></div>
       ${canToggle ? `<button class="pill ${on ? "act" : ""}" data-toggle>${on ? t("Desligar") : t("Ligar")}</button>` : ""}</div>
-      ${content}<button class="more" data-more>${t("Mais definições")}</button>${this._meta?.[id] ? `<button class="more" data-hide style="margin-top:6px">${t("Esconder do Pine3 View")}</button>` : ""}</div></div>`;
+      ${content}${device}<button class="more" data-more>${t("Mais definições")}</button>${this._meta?.[id] ? `<button class="more" data-hide style="margin-top:6px">${t("Esconder do Pine3 View")}</button>` : ""}</div></div>`;
   }
 
   _bind() {
@@ -964,6 +1054,16 @@ class Pine3ViewPanel extends HTMLElement {
     });
     on("[data-svc]", (el) => { const [d, s] = el.dataset.svc.split("."); this._call(d, s, { entity_id: id }); });
     on("[data-color]", (el) => { const h = el.dataset.color; this._call("light", "turn_on", { entity_id: id, rgb_color: [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) }); });
+    on("[data-preset]", (el) => this._call("fan", "set_preset_mode", { entity_id: id, preset_mode: el.dataset.preset }));
+    on("[data-dvtg]", (el) => this._call("homeassistant", "toggle", { entity_id: el.dataset.dvtg }));
+    on("[data-dvsel]", (el) => this._call("select", "select_option", { entity_id: el.dataset.dvsel, option: el.dataset.opt }));
+    on("[data-dvbtn]", (el) => this._call("button", "press", { entity_id: el.dataset.dvbtn }));
+    on("[data-dvopen]", (el) => this._openModal(el.dataset.dvopen));
+    on("[data-dvnum]", (el) => {
+      const e = el.dataset.dvnum, a = this._s(e).attributes, step = Number(a.step) || 1;
+      const v = Math.min(a.max ?? Infinity, Math.max(a.min ?? -Infinity, Number(this._s(e).state) + step * Number(el.dataset.step)));
+      this._call("number", "set_value", { entity_id: e, value: Math.round(v * 1000) / 1000 });
+    });
     on("[data-hvac]", (el) => this._call("climate", "set_hvac_mode", { entity_id: id, hvac_mode: el.dataset.hvac }));
     on("[data-temp]", (el) => {
       const a = this._s(id).attributes;

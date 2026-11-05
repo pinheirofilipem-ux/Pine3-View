@@ -16,6 +16,7 @@ export const DEVICE_TYPES = {
   speaker: ["mdi:speaker-wireless", "Coluna", "thing"],
   ac: ["mdi:air-conditioner", "Ar condicionado", "thing"],
   fan: ["mdi:fan", "Ventoinha", "thing"],
+  purifier: ["mdi:air-purifier", "Purificador", "thing"],
   blind: ["mdi:blinds", "Estore", "thing"],
   door: ["mdi:door", "Porta", "thing"],
   window: ["mdi:window-closed-variant", "Janela", "thing"],
@@ -53,7 +54,7 @@ export function autoType(id, state, meta = {}) {
     return "speaker";
   }
   if (d === "climate") return "ac";
-  if (d === "fan") return "fan";
+  if (d === "fan") return has(name, "purif", "air clean") || (maker.includes("philips") && model.startsWith("ac")) ? "purifier" : "fan";
   if (d === "cover") return a.device_class === "door" || a.device_class === "garage" ? "door" : "blind";
   if (d === "lock") return "lock";
   if (d === "camera") return "camera";

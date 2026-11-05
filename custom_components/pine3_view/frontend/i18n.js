@@ -127,4 +127,7 @@ export const EN = {
   "Este browser não suporta manter o ecrã ligado.": "This browser can't keep the screen on.",
   "Esconde as barras do browser. Também há um botão no topo do painel.": "Hides the browser bars. There's also a button at the top of the panel.",
   "Altura das paredes": "Wall height", "Paredes mais baixas": "Lower walls", "Paredes mais altas": "Higher walls",
+  "Leituras": "Readings", "Controlos": "Controls", "Executar": "Run",
+  "Noturno": "Sleep", "Turbo": "Turbo", "Manual": "Manual", "Silencioso": "Silent", "Eco": "Eco", "Reforço": "Boost",
+  "Alérgenos": "Allergen", "Bactérias": "Bacteria", "Inteligente": "Smart", "Natural": "Natural", "Purificador": "Air purifier",
 };

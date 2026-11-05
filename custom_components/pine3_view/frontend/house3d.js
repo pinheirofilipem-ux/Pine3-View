@@ -10,7 +10,7 @@ export const WALL_DEFAULT = 30; // wall height in px (Settings > 3D floor plan >
 const SLAB_MARGIN = 14; // floor slab margin around the rooms, in px
 const SIZES = { 1: [2, 2], 2: [3, 2], 3: [4, 3] };
 
-export const view3d = { rx: 58, rz: -38, floor: "all" };
+export const view3d = { rx: 58, rz: -38, floor: "all", sc: null };
 
 export function autoSize(r) {
   const n = r.count || 0;
@@ -132,7 +132,7 @@ export function houseView(p, rooms) {
       <div class="right"><button class="pill" data-editplan><ha-icon icon="mdi:floor-plan"></ha-icon>${t("Editar planta")}</button>${p._gear()}</div></div>
     ${chips}
     <div class="stage glass" data-stage>
-      <div class="scene3d" style="--rx:${view3d.rx}deg;--rz:${view3d.rz}deg;--sc:1;width:${W * U}px;height:${D * U}px;--stack:${(shown.length - 1) * gap}px;--wall:${wall}px">
+      <div class="scene3d" style="--rx:${view3d.rx}deg;--rz:${view3d.rz}deg;--sc:${view3d.sc ?? 1};width:${W * U}px;height:${D * U}px;--stack:${(shown.length - 1) * gap}px;--wall:${wall}px">
         ${rooms.length ? floorsHtml : ""}
       </div>
       <div class="ctl3">
@@ -159,7 +159,9 @@ export function bindHouse(p, root) {
     const w = scene.offsetWidth, d = scene.offsetHeight;
     const diag = Math.hypot(w, d) + 80;
     const sc = Math.min(1.25, (stage.clientWidth - 24) / diag, (stage.clientHeight - 60) / (diag * 0.62 + parseFloat(scene.style.getPropertyValue("--stack") || 0)));
-    scene.style.setProperty("--sc", Math.max(0.35, sc).toFixed(3));
+    // remember the scale so the next redraw starts at the right size (no jump/flicker)
+    view3d.sc = Math.max(0.35, sc).toFixed(3);
+    scene.style.setProperty("--sc", view3d.sc);
   };
   fit();
   let start = null, moved = false;

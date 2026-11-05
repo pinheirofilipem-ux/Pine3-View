@@ -85,7 +85,7 @@ async def test_build_home(hass: HomeAssistant) -> None:
 
     coz = rooms["Cozinha"]["devices"]
     assert coz == [{"id": h["plug_id"], "device_id": coz[0]["device_id"], "manufacturer": None, "model": None, "name": "Máquina de café",
-                    "kind": "outlet", "extras": [h["power_id"]], "hidden": False}]
+                    "kind": "outlet", "extras": [h["power_id"]], "hidden": False, "members": [h["power_id"]]}]
     assert [d["id"] for d in rooms["Outros"]["devices"]] == [h["loose"]]
     assert home["weather"] == "weather.casa"
     assert h["scene"] in home["scenes"]
@@ -288,3 +288,32 @@ async def test_wall_height(hass: HomeAssistant, hass_ws_client) -> None:
     for n, bad in enumerate([0, 500, "alta"], start=2):
         await ws.send_json({"id": n, "type": "pine3_view/settings", "wall_height": bad})
         assert not (await ws.receive_json())["success"], bad
+
+
+async def test_device_members_air_purifier(hass: HomeAssistant) -> None:
+    """All of a device's entities (readings and controls) travel with its tile."""
+    entry = MockConfigEntry(domain="philips_airpurifier_coap")
+    entry.add_to_hass(hass)
+    areas, devs, ents = ar.async_get(hass), dr.async_get(hass), er.async_get(hass)
+    sala = areas.async_create("Sala")
+    dev = devs.async_get_or_create(config_entry_id=entry.entry_id, identifiers={("philips", "ac2889")}, name="Purificador", model="AC2889")
+    devs.async_update_device(dev.id, area_id=sala.id)
+
+    def entity(domain, uid, state, attrs=None, **kw):
+        e = ents.async_get_or_create(domain, "philips", uid, device_id=dev.id, config_entry=entry, **kw)
+        hass.states.async_set(e.entity_id, state, attrs or {})
+        return e.entity_id
+
+    fan = entity("fan", "fan", "on", {"preset_modes": ["auto", "sleep", "turbo"], "preset_mode": "auto"})
+    pm25 = entity("sensor", "pm25", "7", {"device_class": "pm25", "unit_of_measurement": "µg/m³"})
+    allergen = entity("sensor", "allergen", "2", {"friendly_name": "Purificador Allergen index"})
+    filt = entity("sensor", "filter", "68", {"unit_of_measurement": "%"}, entity_category=EntityCategory.DIAGNOSTIC)
+    lock = entity("switch", "child_lock", "off", entity_category=EntityCategory.CONFIG)
+    mode = entity("select", "light", "50%", {"options": ["0%", "50%", "100%"]}, entity_category=EntityCategory.CONFIG)
+
+    home = build_home(hass, {"hidden": [], "hidden_rooms": [], "room_order": []})
+    tile = next(d for r in home["rooms"] for d in r["devices"] if d["device_id"] == dev.id)
+    assert tile["id"] == fan and tile["model"] == "AC2889"
+    assert set(tile["members"]) == {pm25, allergen, filt, lock, mode}
+    assert tile["members"][0] == pm25  # air-quality readings come first
+    assert pm25 in tile["extras"]
