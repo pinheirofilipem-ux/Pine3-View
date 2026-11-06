@@ -892,7 +892,7 @@ class Pine3ViewPanel extends HTMLElement {
     const status = lightsOn.length ? tp(lightsOn.length, "{n} luz acesa em casa", "{n} luzes acesas em casa") : lights.length ? t("Todas as luzes apagadas") : t("Tudo tranquilo em casa");
 
     const scenes = (this._model ? this._model.scenes.filter((i) => this._s(i)) : Object.keys(h.states).filter((i) => dom(i) === "scene" && !h.entities?.[i]?.hidden)).slice(0, 12);
-    const scenesHtml = scenes.length && cfg.show_scenes ? `<div class="sect"><div class="eyebrow">${t("Cenas")} <span class="badge">${scenes.length}</span></div>
+    const scenesHtml = scenes.length && cfg.show_scenes ? `<div class="sect hsc"><div class="eyebrow">${t("Cenas")} <span class="badge">${scenes.length}</span></div>
       <div class="scenes">${scenes.map((i) => `<div class="scene glass ${this._fired === i ? "fired" : ""}" data-scene="${i}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon>${esc(this._name(i))}</div>`).join("")}</div></div>` : "";
 
     // Summary cards
@@ -929,7 +929,7 @@ class Pine3ViewPanel extends HTMLElement {
       ${cfg.show_status && !this._edit ? `<div class="statusrow"><div><div class="eyebrow">${t("Estado da casa")}</div><div class="status">${status}</div></div>
         ${lights.length ? `<div class="actions"><button class="pill" data-all="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender tudo")}</button><button class="pill solid" data-all="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar tudo")}</button></div>` : ""}</div>` : ""}
       ${this._edit ? "" : scenesHtml}
-      ${rooms.length || this._edit ? `<div class="grid" data-sortable="rooms">${rooms.map((r) => this._roomCard(r)).join("")}${this._restoreCard(this._hiddenRooms.length)}${cfg.show_summary && !this._edit ? cards.join("") : ""}</div>`
+      ${rooms.length || this._edit ? `<div class="grid hgrid" data-sortable="rooms">${rooms.map((r) => this._roomCard(r)).join("")}${this._restoreCard(this._hiddenRooms.length)}${cfg.show_summary && !this._edit ? cards.join("") : ""}</div>`
         : `<div class="empty">${t("Ainda não há divisões com dispositivos. Atribui áreas aos teus dispositivos no Home Assistant.")}</div>`}`;
   }
 

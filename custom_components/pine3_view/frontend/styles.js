@@ -395,6 +395,15 @@ a.pill{color:inherit;text-decoration:none}
   .tile .ic{width:42px;height:42px}.tile .ic ha-icon{--mdc-icon-size:22px}.tile .pw{width:46px;height:46px}.tile .pw ha-icon{--mdc-icon-size:22px}
   .tile .nm{font-size:17px;margin-top:8px}.tile .st{font-size:14px}
 }
+/* the Home screen on a landscape tablet: clock, status, scenes and two rows of cards on one screen */
+@media (min-width:721px) and (max-height:920px){
+  .top{padding-top:14px}.clock{font-size:52px;margin-top:4px}.wpill{height:48px}.wpill b{font-size:22px}.av,.top .iconbtn{width:46px;height:46px}
+  .statusrow{margin-top:12px}.status{font-size:28px;margin-top:4px}.statusrow .pill{height:42px}
+  .hsc{margin-top:14px}.hsc .scenes{padding-top:8px}.hsc .scene{height:42px;padding:0 18px 0 16px;font-size:15px}
+  .hgrid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-top:14px}
+  .hgrid .rc{min-height:clamp(116px,calc((100vh - 348px) / 2),210px)}
+  .hgrid .big-num{font-size:36px}.hgrid .big-txt{font-size:22px}.hgrid .media .ttl{font-size:18px}.hgrid .media .ctl{gap:14px;margin-top:8px}.hgrid .media .ctl .pp{width:42px;height:42px}.hgrid .media .bar{margin-top:8px}
+}
 @media (min-width:721px) and (max-height:680px){
   .hero{padding-top:12px}.hero .t{font-size:34px}
   .rc{padding:12px 14px;border-radius:22px}.ri{width:36px;height:36px}.ri ha-icon{--mdc-icon-size:20px}.pw{width:42px;height:42px}.pw ha-icon{--mdc-icon-size:22px}
