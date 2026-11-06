@@ -11,7 +11,7 @@ export const WALL_DEFAULT = 30; // wall height in px (Settings > 3D floor plan >
 const SLAB_MARGIN = 14; // floor slab margin around the rooms, in px
 const SIZES = { 1: [2, 2], 2: [3, 2], 3: [4, 3] };
 
-export const view3d = { rx: 58, rz: -38, floor: "all", sc: null };
+export const view3d = { rx: 58, rz: -38, floor: "all", sc: null, zoom: 1, px: 0, py: 0 };
 
 /** Colour temperature (K) to an RGB triple (Tanner Helland's approximation). */
 function kelvinRgb(k) {
@@ -220,17 +220,20 @@ export function houseView(p, rooms) {
       <div class="right"><button class="pill" data-editplan><ha-icon icon="mdi:floor-plan"></ha-icon>${t("Editar planta")}</button>${p._gear()}</div></div>
     ${chips}
     <div class="stage ${cvs ? `cvs ${flat ? "flat" : ""}` : mode === "lite" ? "lite3d" : "glass"}" data-stage>
-      ${cvs ? `<canvas></canvas>${rooms.length ? overlay : ""}` : `<div class="scene3d" style="--rx:${view3d.rx}deg;--rz:${view3d.rz}deg;--sc:${view3d.sc ?? 1};width:${W * U}px;height:${D * U}px;--stack:${(shown.length - 1) * gap}px;--wall:${wall}px">
+      ${cvs ? `<canvas></canvas>${rooms.length ? overlay : ""}` : `<div class="scene3d" style="--rx:${view3d.rx}deg;--rz:${view3d.rz}deg;--sc:${(view3d.sc ?? 1) * view3d.zoom};--px:${view3d.px}px;--py:${view3d.py}px;--zi:${(1 / view3d.zoom).toFixed(3)};width:${W * U}px;height:${D * U}px;--stack:${(shown.length - 1) * gap}px;--wall:${wall}px">
         ${rooms.length ? floorsHtml : ""}
       </div>`}
-      <div class="ctl3">${flat ? "" : `
+      <div class="ctl3">
+        <button class="mini" data-zoom="out" title="${t("Afastar")}"><ha-icon icon="mdi:minus"></ha-icon></button>
+        <button class="mini" data-zoom="in" title="${t("Aproximar")}"><ha-icon icon="mdi:plus"></ha-icon></button>
+        ${flat ? `<button class="mini" data-rot="reset" title="${t("Repor vista")}"><ha-icon icon="mdi:crosshairs"></ha-icon></button>` : `
         <button class="mini" data-rot="-30" title="${t("Rodar")}"><ha-icon icon="mdi:rotate-left"></ha-icon></button>
         <button class="mini" data-rot="reset" title="${t("Repor vista")}"><ha-icon icon="mdi:crosshairs"></ha-icon></button>
         <button class="mini" data-rot="30" title="${t("Rodar")}"><ha-icon icon="mdi:rotate-right"></ha-icon></button>
         <button class="mini" data-wall="-6" title="${t("Paredes mais baixas")}"><ha-icon icon="mdi:arrow-collapse-vertical"></ha-icon></button>
         <button class="mini" data-wall="6" title="${t("Paredes mais altas")}"><ha-icon icon="mdi:arrow-expand-vertical"></ha-icon></button>`}
       </div>
-      <div class="hint3">${flat ? t("Toca numa divisão para a abrir · Toca numa luz para a ligar") : t("Arrasta para rodar · Toca numa divisão para a abrir · Toca numa luz para a ligar")}</div>
+      <div class="hint3">${flat ? t("Arrasta para mover · Dois dedos para aproximar · Toca numa divisão para a abrir ou numa luz para a ligar") : t("Arrasta para rodar · Dois dedos para aproximar · Toca numa divisão para a abrir ou numa luz para a ligar")}</div>
     </div>
     ${rooms.length ? "" : `<div class="empty">${t("Ainda não há divisões com dispositivos.")}</div>`}`;
 }
@@ -240,17 +243,23 @@ export function bindHouse(p, root) {
   if (!stage) return;
   const scene = stage.querySelector(".scene3d"), M = p._house;
   const cvs = !scene && M && stage.querySelector("canvas");
+  const flat = M?.mode === "plan" && !!cvs;
   let hit = () => null;
   const draw = () => { if (cvs) hit = drawHouse(p, stage, M, view3d); };
-  // one update per frame while dragging, however many pointer events arrive
+  // one update per frame while dragging or pinching, however many pointer events arrive
   let raf = 0;
   const apply = () => {
     if (raf) return;
     raf = requestAnimationFrame(() => {
       raf = 0;
       if (cvs) { draw(); return; }
-      scene.style.setProperty("--rx", view3d.rx + "deg");
-      scene.style.setProperty("--rz", view3d.rz + "deg");
+      const st = scene.style;
+      st.setProperty("--rx", view3d.rx + "deg");
+      st.setProperty("--rz", view3d.rz + "deg");
+      st.setProperty("--sc", (view3d.sc ?? 1) * view3d.zoom);
+      st.setProperty("--px", view3d.px + "px");
+      st.setProperty("--py", view3d.py + "px");
+      st.setProperty("--zi", (1 / view3d.zoom).toFixed(3));
     });
   };
   const fit = () => {
@@ -260,47 +269,112 @@ export function bindHouse(p, root) {
     const sc = Math.min(1.25, (stage.clientWidth - 24) / diag, (stage.clientHeight - 60) / (diag * 0.62 + parseFloat(scene.style.getPropertyValue("--stack") || 0)));
     // remember the scale so the next redraw starts at the right size (no jump/flicker)
     view3d.sc = Math.max(0.35, sc).toFixed(3);
-    scene.style.setProperty("--sc", view3d.sc);
+    scene.style.setProperty("--sc", view3d.sc * view3d.zoom);
   };
   fit();
-  const flat = M?.mode === "plan" && cvs;
-  let start = null, moved = false;
+
+  // zoom (pinch, wheel) keeps the point under the fingers / cursor in place; the house can't be pushed off the stage
+  const centre = () => [stage.clientWidth / 2, stage.clientHeight * (flat ? 0.5 : 0.52)];
+  const zoomTo = (z, m0, m, z0, p0) => {
+    z = Math.min(3, Math.max(0.6, z));
+    const [cx, cy] = centre(), k = z / z0;
+    const lx = (stage.clientWidth * z) / 2, ly = (stage.clientHeight * z) / 2;
+    view3d.zoom = z;
+    view3d.px = Math.max(-lx, Math.min(lx, m[0] - cx - (m0[0] - cx - p0[0]) * k));
+    view3d.py = Math.max(-ly, Math.min(ly, m[1] - cy - (m0[1] - cy - p0[1]) * k));
+    apply();
+  };
+  const local = (ev) => { const r = stage.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; };
+
+  const pts = new Map();
+  let start = null, pinch = null, moved = false;
+  const grab = () => { if (!p._drag) { p._drag = true; stage.classList.add("rotating"); } };
   stage.addEventListener("pointerdown", (ev) => {
-    if (ev.target.closest("button") || flat) return;
-    start = { x: ev.clientX, y: ev.clientY, rx: view3d.rx, rz: view3d.rz };
-    moved = false;
+    if (ev.target.closest("button")) return;
+    pts.set(ev.pointerId, local(ev));
+    if (pts.size === 2) {
+      // a second finger: pinch to zoom (and move), no rotation
+      const [a, b] = [...pts.values()];
+      pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], z: view3d.zoom, p: [view3d.px, view3d.py] };
+      start = null; moved = true; grab();
+      for (const id of pts.keys()) try { stage.setPointerCapture(id); } catch { /* already gone */ }
+      return;
+    }
+    if (pts.size === 1) { start = { x: ev.clientX, y: ev.clientY, rx: view3d.rx, rz: view3d.rz, px: view3d.px, py: view3d.py }; moved = false; }
   });
   stage.addEventListener("pointermove", (ev) => {
+    if (!pts.has(ev.pointerId)) return;
+    pts.set(ev.pointerId, local(ev));
+    if (pinch && pts.size >= 2) {
+      const [a, b] = [...pts.values()];
+      const d = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
+      zoomTo(pinch.z * (d / pinch.d), pinch.m, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], pinch.z, pinch.p);
+      return;
+    }
     if (!start) return;
     const dx = ev.clientX - start.x, dy = ev.clientY - start.y;
-    if (!moved && Math.hypot(dx, dy) > 6) { moved = true; stage.setPointerCapture(ev.pointerId); p._drag = true; stage.classList.add("rotating"); }
+    if (!moved && Math.hypot(dx, dy) > 8) { moved = true; stage.setPointerCapture(ev.pointerId); grab(); }
     if (!moved) return;
-    view3d.rz = start.rz + dx * 0.35;
-    view3d.rx = Math.min(78, Math.max(18, start.rx - dy * 0.25));
+    if (flat) { view3d.px = start.px + dx; view3d.py = start.py + dy; } // the plan doesn't rotate: one finger moves it
+    else {
+      // the house turns with the finger (drag right → the front moves right)
+      view3d.rz = start.rz - dx * 0.35;
+      view3d.rx = Math.min(78, Math.max(18, start.rx - dy * 0.25));
+    }
     apply();
   });
-  const end = () => { start = null; p._drag = null; stage.classList.remove("rotating"); setTimeout(() => { moved = false; }, 0); };
-  stage.addEventListener("pointerup", end);
-  stage.addEventListener("pointercancel", end);
-  // clicks: pins toggle a light, rooms open, unless the pointer was dragging
+  const up = (ev) => {
+    pts.delete(ev.pointerId);
+    if (pts.size < 2) pinch = null;
+    if (pts.size === 1) start = null; // lifting one finger of a pinch doesn't start a rotation
+    if (pts.size) return;
+    start = null; p._drag = null; stage.classList.remove("rotating");
+    setTimeout(() => { moved = false; }, 0);
+  };
+  stage.addEventListener("pointerup", up);
+  stage.addEventListener("pointercancel", up);
+  stage.addEventListener("wheel", (ev) => {
+    ev.preventDefault();
+    const m = local(ev);
+    zoomTo(view3d.zoom * Math.exp(-ev.deltaY * 0.0015), m, m, view3d.zoom, [view3d.px, view3d.py]);
+  }, { passive: false });
+
+  // the light or device closest to a tap, within a finger's reach: small targets win over the room under them
+  const nearest = (x, y, reach) => {
+    let best = null, bd = reach;
+    stage.querySelectorAll(".pin[data-pin], [data-mk] .mki").forEach((el) => {
+      const r = el.getBoundingClientRect();
+      const d = Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom));
+      if (d < bd) { bd = d; best = el; }
+    });
+    return best;
+  };
   stage.addEventListener("click", (ev) => {
     if (moved) { ev.stopPropagation(); return; }
-    const mk = ev.target.closest("[data-mk]");
-    if (mk) { ev.stopPropagation(); p._openModal(mk.dataset.mk); return; }
-    if (cvs && !ev.target.closest("button")) {
-      const r = stage.getBoundingClientRect(), h = hit(ev.clientX - r.left, ev.clientY - r.top);
+    if (ev.target.closest("button")) return;
+    if (cvs) {
+      const mk = ev.target.closest("[data-mk]");
+      if (mk) { ev.stopPropagation(); p._openModal(mk.dataset.mk); return; }
+      const h = hit(...local(ev));
       if (h?.pin) { ev.stopPropagation(); p._call("homeassistant", "toggle", { entity_id: h.pin }); }
       else if (h?.room) { ev.stopPropagation(); p._go("room", h.room); }
       return;
     }
-    const pin = ev.target.closest("[data-pin]");
-    if (pin) { ev.stopPropagation(); p._call("homeassistant", "toggle", { entity_id: pin.dataset.pin }); return; }
+    const near = nearest(ev.clientX, ev.clientY, 26);
+    if (near?.dataset.pin) { ev.stopPropagation(); p._call("homeassistant", "toggle", { entity_id: near.dataset.pin }); return; }
+    const mk = near?.closest("[data-mk]");
+    if (mk) { ev.stopPropagation(); p._openModal(mk.dataset.mk); return; }
     const room = ev.target.closest("[data-room]");
     if (room) { ev.stopPropagation(); p._go("room", room.dataset.room); }
   }, true);
   root.querySelectorAll("[data-rot]").forEach((b) => b.addEventListener("click", () => {
-    if (b.dataset.rot === "reset") { view3d.rx = 58; view3d.rz = -38; } else view3d.rz += Number(b.dataset.rot);
+    if (b.dataset.rot === "reset") Object.assign(view3d, { rx: 58, rz: -38, zoom: 1, px: 0, py: 0 });
+    else view3d.rz += Number(b.dataset.rot);
     apply();
+  }));
+  root.querySelectorAll("[data-zoom]").forEach((b) => b.addEventListener("click", () => {
+    const c = centre();
+    zoomTo(view3d.zoom * (b.dataset.zoom === "in" ? 1.35 : 1 / 1.35), c, c, view3d.zoom, [view3d.px, view3d.py]);
   }));
   root.querySelectorAll("[data-wall]").forEach((b) => b.addEventListener("click", () => {
     const cur = p._cfg().wall_height || WALL_DEFAULT;
@@ -319,7 +393,7 @@ export const css3d = `
 .chips3{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
 .stage{position:relative;margin-top:20px;border-radius:32px;height:min(68vh,640px);min-height:380px;overflow:hidden;perspective:1600px;perspective-origin:50% 35%;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 .stage.rotating{cursor:grabbing}
-.scene3d{position:absolute;left:50%;top:52%;transform-style:preserve-3d;transform:translate(-50%,-50%) scale(var(--sc)) rotateX(var(--rx)) rotateZ(var(--rz)) translateZ(calc(var(--stack) / -2));transition:transform .08s linear}
+.scene3d{position:absolute;left:50%;top:52%;transform-style:preserve-3d;transform:translate(calc(-50% + var(--px,0px)),calc(-50% + var(--py,0px))) scale(var(--sc)) rotateX(var(--rx)) rotateZ(var(--rz)) translateZ(calc(var(--stack) / -2));transition:transform .08s linear}
 .fl3{position:absolute;inset:0;transform-style:preserve-3d;pointer-events:none}
 .fl3 .r3{pointer-events:auto}
 .fl3 .r3.shape{pointer-events:none}
@@ -363,13 +437,13 @@ export const css3d = `
   background:radial-gradient(closest-side,color-mix(in srgb,var(--lc) calc(var(--li) * 75%),transparent),color-mix(in srgb,var(--lc) calc(var(--li) * 30%),transparent) 55%,transparent)}
 .pool.k-strip{--len:44px;--rot:0deg;width:calc(var(--len) + 30px + var(--li) * 40px);height:calc(28px + var(--li) * 34px);border-radius:999px;transform:translate(-50%,-50%) translateZ(1px) rotate(var(--rot))}
 .lbw{position:absolute;left:50%;top:50%;transform-style:preserve-3d;transform:translateZ(calc(var(--wall) + 26px)) rotateZ(calc(var(--rz) * -1)) rotateX(calc(var(--rx) * -1));pointer-events:none}
-.lb{transform:translate(-50%,-100%);white-space:nowrap;text-align:center;padding:6px 12px;border-radius:14px;background:rgba(20,10,22,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.14);line-height:1.2}
+.lb{transform:translate(-50%,-100%) scale(var(--zi,1));transform-origin:50% 100%;white-space:nowrap;text-align:center;padding:6px 12px;border-radius:14px;background:rgba(20,10,22,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.14);line-height:1.2}
 .lb b{display:block;font-family:var(--display);font-weight:500;font-size:15px}
 .lb small{display:block;font-size:12px;color:var(--muted)}
 .r3.lit .lb{background:color-mix(in srgb,var(--cream) 92%,transparent);color:var(--ink)}
 .r3.lit .lb small{color:var(--ink-soft)}
 .flab{transform:translateZ(4px) rotateZ(calc(var(--rz) * -1)) rotateX(calc(var(--rx) * -1))}
-.flab .lb{background:rgba(20,10,22,.45);border:0;transform:translate(-50%,-50%)}
+.flab .lb{background:rgba(20,10,22,.45);border:0;transform:translate(-50%,-50%) scale(var(--zi,1));transform-origin:50% 50%}
 .flab .lb small{font-size:13px;letter-spacing:.18em;text-transform:uppercase}
 .ctl3{position:absolute;right:16px;top:16px;display:flex;gap:8px}
 .hint3{position:absolute;left:0;right:0;bottom:14px;text-align:center;font-size:13px;color:var(--muted);pointer-events:none;padding:0 16px}
