@@ -27,7 +27,8 @@ export function camera(M, view, cw, ch) {
     const diag = Math.hypot(W, D) + 80;
     sc = Math.max(0.35, Math.min(1.25, (cw - 24) / diag, (ch - 60) / (diag * 0.62 + stack)));
   }
-  const ox = cw / 2, oy = flat ? ch / 2 : ch * 0.52, px = cw / 2, py = ch * 0.35;
+  sc *= view.zoom || 1; // pinch / wheel zoom, and the pan below, as in the CSS view
+  const ox = cw / 2 + (view.px || 0), oy = (flat ? ch / 2 : ch * 0.52) + (view.py || 0), px = cw / 2, py = ch * 0.35;
   const pr = (x, y, z) => {
     const X = x - W / 2, Y = y - D / 2, Z = z - stack / 2;
     const x1 = X * cz - Y * sz, y1 = X * sz + Y * cz;
@@ -196,10 +197,13 @@ export function drawHouse(host, stage, M, view) {
   });
 
   return (x, y) => {
-    for (let i = pins.length - 1; i >= 0; i--) {
-      const q = pins[i];
-      if (q.seg ? segDist(x, y, q.seg[0], q.seg[1]) < 12 : Math.hypot(x - q.x, y - q.y) < 16) return { pin: q.id };
+    // the closest light within a finger's reach wins over the room under it
+    let best = null, bd = 28;
+    for (const q of pins) {
+      const d = q.seg ? segDist(x, y, q.seg[0], q.seg[1]) + 4 : Math.hypot(x - q.x, y - q.y);
+      if (d < bd) { bd = d; best = q.id; }
     }
+    if (best) return { pin: best };
     for (let i = rooms.length - 1; i >= 0; i--) if (rooms[i].qs.some((qd) => inPoly(qd, x, y))) return { room: rooms[i].id };
     return null;
   };
@@ -207,7 +211,7 @@ export function drawHouse(host, stage, M, view) {
 
 export const cssCanvas = `
 .stage.cvs{cursor:grab}
-.stage.cvs.flat{cursor:default;touch-action:auto}
+.stage.cvs.flat{cursor:move}
 .stage.cvs canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .cvl{position:absolute;left:0;top:0;pointer-events:none;transform-origin:0 0}
 @media (max-width:720px){.cvl.fname{display:none}}

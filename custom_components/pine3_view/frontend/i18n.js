@@ -63,7 +63,7 @@ export const EN = {
   // 3D
   "Piso {n}": "Floor {n}", "Todos os pisos": "All floors", "Rodar": "Rotate", "Repor vista": "Reset view",
   "{n} divisão acesa": "{n} room lit", "{n} divisões acesas": "{n} rooms lit", "{n} ligado": "{n} on", "{n} ligados": "{n} on",
-  "Arrasta para rodar · Toca numa divisão para a abrir · Toca numa luz para a ligar": "Drag to rotate · Tap a room to open it · Tap a light to toggle it",
+  "Arrasta para rodar · Dois dedos para aproximar · Toca numa divisão para a abrir ou numa luz para a ligar": "Drag to rotate · Pinch to zoom · Tap a room to open it or a light to toggle it",
   // settings
   "Aparência": "Appearance", "Início": "Home", "Navegação": "Navigation", "Sistema": "System",
   "Aparência, ecrã inicial, divisões e navegação.": "Look, home screen, rooms and navigation.",
@@ -127,7 +127,7 @@ export const EN = {
   "Tira o desfoque do vidro (o mais pesado para a placa gráfica). Usa se vires zonas brancas, vazias ou a piscar.": "Removes the frosted-glass blur (the heaviest thing for the graphics chip). Use it if you see white, empty or flickering areas.",
   "Como no painel": "As the panel", "Ligadas": "On", "Desligadas": "Off", "Animações neste dispositivo": "Animations on this device",
   "Sobrepõe a opção Animações da Aparência só neste dispositivo.": "Overrides the Animations option in Appearance on this device only.",
-  "Toca numa divisão para a abrir · Toca numa luz para a ligar": "Tap a room to open it · Tap a light to toggle it",
+  "Arrasta para mover · Dois dedos para aproximar · Toca numa divisão para a abrir ou numa luz para a ligar": "Drag to move · Pinch to zoom · Tap a room to open it or a light to toggle it", "Aproximar": "Zoom in", "Afastar": "Zoom out",
   "Opções guardadas só neste browser, para um tablet na parede ficar diferente do telemóvel.": "Options saved in this browser only, so a wall tablet can differ from your phone.",
   "Esconder a barra lateral do Home Assistant": "Hide the Home Assistant sidebar",
   "O painel ocupa a largura toda. Também podes abrir o painel com ?kiosk no endereço.": "The panel uses the full width. You can also open the panel with ?kiosk in the address.",
