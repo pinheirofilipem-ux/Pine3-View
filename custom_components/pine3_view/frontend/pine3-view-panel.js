@@ -785,6 +785,7 @@ class Pine3ViewPanel extends HTMLElement {
     else if (this._view === "scenes") body = this._scenesView(rooms);
     else if (this._view === "rooms") body = this._roomsView(rooms);
     else if (this._view === "security") body = this._securityView(rooms);
+    else if (this._view === "climate") body = this._climateView(rooms);
     else if (this._view === "house") body = houseView(this, rooms);
     else body = this._homeView(rooms);
 
@@ -899,13 +900,16 @@ class Pine3ViewPanel extends HTMLElement {
     const cards = [];
     const temps = all.filter((i) => dom(i) === "sensor" && this._s(i).attributes.device_class === "temperature").map((i) => Number(this._s(i).state)).filter(Number.isFinite);
     const hums = rooms.flatMap((r) => r.humidity || []).map((i) => Number(this._s(i)?.state)).filter(Number.isFinite);
-    const climate = all.find((i) => dom(i) === "climate" && this._isOn(i)) || all.find((i) => dom(i) === "climate");
+    const climates = all.filter((i) => dom(i) === "climate" && this._s(i));
+    const climate = climates.find((i) => this._isOn(i)) || climates[0];
     if (temps.length || climate) {
       const tt = temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : this._s(climate).attributes.current_temperature;
       const heating = climate && this._isOn(climate);
-      cards.push(`<div class="rc ${heating ? "on" : "glass"}" ${climate ? `data-open="${climate}"` : ""}>
+      // one device opens it directly; several open the Climate screen
+      const go = climates.length > 1 ? `data-nav="climate"` : climate ? `data-open="${climate}"` : "";
+      cards.push(`<div class="rc ${heating ? "on" : "glass"}" ${go}>
         <div class="row1"><div class="ri" style="background:#34c759;color:#0d2a14"><ha-icon icon="mdi:thermometer"></ha-icon></div><div class="eyebrow" style="margin:14px 0 0 0;flex:1;padding-left:14px">${t("Clima")}</div></div>
-        <div class="foot"><div class="big-num">${tt != null ? Math.round(tt) : "–"}°</div><div class="meta">${hums.length ? t("Humidade {n}%", { n: Math.round(hums.reduce((a, b) => a + b, 0) / hums.length) }) : climate ? esc(this._stateText(climate)) : t("Interior")}</div></div></div>`);
+        <div class="foot"><div class="big-num">${tt != null ? Math.round(tt) : "–"}°</div><div class="meta">${climates.length > 1 ? `${t("{a} de {b} ligados", { a: climates.filter((i) => this._isOn(i)).length, b: climates.length })} · ` : ""}${hums.length ? t("Humidade {n}%", { n: Math.round(hums.reduce((a, b) => a + b, 0) / hums.length) }) : climate ? esc(this._stateText(climate)) : t("Interior")}</div></div></div>`);
     }
     const secIds = all.filter((i) => dom(i) === "lock" || (dom(i) === "binary_sensor" && ["door", "window", "garage_door", "opening"].includes(this._s(i).attributes.device_class)));
     if (secIds.length) {
@@ -939,10 +943,42 @@ class Pine3ViewPanel extends HTMLElement {
       <div class="grid" data-sortable="rooms">${rooms.map((r) => this._roomCard(r)).join("")}${this._restoreCard(this._hiddenRooms.length)}</div>`;
   }
 
+  /** Climate screen: every air conditioner / thermostat with quick controls, then the temperature of each room. */
+  _climateView(rooms) {
+    const cl = rooms.flatMap((r) => r.ents.filter((i) => dom(i) === "climate" && this._s(i)).map((i) => [i, r]));
+    const on = cl.filter(([i]) => this._isOn(i)).length;
+    const readings = rooms.map((r) => [r, this._roomClimate(r)]).filter(([, c]) => c.temp || c.hum);
+    return `<div class="hero"><div><div class="eyebrow">${cl.length ? t("{a} de {b} ligados", { a: on, b: cl.length }) : t("Clima")}</div><div class="t" style="margin-top:8px">${t("Clima")}</div></div><div class="right">${this._gear()}</div></div>
+      ${cl.length ? `<div class="tiles clim">${cl.map(([i, r]) => this._climateCard(i, r)).join("")}</div>` : ""}
+      ${readings.length ? `<div class="sect"><div class="eyebrow">${t("Temperatura por divisão")}</div>
+        <div class="tiles rtemp">${readings.map(([r, c]) => `<div class="tile glass rt" data-room="${esc(r.id)}"><div class="nm">${esc(r.name)}</div>
+          <div class="rtv"><b>${esc((c.temp || "–").replace("°C", "°"))}</b>${c.hum ? `<span><ha-icon icon="mdi:water-percent"></ha-icon>${esc(c.hum)}</span>` : ""}</div></div>`).join("")}</div></div>` : ""}
+      ${cl.length || readings.length ? "" : `<div class="empty">${t("Nada para monitorizar.")}</div>`}`;
+  }
+  /** Target temperature shown on the climate card: the value just asked for until the device reports it. */
+  _climateTarget(id) {
+    const a = this._s(id).attributes, w = this._ctWant?.[id];
+    if (w && Date.now() - w.t < 15000 && a.temperature !== w.v) return w.v;
+    return a.temperature;
+  }
+  _climateCard(id, r) {
+    const s = this._s(id), a = s.attributes, on = this._isOn(id);
+    const act = on && a.hvac_action && !["off", "idle"].includes(a.hvac_action) ? a.hvac_action : null;
+    const tgt = this._climateTarget(id), range = tgt == null && a.target_temp_low != null && a.target_temp_high != null;
+    const set = !on ? "" : tgt != null
+      ? `<div class="clset"><button class="round" data-ctemp="${esc(id)}" data-d="-1" title="${t("Baixar")}">−</button><b>${num(tgt)}°</b><button class="round" data-ctemp="${esc(id)}" data-d="1" title="${t("Subir")}">+</button></div>`
+      : range ? `<div class="clset"><b>${num(a.target_temp_low)}–${num(a.target_temp_high)}°</b></div>` : "";
+    return `<div class="tile clc ${on ? "on" : "glass"} ${s.state === "unavailable" ? "na" : ""}" data-open="${esc(id)}" style="--acc:${this._accent(id)}">
+      <div class="row1"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div><div class="pw" data-cpw="${esc(id)}"><ha-icon icon="mdi:power"></ha-icon></div></div>
+      <div class="tx"><div class="nm">${esc(this._name(id))}</div><div class="st">${esc([r.name, this._st(act || s.state)].join(" · "))}</div></div>
+      <div class="clrow"><div class="clcur"><b>${a.current_temperature != null ? `${num(a.current_temperature)}°` : "–"}</b><small>${t("Atual")}${a.current_humidity != null ? ` · ${Math.round(a.current_humidity)}%` : ""}</small></div>${set}</div>
+    </div>`;
+  }
+
   _securityView(rooms) {
     const all = rooms.flatMap((r) => r.ents);
     const ids = all.filter((i) => dom(i) === "lock" || dom(i) === "camera" || (dom(i) === "binary_sensor" && ["door", "window", "garage_door", "opening", "motion", "smoke", "moisture", "gas"].includes(this._s(i).attributes.device_class)));
-    return `<div class="hero"><div><div class="eyebrow">${t("Segurança")}</div><div class="t" style="margin-top:8px">${t("Portas, janelas e fechaduras")}</div></div>${this._gear()}</div>
+    return `<div class="hero"><div><div class="eyebrow">${t("Segurança")}</div><div class="t" style="margin-top:8px">${t("Portas, janelas e fechaduras")}</div></div><div class="right">${this._gear()}</div></div>
       ${ids.length ? `<div class="tiles">${ids.map((i) => this._tile(i)).join("")}</div>` : `<div class="empty">${t("Nada para monitorizar.")}</div>`}`;
   }
 
@@ -1171,6 +1207,21 @@ class Pine3ViewPanel extends HTMLElement {
       });
       on("[data-pw]", (el, ev) => { ev.stopPropagation(); this._call("homeassistant", "toggle", { entity_id: el.dataset.pw }); });
       on("[data-open]", (el) => this._openModal(el.dataset.open));
+      // climate cards: power and ± target, without opening the card
+      on("[data-cpw]", (el, ev) => {
+        ev.stopPropagation();
+        const id = el.dataset.cpw;
+        this._call("climate", this._isOn(id) ? "turn_off" : "turn_on", { entity_id: id });
+      });
+      on("[data-ctemp]", (el, ev) => {
+        ev.stopPropagation();
+        const id = el.dataset.ctemp, a = this._s(id).attributes;
+        const step = a.target_temp_step || (this._hass.config?.unit_system?.temperature === "°F" ? 1 : 0.5);
+        const v = Math.min(a.max_temp ?? 35, Math.max(a.min_temp ?? 7, Math.round(((this._climateTarget(id) ?? 20) + step * Number(el.dataset.d)) * 10) / 10));
+        (this._ctWant ||= {})[id] = { v, t: Date.now() };
+        this._call("climate", "set_temperature", { entity_id: id, temperature: v });
+        this._render();
+      });
       on("[data-media]", (el, ev) => { ev.stopPropagation(); this._call("media_player", el.dataset.media, { entity_id: el.dataset.entId }); });
       on("[data-scene]", (el) => {
         this._call("scene", "turn_on", { entity_id: el.dataset.scene });

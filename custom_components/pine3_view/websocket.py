@@ -44,7 +44,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "wall_height": 30,
     "settings_version": 2,
 }
-DOCK_ITEMS = ["home", "rooms", "house", "scenes", "security"]
+DOCK_ITEMS = ["home", "rooms", "house", "scenes", "climate", "security"]
 DEVICE_TYPES = [
     "ceiling", "lamp", "led", "spot", "bulb", "tv", "appletv", "homepod", "speaker", "ac", "fan", "purifier",
     "blind", "door", "window", "plug", "sensor", "motion", "camera", "lock", "vacuum", "other",

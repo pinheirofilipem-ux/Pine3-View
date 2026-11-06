@@ -82,6 +82,23 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
 .tile{position:relative;border-radius:26px;padding:18px;cursor:pointer;min-height:170px;display:flex;flex-direction:column;justify-content:space-between;transition:background .25s,color .25s,transform .12s;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .tile:active{transform:scale(.97)}
 .tile.big{grid-column:span 2}
+/* Climate screen */
+.tiles.clim{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.clc .clrow{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:12px}
+.clcur b{display:block;font-family:var(--display);font-size:36px;font-weight:300;line-height:1}
+.clcur small{display:block;font-size:13px;color:var(--muted);margin-top:4px}
+.tile.on .clcur small{color:var(--ink-soft)}
+.clset{display:flex;align-items:center;gap:8px}
+.clset b{font-size:20px;font-weight:500;min-width:54px;text-align:center;font-variant-numeric:tabular-nums}
+.clset .round{width:42px;height:42px;font-size:22px}
+.tile.on .clset .round{background:rgba(42,34,31,.08);color:var(--ink)}
+.tiles.rtemp{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+.tile.rt{min-height:0;gap:10px}
+.rt .nm{margin-top:0}
+.rtv{display:flex;align-items:baseline;gap:12px}
+.rtv b{font-family:var(--display);font-size:30px;font-weight:300}
+.rtv span{display:flex;align-items:center;gap:3px;color:var(--muted);font-size:15px}
+.rtv ha-icon{--mdc-icon-size:16px}
 .tile .row1{display:flex;justify-content:space-between;align-items:flex-start}
 .tile .ic{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:var(--glass-hi);transition:background .2s}
 .tile .ic ha-icon{--mdc-icon-size:24px}
