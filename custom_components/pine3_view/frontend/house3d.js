@@ -3,7 +3,7 @@
 
 import { esc, dom } from "./const.js";
 import { t, tp } from "./i18n.js";
-import { DEVICE_TYPES, typeOf } from "./devtypes.js";
+import { DEVICE_TYPES, typeOf, stripOf } from "./devtypes.js";
 
 const U = 56; // px per layout unit
 export const WALL_DEFAULT = 30; // wall height in px (Settings > 3D floor plan > Wall height)
@@ -11,6 +11,37 @@ const SLAB_MARGIN = 14; // floor slab margin around the rooms, in px
 const SIZES = { 1: [2, 2], 2: [3, 2], 3: [4, 3] };
 
 export const view3d = { rx: 58, rz: -38, floor: "all", sc: null };
+
+/** Colour temperature (K) to an RGB triple (Tanner Helland's approximation). */
+function kelvinRgb(k) {
+  const t = Math.min(40000, Math.max(1000, k)) / 100;
+  const cl = (v) => Math.round(Math.min(255, Math.max(0, v)));
+  const r = t <= 66 ? 255 : 329.698727446 * Math.pow(t - 60, -0.1332047592);
+  const g = t <= 66 ? 99.4708025861 * Math.log(t) - 161.1195681661 : 288.1221695283 * Math.pow(t - 60, -0.0755148492);
+  const b = t >= 66 ? 255 : t <= 19 ? 0 : 138.5177312231 * Math.log(t - 10) - 305.0447927307;
+  return [cl(r), cl(g), cl(b)];
+}
+
+/** The colour and intensity (0.25–1) a light is shining with, or null when it is off / not a light. */
+export function lightGlow(p, id) {
+  const s = p._s(id);
+  if (!s || dom(id) !== "light" || !p._isOn(id)) return null;
+  const a = s.attributes;
+  const rgb = a.rgb_color || (a.color_temp_kelvin ? kelvinRgb(a.color_temp_kelvin) : a.color_temp ? kelvinRgb(1e6 / a.color_temp) : null);
+  const k = a.brightness != null ? Math.max(0.25, a.brightness / 255) : 1;
+  return { rgb, k };
+}
+const glowVars = (g) => (g ? `${g.rgb ? `--lc:rgb(${g.rgb.join(",")});` : ""}--li:${g.k.toFixed(2)};` : "");
+
+/** One colour for a room: the brightness-weighted mix of its lit lights (amber if none of them has a colour). */
+function roomGlow(glows) {
+  const withRgb = glows.filter((g) => g.rgb);
+  const k = glows.length ? Math.max(...glows.map((g) => g.k)) : 0.7;
+  if (!withRgb.length) return { rgb: null, k };
+  const w = withRgb.reduce((a, g) => a + g.k, 0);
+  const rgb = [0, 1, 2].map((i) => Math.round(withRgb.reduce((a, g) => a + g.rgb[i] * g.k, 0) / w));
+  return { rgb, k };
+}
 
 export function autoSize(r) {
   const n = r.count || 0;
@@ -76,6 +107,13 @@ export function houseView(p, rooms) {
         const P = placements[id], ty = typeOf(P, id, p._s(id), p._meta?.[id] || {}), [icon, , kind] = DEVICE_TYPES[ty];
         const pos = `left:${((P.x - b.x) / b.w) * 100}%;top:${((P.y - b.y) / b.d) * 100}%`;
         const on = p._isOn(id) ? "on" : "";
+        const g = lightGlow(p, id);
+        if (kind === "strip") {
+          // an LED strip at its real length (grid units → px) and angle; its light spreads along it
+          const S = stripOf(P), w = S.l * U, rot = `--rot:${S.r}deg;--len:${w}px;`;
+          return `<i class="pin k-strip ${on}" data-pin="${esc(id)}" title="${esc(p._name(id))}" style="${pos};${rot}${glowVars(g)}"></i>${g ? `<i class="pool k-strip" style="${pos};${rot}${glowVars(g)}"></i>` : ""}`;
+        }
+        if (kind !== "thing") return `<i class="pin k-${kind} ${on}" data-pin="${esc(id)}" title="${esc(p._name(id))}" style="${pos};${glowVars(g)}"></i>${g ? `<i class="pool k-${kind}" style="${pos};${glowVars(g)}"></i>` : ""}`;
         if (kind === "thing") return `<div class="mk3 ${on}" data-mk="${esc(id)}" title="${esc(p._name(id))}" style="${pos}"><div class="mki"><ha-icon icon="${icon}"></ha-icon></div></div>`;
         return `<i class="pin k-${kind} ${on}" data-pin="${esc(id)}" title="${esc(p._name(id))}" style="${pos}"></i>`;
       }).join("");
@@ -106,10 +144,14 @@ export function houseView(p, rooms) {
       const cols = Math.min(3, Math.max(1, lights.length));
       const pins = lights.map((id, n) => {
         const [px, py] = spots ? spots[n] : [((n % cols) + 1) / (cols + 1) * 100, (Math.floor(n / cols) + 1) / (Math.ceil(lights.length / cols) + 1) * 100];
-        return `<i class="pin ${p._isOn(id) ? "on" : ""}" data-pin="${esc(id)}" title="${esc(p._name(id))}" style="left:${px}%;top:${py}%"></i>`;
+        const g = lightGlow(p, id), pos = `left:${px}%;top:${py}%`;
+        return `<i class="pin ${p._isOn(id) ? "on" : ""}" data-pin="${esc(id)}" title="${esc(p._name(id))}" style="${pos};${glowVars(g)}"></i>${g ? `<i class="pool" style="${pos};${glowVars(g)}"></i>` : ""}`;
       }).join("");
       const meta = [c.temp && c.temp.replace(/,\d/, "").replace(".", "").replace("°C", "°"), lit.length ? tp(lit.length, "{n} ligado", "{n} ligados") : null].filter(Boolean).join(" · ");
-      return `<div class="r3 ${lit.length ? "lit" : ""} ${open ? "open" : ""} ${cells ? "shape" : ""}" data-room="${esc(r.id)}" style="left:${ox + b.x * U}px;top:${oy + b.y * U}px;width:${b.w * U}px;height:${b.d * U}px">
+      // the room takes the colour of its lit lights (a plug or a switch alone keeps the accent colour)
+      const glows = r.ents.map((i) => lightGlow(p, i)).filter(Boolean);
+      const rg = lit.length ? roomGlow(glows) : null;
+      return `<div class="r3 ${lit.length ? "lit" : ""} ${open ? "open" : ""} ${cells ? "shape" : ""}" data-room="${esc(r.id)}" style="${glowVars(rg)}left:${ox + b.x * U}px;top:${oy + b.y * U}px;width:${b.w * U}px;height:${b.d * U}px">
         ${shape}
         ${pins}${marks}
         <div class="lbw" ${lbl}><div class="lb"><b>${esc(r.name)}</b>${meta ? `<small>${esc(meta)}</small>` : ""}</div></div>
@@ -221,9 +263,10 @@ export const css3d = `
 .r3{position:absolute;transform-style:preserve-3d;cursor:pointer;padding:3px}
 .r3 .fl{position:absolute;inset:3px;border-radius:10px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);transition:background .3s,box-shadow .3s}
 .r3:hover .fl{background:rgba(255,255,255,.16)}
-.r3.lit .fl{background:radial-gradient(circle at 50% 50%,color-mix(in srgb,var(--amber) 85%,#fff) 0%,color-mix(in srgb,var(--amber) 55%,transparent) 55%,color-mix(in srgb,var(--amber) 25%,transparent) 100%);box-shadow:0 0 40px color-mix(in srgb,var(--amber) 55%,transparent);border-color:color-mix(in srgb,var(--amber) 70%,#fff)}
+.r3{--lc:var(--amber);--li:1}
+.r3.lit .fl{background:radial-gradient(circle at 50% 50%,color-mix(in srgb,var(--lc) calc(var(--li) * 85%),transparent) 0%,color-mix(in srgb,var(--lc) calc(var(--li) * 50%),transparent) 55%,color-mix(in srgb,var(--lc) calc(var(--li) * 22%),transparent) 100%);box-shadow:0 0 calc(var(--li) * 44px) color-mix(in srgb,var(--lc) calc(var(--li) * 55%),transparent);border-color:color-mix(in srgb,var(--lc) 70%,#fff)}
 .r3 .wl{position:absolute;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.20);backface-visibility:visible}
-.r3.lit .wl{background:color-mix(in srgb,var(--amber) 22%,rgba(255,255,255,.12));border-color:color-mix(in srgb,var(--amber) 45%,rgba(255,255,255,.3))}
+.r3.lit .wl{background:color-mix(in srgb,var(--lc) calc(var(--li) * 24%),rgba(255,255,255,.12));border-color:color-mix(in srgb,var(--lc) 45%,rgba(255,255,255,.3))}
 .r3.open .wl.s,.r3.open .wl.e{border-style:dashed}
 .r3 .wl.n{left:3px;right:3px;top:3px;height:var(--wall);transform-origin:top;transform:rotateX(90deg)}
 .r3 .wl.s{left:3px;right:3px;bottom:3px;height:var(--wall);transform-origin:bottom;transform:rotateX(-90deg)}
@@ -231,7 +274,7 @@ export const css3d = `
 .r3 .wl.e{top:3px;bottom:3px;right:3px;width:var(--wall);transform-origin:right;transform:rotateY(90deg)}
 .r3.shape{padding:0;pointer-events:none}
 .r3.shape .fl.c{inset:auto;border-radius:0;border:0;pointer-events:auto}
-.r3.shape.lit .fl.c{background:color-mix(in srgb,var(--amber) 62%,rgba(255,255,255,.25));box-shadow:none}
+.r3.shape.lit .fl.c{background:color-mix(in srgb,var(--lc) calc(var(--li) * 62%),rgba(255,255,255,.12));box-shadow:none}
 .r3.shape .pin{pointer-events:auto}
 .r3 .wl.ws{right:auto;bottom:auto}
 .r3 .wl.ws.n{transform-origin:top;transform:rotateX(90deg)}
@@ -240,16 +283,21 @@ export const css3d = `
 .r3 .wl.ws.e{transform-origin:right;transform:rotateY(90deg)}
 .pin{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.6);transform:translateZ(3px);cursor:pointer}
 .pin.k-ceiling{transform:translateZ(calc(var(--wall) - 2px));width:20px;height:20px;margin:-10px 0 0 -10px}
-.pin.k-ceiling.on{box-shadow:0 0 22px 8px var(--amber)}
-.pin.k-strip{width:44px;height:8px;margin:-4px 0 0 -22px;border-radius:4px}
-.pin.k-strip.on{box-shadow:0 0 16px 5px var(--amber)}
+.pin.k-ceiling.on{box-shadow:0 0 calc(10px + var(--li) * 16px) calc(var(--li) * 9px) var(--lc)}
+.pin.k-strip{--len:44px;--rot:0deg;width:var(--len);height:8px;margin:-4px 0 0 calc(var(--len) / -2);border-radius:4px;transform:translateZ(3px) rotate(var(--rot))}
+.pin.k-strip.on{box-shadow:0 0 calc(8px + var(--li) * 12px) calc(var(--li) * 6px) var(--lc)}
 .mk3{position:absolute;transform-style:preserve-3d;pointer-events:auto;cursor:pointer}
 .mki{transform:translateZ(16px) rotateZ(calc(var(--rz) * -1)) rotateX(calc(var(--rx) * -1)) translate(-50%,-50%);width:32px;height:32px;border-radius:50%;display:grid;place-items:center;
   background:rgba(25,14,28,.8);color:#fff;border:2px solid rgba(255,255,255,.45);box-shadow:0 4px 12px rgba(0,0,0,.4);transform-origin:0 0}
 .mki ha-icon{--mdc-icon-size:18px}
 .mk3.on .mki{background:var(--cream);color:var(--ink);border-color:#fff;box-shadow:0 0 16px color-mix(in srgb,var(--amber) 60%,transparent)}
 .r3.shape .mk3{pointer-events:auto}
-.pin.on{background:#fff;border-color:var(--amber);box-shadow:0 0 14px 4px var(--amber)}
+.pin{--lc:var(--amber);--li:1}
+.pin.on{background:color-mix(in srgb,var(--lc) 35%,#fff);border-color:var(--lc);box-shadow:0 0 calc(6px + var(--li) * 12px) calc(var(--li) * 5px) var(--lc)}
+/* the light it casts on the floor: its own colour, wider and brighter with the brightness */
+.pool{--lc:var(--amber);--li:1;position:absolute;width:calc(60px + var(--li) * 90px);height:calc(60px + var(--li) * 90px);border-radius:50%;transform:translate(-50%,-50%) translateZ(1px);pointer-events:none;
+  background:radial-gradient(closest-side,color-mix(in srgb,var(--lc) calc(var(--li) * 75%),transparent),color-mix(in srgb,var(--lc) calc(var(--li) * 30%),transparent) 55%,transparent)}
+.pool.k-strip{--len:44px;--rot:0deg;width:calc(var(--len) + 30px + var(--li) * 40px);height:calc(28px + var(--li) * 34px);border-radius:999px;transform:translate(-50%,-50%) translateZ(1px) rotate(var(--rot))}
 .lbw{position:absolute;left:50%;top:50%;transform-style:preserve-3d;transform:translateZ(calc(var(--wall) + 26px)) rotateZ(calc(var(--rz) * -1)) rotateX(calc(var(--rx) * -1));pointer-events:none}
 .lb{transform:translate(-50%,-100%);white-space:nowrap;text-align:center;padding:6px 12px;border-radius:14px;background:rgba(20,10,22,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.14);line-height:1.2}
 .lb b{display:block;font-family:var(--display);font-weight:500;font-size:15px}
