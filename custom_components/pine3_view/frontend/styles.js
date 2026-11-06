@@ -383,4 +383,22 @@ a.pill{color:inherit;text-decoration:none}
   .wpill{height:48px;padding:0 16px}.wpill b{font-size:22px}.wpill span{display:none}.av,.iconbtn{width:46px;height:46px}
   .dock button{padding:0 16px;height:46px}.dock button span{display:none}.big-num{font-size:38px}.big-txt{font-size:24px}
 }
+/* tablets in landscape (short screens): denser cards, so three rows of rooms or devices fit above the dock */
+@media (min-width:721px) and (max-height:920px){
+  .hero{padding-top:18px}.hero .t{font-size:40px}.hero .s{font-size:15px;margin-top:4px}.top{padding-top:22px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin-top:16px}
+  .rc{min-height:clamp(116px,calc((100vh - 226px) / 3),250px);padding:16px;border-radius:24px}
+  .ri{width:42px;height:42px}.ri ha-icon{--mdc-icon-size:22px}.pw{width:50px;height:50px}.pw ha-icon{--mdc-icon-size:24px}
+  .rc .nm{font-size:19px}.rc .meta{font-size:14px;margin-top:2px}.dots{margin-top:8px;min-height:14px}.dots .tmp{font-size:14px}
+  .tiles{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-top:12px}
+  .tile{min-height:clamp(112px,calc((100vh - 336px) / 3),170px);padding:14px;border-radius:22px}
+  .tile .ic{width:42px;height:42px}.tile .ic ha-icon{--mdc-icon-size:22px}.tile .pw{width:46px;height:46px}.tile .pw ha-icon{--mdc-icon-size:22px}
+  .tile .nm{font-size:17px;margin-top:8px}.tile .st{font-size:14px}
+}
+@media (min-width:721px) and (max-height:680px){
+  .hero{padding-top:12px}.hero .t{font-size:34px}
+  .rc{padding:12px 14px;border-radius:22px}.ri{width:36px;height:36px}.ri ha-icon{--mdc-icon-size:20px}.pw{width:42px;height:42px}.pw ha-icon{--mdc-icon-size:22px}
+  .rc .nm{font-size:17px}.rc .meta{font-size:13px;margin-top:1px}.dots{margin-top:5px;min-height:10px}.dots i{width:8px;height:8px}
+  .tile{padding:12px;min-height:clamp(96px,calc((100vh - 320px) / 3),170px)}.tile .ic{width:36px;height:36px}.tile .pw{width:40px;height:40px}.tile .nm{font-size:16px;margin-top:6px}.tile .st{font-size:13px}
+}
 `;
