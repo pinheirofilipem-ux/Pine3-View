@@ -54,7 +54,7 @@ Copy `custom_components/pine3_view` to `/config/custom_components/`, restart and
 ## Features
 - **Home**: clock, weather (tap for the forecast), people, home status with *Turn all on/off*, scenes, room cards and summary cards (Climate, Security, Now playing).
 - **Weather**: uses your Home Assistant weather entity or, if there is none, [Open-Meteo](https://open-meteo.com) for your home's location (no API key). Forecast for the next 12 hours and 7 days.
-- **3D Home**: every room is a block, stacked by floor (Home Assistant floors). Lit rooms glow, lights show as points you can toggle, drag to rotate, tap a room to open it. Each floor's slab is only as big as its rooms, and the **wall height** is adjustable (↕ buttons in the 3D Home or a slider in Settings).
+- **3D Home**: every room is a block, stacked by floor (Home Assistant floors). Lit rooms glow in the colour and brightness of their lights (each light casts a pool of its own colour on the floor), lights show as points you can toggle, drag to rotate, tap a room to open it. Each floor's slab is only as big as its rooms, and the **wall height** is adjustable (↕ buttons in the 3D Home or a slider in Settings).
 - **Floor-plan editor** (*Settings → 3D floor plan*, or *Edit floor plan* in the 3D Home), a top view of one floor at a time:
   - **Move and resize**: draw rooms as rectangles, drag to move, drag the corner to resize, move rooms between floors or add floors. *Generate automatic plan* gives you a starting point.
   - **Paint / erase cells**: give a room any right-angled shape (L, U, T…). Painting over another room hands those cells over.
