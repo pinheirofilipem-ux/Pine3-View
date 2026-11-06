@@ -99,6 +99,19 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
 .dock{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:5;display:flex;gap:6px;padding:7px;border-radius:999px;background:rgba(60,40,62,.55);backdrop-filter:blur(30px) saturate(150%);-webkit-backdrop-filter:blur(30px) saturate(150%);border:1px solid var(--line)}
 .dock button{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;height:50px;padding:0 24px;border-radius:999px;font-size:18px;font-weight:500;color:var(--muted);transition:background .2s,color .2s}
 .dock[hidden]{display:none}
+.dock{width:max-content;max-width:calc(100vw - 24px)}
+.dock button span{white-space:nowrap}
+/* tablets: a lower, lighter dock */
+@media (max-width:1280px),(max-height:820px){.dock{bottom:14px;padding:6px;gap:4px}.dock .blob{top:6px;bottom:6px}.dock button{height:44px;padding:0 18px;font-size:16px;gap:8px}.dock ha-icon{--mdc-icon-size:20px}}
+.dock.compact{gap:2px}
+.dock.compact button{padding:0 14px;height:44px;font-size:16px;gap:8px}
+.dock.compact button:not(.act) span,.dock.icons button span{display:none}
+.dock.icons button{padding:0 15px}
+/* light effects (this device): no frosted-glass blur, the costliest thing for weak tablets */
+:host(.lite){--glass:rgba(255,255,255,.12)}
+:host(.lite) *,:host(.lite) *::before,:host(.lite) *::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+:host(.lite) .dock{background:rgba(48,32,52,.94)}
+:host(.lite) .ov{background:rgba(10,4,12,.72)}
 .dock button{position:relative;z-index:1;transition:color .35s}
 .dock button.act{color:var(--ink)}
 .dock .blob{position:absolute;left:0;top:7px;bottom:7px;border-radius:999px;pointer-events:none;transition:transform .55s cubic-bezier(.34,1.36,.5,1),width .55s cubic-bezier(.34,1.36,.5,1)}
