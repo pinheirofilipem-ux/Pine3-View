@@ -99,6 +99,19 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
 .dock{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:5;display:flex;gap:6px;padding:7px;border-radius:999px;background:rgba(60,40,62,.55);backdrop-filter:blur(30px) saturate(150%);-webkit-backdrop-filter:blur(30px) saturate(150%);border:1px solid var(--line)}
 .dock button{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;height:50px;padding:0 24px;border-radius:999px;font-size:18px;font-weight:500;color:var(--muted);transition:background .2s,color .2s}
 .dock[hidden]{display:none}
+.dock{width:max-content;max-width:calc(100vw - 24px)}
+.dock button span{white-space:nowrap}
+/* tablets: a lower, lighter dock */
+@media (max-width:1280px),(max-height:820px){.dock{bottom:14px;padding:6px;gap:4px}.dock .blob{top:6px;bottom:6px}.dock button{height:44px;padding:0 18px;font-size:16px;gap:8px}.dock ha-icon{--mdc-icon-size:20px}}
+.dock.compact{gap:2px}
+.dock.compact button{padding:0 14px;height:44px;font-size:16px;gap:8px}
+.dock.compact button:not(.act) span,.dock.icons button span{display:none}
+.dock.icons button{padding:0 15px}
+/* light effects (this device): no frosted-glass blur, the costliest thing for weak tablets */
+:host(.lite){--glass:rgba(255,255,255,.12)}
+:host(.lite) *,:host(.lite) *::before,:host(.lite) *::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+:host(.lite) .dock{background:rgba(48,32,52,.94)}
+:host(.lite) .ov{background:rgba(10,4,12,.72)}
 .dock button{position:relative;z-index:1;transition:color .35s}
 .dock button.act{color:var(--ink)}
 .dock .blob{position:absolute;left:0;top:7px;bottom:7px;border-radius:999px;pointer-events:none;transition:transform .55s cubic-bezier(.34,1.36,.5,1),width .55s cubic-bezier(.34,1.36,.5,1)}
@@ -369,5 +382,32 @@ a.pill{color:inherit;text-decoration:none}
   .tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.tile{min-height:150px;padding:14px}.tile .nm{font-size:16px}.tile .pw{width:44px;height:44px}
   .wpill{height:48px;padding:0 16px}.wpill b{font-size:22px}.wpill span{display:none}.av,.iconbtn{width:46px;height:46px}
   .dock button{padding:0 16px;height:46px}.dock button span{display:none}.big-num{font-size:38px}.big-txt{font-size:24px}
+}
+/* tablets in landscape (short screens): denser cards, so three rows of rooms or devices fit above the dock */
+@media (min-width:721px) and (max-height:920px){
+  .hero{padding-top:18px}.hero .t{font-size:40px}.hero .s{font-size:15px;margin-top:4px}.top{padding-top:22px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin-top:16px}
+  .rc{min-height:clamp(116px,calc((100vh - 226px) / 3),250px);padding:16px;border-radius:24px}
+  .ri{width:42px;height:42px}.ri ha-icon{--mdc-icon-size:22px}.pw{width:50px;height:50px}.pw ha-icon{--mdc-icon-size:24px}
+  .rc .nm{font-size:19px}.rc .meta{font-size:14px;margin-top:2px}.dots{margin-top:8px;min-height:14px}.dots .tmp{font-size:14px}
+  .tiles{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-top:12px}
+  .tile{min-height:clamp(112px,calc((100vh - 336px) / 3),170px);padding:14px;border-radius:22px}
+  .tile .ic{width:42px;height:42px}.tile .ic ha-icon{--mdc-icon-size:22px}.tile .pw{width:46px;height:46px}.tile .pw ha-icon{--mdc-icon-size:22px}
+  .tile .nm{font-size:17px;margin-top:8px}.tile .st{font-size:14px}
+}
+/* the Home screen on a landscape tablet: clock, status, scenes and two rows of cards on one screen */
+@media (min-width:721px) and (max-height:920px){
+  .top{padding-top:14px}.clock{font-size:52px;margin-top:4px}.wpill{height:48px}.wpill b{font-size:22px}.av,.top .iconbtn{width:46px;height:46px}
+  .statusrow{margin-top:12px}.status{font-size:28px;margin-top:4px}.statusrow .pill{height:42px}
+  .hsc{margin-top:14px}.hsc .scenes{padding-top:8px}.hsc .scene{height:42px;padding:0 18px 0 16px;font-size:15px}
+  .hgrid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-top:14px}
+  .hgrid .rc{min-height:clamp(116px,calc((100vh - 348px) / 2),210px)}
+  .hgrid .big-num{font-size:36px}.hgrid .big-txt{font-size:22px}.hgrid .media .ttl{font-size:18px}.hgrid .media .ctl{gap:14px;margin-top:8px}.hgrid .media .ctl .pp{width:42px;height:42px}.hgrid .media .bar{margin-top:8px}
+}
+@media (min-width:721px) and (max-height:680px){
+  .hero{padding-top:12px}.hero .t{font-size:34px}
+  .rc{padding:12px 14px;border-radius:22px}.ri{width:36px;height:36px}.ri ha-icon{--mdc-icon-size:20px}.pw{width:42px;height:42px}.pw ha-icon{--mdc-icon-size:22px}
+  .rc .nm{font-size:17px}.rc .meta{font-size:13px;margin-top:1px}.dots{margin-top:5px;min-height:10px}.dots i{width:8px;height:8px}
+  .tile{padding:12px;min-height:clamp(96px,calc((100vh - 320px) / 3),170px)}.tile .ic{width:36px;height:36px}.tile .pw{width:40px;height:40px}.tile .nm{font-size:16px;margin-top:6px}.tile .st{font-size:13px}
 }
 `;

@@ -4,6 +4,7 @@
 import { esc, dom } from "./const.js";
 import { t, tp } from "./i18n.js";
 import { DEVICE_TYPES, typeOf, stripOf } from "./devtypes.js";
+import { drawHouse, cssCanvas } from "./housecanvas.js";
 
 const U = 56; // px per layout unit
 export const WALL_DEFAULT = 30; // wall height in px (Settings > 3D floor plan > Wall height)
@@ -72,6 +73,9 @@ export function houseView(p, rooms) {
   const levels = [...new Set(rooms.map(lvOf))].sort((a, b) => a - b);
   const floorName = (lv) => rooms.find((r) => (r.floor_level ?? 0) === lv && r.floor)?.floor || t("Piso {n}", { n: lv });
   if (view3d.floor !== "all" && !levels.includes(view3d.floor)) view3d.floor = "all";
+  // how this device shows the house (Settings > This device): full CSS 3D, light CSS 3D, a painted picture, or the plan
+  const mode = p._houseMode(), cvs = mode === "image" || mode === "plan", flat = mode === "plan";
+  if (flat && view3d.floor === "all" && levels.length) view3d.floor = levels[0]; // the plan shows one floor at a time
   const shown = view3d.floor === "all" ? levels : [view3d.floor];
 
   // Rooms drawn in the floor-plan editor keep their place; the rest are packed beside them.
@@ -93,13 +97,20 @@ export function houseView(p, rooms) {
   const D = drawn ? Math.max(...plans.map((pl) => pl.y1)) - gy0 : Math.max(...plans.map((pl) => pl.D), 1);
   const wall = Math.max(8, Math.min(120, cfg.wall_height || WALL_DEFAULT));
   const gap = Math.max(110, wall + 100); // distance between floors when all are shown
+  // the same house as plain data, for the canvas picture
+  const M = { mode, wall, W: W * U, D: D * U, stack: flat ? 0 : (shown.length - 1) * gap, floors: [] };
 
   const floorsHtml = plans.map((pl, k) => {
-    const z = k * gap;
+    const z = flat ? 0 : k * gap;
     // drawn plans keep their shared coordinates (cropped); automatic plans are centred
     const ox = drawn ? -gx0 * U : ((W - pl.W) / 2 - pl.x0) * U, oy = drawn ? -gy0 * U : ((D - pl.D) / 2 - pl.y0) * U;
+    const F = { z, lv: pl.lv, slab: [ox + pl.x0 * U - SLAB_MARGIN, oy + pl.y0 * U - SLAB_MARGIN, pl.W * U + 2 * SLAB_MARGIN, pl.D * U + 2 * SLAB_MARGIN], rooms: [] };
+    M.floors.push(F);
     const roomsHtml = pl.items.map((b) => {
       const r = b.room, sw = p._switchables(r), lit = sw.filter((i) => p._isOn(i));
+      const X = ox + b.x * U, Y = oy + b.y * U;
+      const R = { id: r.id, name: r.name, w: b.w * U, h: b.d * U, cx: X + (b.w * U) / 2, cy: Y + (b.d * U) / 2, lights: [], things: [] };
+      F.rooms.push(R);
       // entities placed in the floor-plan editor (only meaningful when the room itself is drawn)
       const placements = cfg.placements || {};
       const placed = layout[r.id] ? r.ents.filter((i) => placements[i] && placements[i].f === lvOf(r)) : [];
@@ -108,6 +119,9 @@ export function houseView(p, rooms) {
         const pos = `left:${((P.x - b.x) / b.w) * 100}%;top:${((P.y - b.y) / b.d) * 100}%`;
         const on = p._isOn(id) ? "on" : "";
         const g = lightGlow(p, id);
+        const at = { id, x: X + (P.x - b.x) * U, y: Y + (P.y - b.y) * U, on: !!on, glow: g, kind };
+        if (kind === "thing") R.things.push({ ...at, icon });
+        else R.lights.push(kind === "strip" ? { ...at, len: stripOf(P).l * U, rot: stripOf(P).r } : at);
         if (kind === "strip") {
           // an LED strip at its real length (grid units → px) and angle; its light spreads along it
           const S = stripOf(P), w = S.l * U, rot = `--rot:${S.r}deg;--len:${w}px;`;
@@ -145,12 +159,36 @@ export function houseView(p, rooms) {
       const pins = lights.map((id, n) => {
         const [px, py] = spots ? spots[n] : [((n % cols) + 1) / (cols + 1) * 100, (Math.floor(n / cols) + 1) / (Math.ceil(lights.length / cols) + 1) * 100];
         const g = lightGlow(p, id), pos = `left:${px}%;top:${py}%`;
+        R.lights.push({ id, x: X + (px / 100) * b.w * U, y: Y + (py / 100) * b.d * U, on: p._isOn(id), glow: g, kind: "lamp" });
         return `<i class="pin ${p._isOn(id) ? "on" : ""}" data-pin="${esc(id)}" title="${esc(p._name(id))}" style="${pos};${glowVars(g)}"></i>${g ? `<i class="pool" style="${pos};${glowVars(g)}"></i>` : ""}`;
       }).join("");
       const meta = [c.temp && c.temp.replace(/,\d/, "").replace(".", "").replace("°C", "°"), lit.length ? tp(lit.length, "{n} ligado", "{n} ligados") : null].filter(Boolean).join(" · ");
       // the room takes the colour of its lit lights (a plug or a switch alone keeps the accent colour)
       const glows = r.ents.map((i) => lightGlow(p, i)).filter(Boolean);
       const rg = lit.length ? roomGlow(glows) : null;
+      Object.assign(R, { lit: lit.length > 0, open, glow: rg, meta });
+      if (cells) {
+        R.shape = true;
+        R.cells = cells.map(([x, y]) => [X + x * U, Y + y * U, U, U]);
+        const set = new Set(cells.map(([x, y]) => x + "," + y));
+        R.edges = cells.flatMap(([x, y]) => {
+          const L = X + x * U, T = Y + y * U, e = [];
+          if (!set.has(x + "," + (y - 1))) e.push([L, T, L + U, T]);
+          if (!set.has(x + "," + (y + 1))) e.push([L, T + U, L + U, T + U]);
+          if (!set.has(x - 1 + "," + y)) e.push([L, T, L, T + U]);
+          if (!set.has(x + 1 + "," + y)) e.push([L + U, T, L + U, T + U]);
+          return e;
+        });
+        R.cx = X + (cells.reduce((a, c) => a + c[0], 0) / cells.length + 0.5) * U;
+        R.cy = Y + (cells.reduce((a, c) => a + c[1], 0) / cells.length + 0.5) * U;
+        const [lx, ly] = lbl.match(/[\d.]+/g).map(Number);
+        R.lx = X + lx; R.ly = Y + ly;
+      } else {
+        const x0 = X + 3, y0 = Y + 3, x1 = X + b.w * U - 3, y1 = Y + b.d * U - 3;
+        R.cells = [[x0, y0, x1 - x0, y1 - y0]];
+        R.edges = [[x0, y0, x1, y0], [x1, y0, x1, y1], [x1, y1, x0, y1], [x0, y1, x0, y0]];
+        R.lx = R.cx; R.ly = R.cy;
+      }
       return `<div class="r3 ${lit.length ? "lit" : ""} ${open ? "open" : ""} ${cells ? "shape" : ""}" data-room="${esc(r.id)}" style="${glowVars(rg)}left:${ox + b.x * U}px;top:${oy + b.y * U}px;width:${b.w * U}px;height:${b.d * U}px">
         ${shape}
         ${pins}${marks}
@@ -165,26 +203,34 @@ export function houseView(p, rooms) {
   }).join("");
 
   const chips = levels.length > 1 ? `<div class="chips3">
-      <button class="pill ${view3d.floor === "all" ? "solid" : ""}" data-floor="all">${t("Todos os pisos")}</button>
+      ${flat ? "" : `<button class="pill ${view3d.floor === "all" ? "solid" : ""}" data-floor="all">${t("Todos os pisos")}</button>`}
       ${levels.map((lv) => `<button class="pill ${view3d.floor === lv ? "solid" : ""}" data-floor="${lv}">${esc(floorName(lv))}</button>`).join("")}
     </div>` : "";
+
+  // canvas modes: names, floor names and things are plain HTML placed over the picture by drawHouse()
+  const overlay = !cvs ? "" : M.floors.map((F) => [
+    ...F.rooms.map((R) => `<div class="cvl ${R.lit ? "lit" : ""}" data-at="${R.lx},${R.ly},${flat ? F.z : F.z + wall + 26}"><div class="lb"><b>${esc(R.name)}</b>${R.meta ? `<small>${esc(R.meta)}</small>` : ""}</div></div>`),
+    ...F.rooms.flatMap((R) => R.things.map((T) => `<div class="cvt ${T.on ? "on" : ""}" data-mk="${esc(T.id)}" title="${esc(p._name(T.id))}" data-at="${T.x},${T.y},${flat ? F.z : F.z + 16}"><div class="mki"><ha-icon icon="${T.icon}"></ha-icon></div></div>`)),
+    shown.length > 1 && !flat ? `<div class="cvl fname" data-at="${F.slab[0]},${F.slab[1]},${F.z}"><div class="lb"><small>${esc(floorName(F.lv))}</small></div></div>` : "",
+  ].join("")).join("");
+  p._house = M;
 
   const lit = rooms.filter((r) => p._switchables(r).some((i) => p._isOn(i))).length;
   return `<div class="hero"><div><div class="eyebrow">${tp(lit, "{n} divisão acesa", "{n} divisões acesas")}</div><div class="t" style="margin-top:8px">${t("Casa 3D")}</div></div>
       <div class="right"><button class="pill" data-editplan><ha-icon icon="mdi:floor-plan"></ha-icon>${t("Editar planta")}</button>${p._gear()}</div></div>
     ${chips}
-    <div class="stage glass" data-stage>
-      <div class="scene3d" style="--rx:${view3d.rx}deg;--rz:${view3d.rz}deg;--sc:${view3d.sc ?? 1};width:${W * U}px;height:${D * U}px;--stack:${(shown.length - 1) * gap}px;--wall:${wall}px">
+    <div class="stage ${cvs ? `cvs ${flat ? "flat" : ""}` : mode === "lite" ? "lite3d" : "glass"}" data-stage>
+      ${cvs ? `<canvas></canvas>${rooms.length ? overlay : ""}` : `<div class="scene3d" style="--rx:${view3d.rx}deg;--rz:${view3d.rz}deg;--sc:${view3d.sc ?? 1};width:${W * U}px;height:${D * U}px;--stack:${(shown.length - 1) * gap}px;--wall:${wall}px">
         ${rooms.length ? floorsHtml : ""}
-      </div>
-      <div class="ctl3">
+      </div>`}
+      <div class="ctl3">${flat ? "" : `
         <button class="mini" data-rot="-30" title="${t("Rodar")}"><ha-icon icon="mdi:rotate-left"></ha-icon></button>
         <button class="mini" data-rot="reset" title="${t("Repor vista")}"><ha-icon icon="mdi:crosshairs"></ha-icon></button>
         <button class="mini" data-rot="30" title="${t("Rodar")}"><ha-icon icon="mdi:rotate-right"></ha-icon></button>
         <button class="mini" data-wall="-6" title="${t("Paredes mais baixas")}"><ha-icon icon="mdi:arrow-collapse-vertical"></ha-icon></button>
-        <button class="mini" data-wall="6" title="${t("Paredes mais altas")}"><ha-icon icon="mdi:arrow-expand-vertical"></ha-icon></button>
+        <button class="mini" data-wall="6" title="${t("Paredes mais altas")}"><ha-icon icon="mdi:arrow-expand-vertical"></ha-icon></button>`}
       </div>
-      <div class="hint3">${t("Arrasta para rodar · Toca numa divisão para a abrir · Toca numa luz para a ligar")}</div>
+      <div class="hint3">${flat ? t("Toca numa divisão para a abrir · Toca numa luz para a ligar") : t("Arrasta para rodar · Toca numa divisão para a abrir · Toca numa luz para a ligar")}</div>
     </div>
     ${rooms.length ? "" : `<div class="empty">${t("Ainda não há divisões com dispositivos.")}</div>`}`;
 }
@@ -192,12 +238,23 @@ export function houseView(p, rooms) {
 export function bindHouse(p, root) {
   const stage = root.querySelector("[data-stage]");
   if (!stage) return;
-  const scene = stage.querySelector(".scene3d");
+  const scene = stage.querySelector(".scene3d"), M = p._house;
+  const cvs = !scene && M && stage.querySelector("canvas");
+  let hit = () => null;
+  const draw = () => { if (cvs) hit = drawHouse(p, stage, M, view3d); };
+  // one update per frame while dragging, however many pointer events arrive
+  let raf = 0;
   const apply = () => {
-    scene.style.setProperty("--rx", view3d.rx + "deg");
-    scene.style.setProperty("--rz", view3d.rz + "deg");
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      if (cvs) { draw(); return; }
+      scene.style.setProperty("--rx", view3d.rx + "deg");
+      scene.style.setProperty("--rz", view3d.rz + "deg");
+    });
   };
   const fit = () => {
+    if (cvs) { draw(); return; }
     const w = scene.offsetWidth, d = scene.offsetHeight;
     const diag = Math.hypot(w, d) + 80;
     const sc = Math.min(1.25, (stage.clientWidth - 24) / diag, (stage.clientHeight - 60) / (diag * 0.62 + parseFloat(scene.style.getPropertyValue("--stack") || 0)));
@@ -206,9 +263,10 @@ export function bindHouse(p, root) {
     scene.style.setProperty("--sc", view3d.sc);
   };
   fit();
+  const flat = M?.mode === "plan" && cvs;
   let start = null, moved = false;
   stage.addEventListener("pointerdown", (ev) => {
-    if (ev.target.closest("button")) return;
+    if (ev.target.closest("button") || flat) return;
     start = { x: ev.clientX, y: ev.clientY, rx: view3d.rx, rz: view3d.rz };
     moved = false;
   });
@@ -229,6 +287,12 @@ export function bindHouse(p, root) {
     if (moved) { ev.stopPropagation(); return; }
     const mk = ev.target.closest("[data-mk]");
     if (mk) { ev.stopPropagation(); p._openModal(mk.dataset.mk); return; }
+    if (cvs && !ev.target.closest("button")) {
+      const r = stage.getBoundingClientRect(), h = hit(ev.clientX - r.left, ev.clientY - r.top);
+      if (h?.pin) { ev.stopPropagation(); p._call("homeassistant", "toggle", { entity_id: h.pin }); }
+      else if (h?.room) { ev.stopPropagation(); p._go("room", h.room); }
+      return;
+    }
     const pin = ev.target.closest("[data-pin]");
     if (pin) { ev.stopPropagation(); p._call("homeassistant", "toggle", { entity_id: pin.dataset.pin }); return; }
     const room = ev.target.closest("[data-room]");
@@ -310,4 +374,11 @@ export const css3d = `
 .ctl3{position:absolute;right:16px;top:16px;display:flex;gap:8px}
 .hint3{position:absolute;left:0;right:0;bottom:14px;text-align:center;font-size:13px;color:var(--muted);pointer-events:none;padding:0 16px}
 @media (max-width:720px){.flab{display:none}}
-`;
+/* 3D light: the same scene without the costly bits (blur, big shadows, transitions) */
+.stage.lite3d,.stage.cvs{background:rgba(255,255,255,.06);border:1px solid var(--line)}
+.lite3d .scene3d,.lite3d .r3 .fl{transition:none}
+.lite3d .slab,.lite3d .r3.lit .fl,.lite3d .pin.on,.lite3d .pin.k-ceiling.on,.lite3d .pin.k-strip.on,.lite3d .mki,.lite3d .mk3.on .mki{box-shadow:none}
+.lite3d .lb{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(20,10,22,.8)}
+.lite3d .r3.lit .lb{background:var(--cream)}
+.lite3d .pool{background:radial-gradient(closest-side,color-mix(in srgb,var(--lc) calc(var(--li) * 55%),transparent),transparent)}
+${cssCanvas}`;

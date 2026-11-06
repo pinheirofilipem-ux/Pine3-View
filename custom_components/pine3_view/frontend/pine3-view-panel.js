@@ -47,7 +47,7 @@ class Pine3ViewPanel extends HTMLElement {
     const kiosk = /[?&#]kiosk\b/.test(location.search + location.hash);
     if (kiosk || store.get("hide_sidebar", false)) this._dockSidebar(true);
     this._applyWakeLock();
-    this._onResize = () => this._fit3d?.();
+    this._onResize = () => { this._fit3d?.(); this._fitDock(); this._placeBlob(false); };
     window.addEventListener("resize", this._onResize);
     if (this._hass) this._connect();
   }
@@ -284,8 +284,22 @@ class Pine3ViewPanel extends HTMLElement {
     const active = this._view === "room" ? "rooms" : this._view;
     nav.querySelectorAll("button").forEach((b) => b.classList.toggle("act", b.dataset.dock === active));
     if (!show) { this._blobAt = null; return; }
+    this._fitDock(active);
     this._placeBlob(this._blobAt != null && this._blobAt !== active);
     this._blobAt = active;
+  }
+
+  /** Smaller dock when it doesn't fit: first only the active tab keeps its name, then icons only. */
+  _fitDock(active = this._blobAt) {
+    const nav = this._dockEl;
+    if (!nav || nav.hidden) return;
+    const avail = Math.min(window.innerWidth, this.clientWidth || window.innerWidth) - 24;
+    const sig = `${nav._key}|${active}|${avail}`;
+    if (nav._fit === sig) return;
+    nav._fit = sig;
+    nav.classList.remove("compact", "icons");
+    if (nav.scrollWidth > avail) nav.classList.add("compact");
+    if (nav.scrollWidth > avail) nav.classList.add("icons");
   }
 
   /** The glass lens under the active tab; with `animate` it slides there and stretches like a drop on the way. */
@@ -344,6 +358,28 @@ class Pine3ViewPanel extends HTMLElement {
       this._wake.addEventListener("release", () => { this._wake = null; });
     } catch (e) { console.warn("Pine3 View: wake lock", e); }
   }
+  // ---------- per-device performance (stored in this browser only) ----------
+  /** A weak device: little memory (Chrome reports ≤2 GB) or an old engine without color-mix(). */
+  _weakDevice() {
+    const mem = navigator.deviceMemory;
+    return (mem != null && mem <= 2) || !window.CSS?.supports?.("color", "color-mix(in srgb, red, blue)");
+  }
+  /** How this device shows the house: full | lite | image | plan. */
+  _houseMode() {
+    const v = store.get("house_mode", "auto");
+    if (v !== "auto") return v;
+    const mem = navigator.deviceMemory;
+    return this._weakDevice() ? "image" : mem != null && mem <= 4 ? "lite" : "full";
+  }
+  /** Light effects: no frosted-glass blur (backdrop-filter), the costliest thing for a weak GPU. */
+  _liteFx() { const v = store.get("lite_fx", "auto"); return v === "auto" ? this._weakDevice() : v === "on"; }
+  /** Animations: this device's choice, or the panel-wide setting. */
+  _animOn(cfg) { const v = store.get("anim", "auto"); return v === "auto" ? cfg.animations !== false : v === "on"; }
+  _localChoice(key, value, options, label, sub) {
+    return `<div class="opt col"><div><b>${label}</b>${sub ? `<small>${sub}</small>` : ""}</div><div class="seg">${options.map(([v, l]) =>
+      `<button class="pill ${v === value ? "solid" : ""}" data-lchoice="${key}" data-val="${v}">${l}</button>`).join("")}</div></div>`;
+  }
+
   _localToggle(key, label, sub, disabled) {
     const on = store.get(key, false);
     return `<div class="opt ${disabled ? "dis" : ""}"><div><b>${label}</b>${sub ? `<small>${sub}</small>` : ""}</div><div class="tg ${on ? "on" : ""}" data-local="${key}"><i></i></div></div>`;
@@ -470,6 +506,16 @@ class Pine3ViewPanel extends HTMLElement {
       <div class="panel glass"><h3 style="margin-top:0">${t("Este dispositivo")}</h3><p>${t("Opções guardadas só neste browser, para um tablet na parede ficar diferente do telemóvel.")}</p><div class="opts">
         ${this._localToggle("hide_sidebar", t("Esconder a barra lateral do Home Assistant"), t("O painel ocupa a largura toda. Também podes abrir o painel com ?kiosk no endereço."))}
         ${this._localToggle("wake_lock", t("Manter o ecrã ligado"), navigator.wakeLock ? t("Impede o ecrã de adormecer enquanto o painel está aberto.") : t("Este browser não suporta manter o ecrã ligado."), !navigator.wakeLock)}
+        ${(() => {
+          const modes = { full: t("3D completo"), lite: t("3D leve"), image: t("Imagem 3D"), plan: t("Planta 2D") };
+          const hm = store.get("house_mode", "auto"), fx = store.get("lite_fx", "auto"), an = store.get("anim", "auto");
+          return this._localChoice("house_mode", hm, [["auto", hm === "auto" ? t("Automático ({m})", { m: modes[this._houseMode()] }) : t("Automático")], ...Object.entries(modes)],
+              t("Vista da Casa 3D"), t("Em tablets mais fracos, a Imagem 3D desenha a casa como uma imagem (leve e fluida) e a Planta 2D mostra-a vista de cima. O 3D leve mantém a vista atual sem os efeitos mais pesados."))
+            + this._localChoice("lite_fx", fx, [["auto", fx === "auto" ? t("Automático ({m})", { m: this._liteFx() ? t("Ligado") : t("Desligado") }) : t("Automático")], ["on", t("Ligado")], ["off", t("Desligado")]],
+              t("Efeitos leves"), t("Tira o desfoque do vidro (o mais pesado para a placa gráfica). Usa se vires zonas brancas, vazias ou a piscar."))
+            + this._localChoice("anim", an, [["auto", t("Como no painel")], ["on", t("Ligadas")], ["off", t("Desligadas")]],
+              t("Animações neste dispositivo"), t("Sobrepõe a opção Animações da Aparência só neste dispositivo."));
+        })()}
         ${this._fsSupported() ? `<div class="opt"><div><b>${t("Ecrã inteiro")}</b><small>${t("Esconde as barras do browser. Também há um botão no topo do painel.")}</small></div><button class="pill" data-fs><ha-icon icon="mdi:fullscreen"></ha-icon>${document.fullscreenElement ? t("Sair do ecrã inteiro") : t("Ecrã inteiro")}</button></div>` : ""}
       </div></div>
       <div class="panel glass"><div class="opts">
@@ -584,6 +630,7 @@ class Pine3ViewPanel extends HTMLElement {
       if (k === "wake_lock") { if (v) this._applyWakeLock(); else { this._wake?.release?.().catch(() => {}); this._wake = null; } }
       upd();
     });
+    on("[data-lchoice]", (el) => { store.set(el.dataset.lchoice, el.dataset.val); upd(); });
     on("[data-closeset]", () => this._closeSettings());
     on("[data-save]", () => this._saveDraft());
     on("[data-card]", (el) => { d.card_color = el.dataset.card; upd(); });
@@ -756,14 +803,17 @@ class Pine3ViewPanel extends HTMLElement {
     this._collectWatch(rooms);
     // entering another screen: the content flows in (no blur on the 3D Home, a filter would flatten it)
     const viewKey = `${this._view}:${this._view === "room" ? this._room : ""}`;
-    const vin = this._viewKey && this._viewKey !== viewKey && cfg.animations !== false ? (this._view === "house" ? "vin flat" : "vin") : "";
-    this.classList.toggle("noanim", cfg.animations === false);
+    const anim = this._animOn(cfg);
+    const vin = this._viewKey && this._viewKey !== viewKey && anim ? (this._view === "house" ? "vin flat" : "vin") : "";
+    this.classList.toggle("noanim", !anim);
+    this.classList.toggle("lite", this._liteFx());
     if (!this._app) {
       // the dock lives outside the redrawn part, so it doesn't flicker or replay its animation on every update
       root.innerHTML = `<style>${css}${css3d}${cssPlan}</style><div id="app"></div><nav class="dock" hidden><i class="blob"></i></nav>`;
       this._app = root.getElementById("app");
       this._dockEl = root.querySelector(".dock");
       new ResizeObserver(() => this._placeBlob(false)).observe(this._dockEl); // fonts loading, window size…
+      document.fonts?.ready?.then(() => { if (this._dockEl) { this._dockEl._fit = null; this._fitDock(); this._placeBlob(false); } });
     }
     this._viewKey = viewKey;
     this._app.innerHTML = `<div class="bg" style="background:${THEMES[cfg.theme || this._theme] || THEMES.ameixa}"></div>
@@ -842,7 +892,7 @@ class Pine3ViewPanel extends HTMLElement {
     const status = lightsOn.length ? tp(lightsOn.length, "{n} luz acesa em casa", "{n} luzes acesas em casa") : lights.length ? t("Todas as luzes apagadas") : t("Tudo tranquilo em casa");
 
     const scenes = (this._model ? this._model.scenes.filter((i) => this._s(i)) : Object.keys(h.states).filter((i) => dom(i) === "scene" && !h.entities?.[i]?.hidden)).slice(0, 12);
-    const scenesHtml = scenes.length && cfg.show_scenes ? `<div class="sect"><div class="eyebrow">${t("Cenas")} <span class="badge">${scenes.length}</span></div>
+    const scenesHtml = scenes.length && cfg.show_scenes ? `<div class="sect hsc"><div class="eyebrow">${t("Cenas")} <span class="badge">${scenes.length}</span></div>
       <div class="scenes">${scenes.map((i) => `<div class="scene glass ${this._fired === i ? "fired" : ""}" data-scene="${i}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon>${esc(this._name(i))}</div>`).join("")}</div></div>` : "";
 
     // Summary cards
@@ -879,7 +929,7 @@ class Pine3ViewPanel extends HTMLElement {
       ${cfg.show_status && !this._edit ? `<div class="statusrow"><div><div class="eyebrow">${t("Estado da casa")}</div><div class="status">${status}</div></div>
         ${lights.length ? `<div class="actions"><button class="pill" data-all="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender tudo")}</button><button class="pill solid" data-all="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar tudo")}</button></div>` : ""}</div>` : ""}
       ${this._edit ? "" : scenesHtml}
-      ${rooms.length || this._edit ? `<div class="grid" data-sortable="rooms">${rooms.map((r) => this._roomCard(r)).join("")}${this._restoreCard(this._hiddenRooms.length)}${cfg.show_summary && !this._edit ? cards.join("") : ""}</div>`
+      ${rooms.length || this._edit ? `<div class="grid hgrid" data-sortable="rooms">${rooms.map((r) => this._roomCard(r)).join("")}${this._restoreCard(this._hiddenRooms.length)}${cfg.show_summary && !this._edit ? cards.join("") : ""}</div>`
         : `<div class="empty">${t("Ainda não há divisões com dispositivos. Atribui áreas aos teus dispositivos no Home Assistant.")}</div>`}`;
   }
 
