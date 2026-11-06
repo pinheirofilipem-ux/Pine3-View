@@ -135,6 +135,8 @@ export const EN = {
   "Normal": "Normal", "Fraca": "Low", "Sem fumo": "Clear", "Fumo": "Smoke", "OK": "OK", "Problema": "Problem",
   "Qualidade do ar": "Air quality", "Luz ambiente": "Ambient light", "Índice de alérgenos": "Allergen index",
   "PM2.5": "PM2.5", "Gás": "Gas", "Humidade": "Humidity", "Temperatura": "Temperature", "Animações": "Animations", "Transições ao mudar de ecrã, a lente da dock e a abertura dos cartões. Desliga para um painel mais leve.": "Screen transitions, the dock lens and cards opening. Turn off for a lighter panel.",
+  "Comprimento": "Length", "Orientação": "Angle",
+  "O comprimento conta em quadrículas da planta. A orientação roda a fita à volta do seu centro.": "Length is in floor-plan cells. The angle turns the strip around its centre.",
   "Velocidade": "Fan speed", "Oscilação": "Swing", "Perfil": "Preset", "hum.": "hum.",
   "Noturno": "Sleep", "Turbo": "Turbo", "Manual": "Manual", "Silencioso": "Silent", "Eco": "Eco", "Reforço": "Boost",
   "Alérgenos": "Allergen", "Bactérias": "Bacteria", "Inteligente": "Smart", "Natural": "Natural", "Purificador": "Air purifier",

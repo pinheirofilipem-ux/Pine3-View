@@ -70,4 +70,7 @@ export function autoType(id, state, meta = {}) {
   return "other";
 }
 
+/** Length (grid units) and angle (degrees) of a placed LED strip. */
+export const stripOf = (P) => ({ l: Math.min(30, Math.max(0.25, Number(P?.l) || 1)), r: ((Number(P?.r) || 0) % 360 + 360) % 360 });
+
 export const typeOf = (placement, id, state, meta) => (placement?.t && DEVICE_TYPES[placement.t] ? placement.t : autoType(id, state, meta));

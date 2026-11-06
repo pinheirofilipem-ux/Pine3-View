@@ -6,7 +6,7 @@
 import { esc } from "./const.js";
 import { t } from "./i18n.js";
 import { pack, autoSize } from "./house3d.js";
-import { DEVICE_TYPES, typeOf } from "./devtypes.js";
+import { DEVICE_TYPES, typeOf, stripOf } from "./devtypes.js";
 
 export const COLS = 24;
 export const ROWS = 16;
@@ -65,7 +65,10 @@ function markersHtml(p, d, rooms, lv) {
   return Object.entries(pl).filter(([id, P]) => P.f === lv && p._s(id)).map(([id, P]) => {
     const t = typeOf(P, id, p._s(id), metaOf.get(id) || {});
     const name = metaOf.get(id)?.name || p._name(id);
-    return `<div class="pm ${plan.pmSel === id ? "sel" : ""} ${p._isOn(id) ? "on" : ""} k-${DEVICE_TYPES[t][2]}" data-pm="${esc(id)}" title="${esc(name)}" style="left:${pct(P.x, COLS)};top:${pct(P.y, ROWS)}">
+    // an LED strip is also drawn as a bar of its real length and angle
+    const S = DEVICE_TYPES[t][2] === "strip" ? stripOf(P) : null;
+    const bar = S ? `<i class="pst ${p._isOn(id) ? "on" : ""}" data-pst="${esc(id)}" style="left:${pct(P.x, COLS)};top:${pct(P.y, ROWS)};width:${pct(S.l, COLS)};transform:translate(-50%,-50%) rotate(${S.r}deg)"></i>` : "";
+    return `${bar}<div class="pm ${plan.pmSel === id ? "sel" : ""} ${p._isOn(id) ? "on" : ""} k-${DEVICE_TYPES[t][2]}" data-pm="${esc(id)}" title="${esc(name)}" style="left:${pct(P.x, COLS)};top:${pct(P.y, ROWS)}">
       <ha-icon icon="${DEVICE_TYPES[t][0]}"></ha-icon></div>`;
   }).join("");
 }
@@ -85,6 +88,13 @@ function placePanel(p, d, rooms, lv) {
     ${sel ? `<div class="psel">
         <b><ha-icon icon="${DEVICE_TYPES[selType][0]}"></ha-icon>${esc(metaOf.get(sel)?.name || p._name(sel))}</b>
         <button class="pill" data-pmremove><ha-icon icon="mdi:close"></ha-icon>${t("Tirar da planta")}</button>
+        ${DEVICE_TYPES[selType][2] === "strip" ? (() => {
+          const S = stripOf(pl[sel]);
+          return `<div class="pstrip">
+            <label><span>${t("Comprimento")}</span><input type="range" min="0.25" max="12" step="0.25" value="${S.l}" data-pslen><b data-pslenv>${S.l.toLocaleString(undefined, { maximumFractionDigits: 2 })}</b></label>
+            <label><span>${t("Orientação")}</span><input type="range" min="0" max="345" step="15" value="${S.r}" data-psrot><b data-psrotv>${S.r}°</b></label>
+            <small>${t("O comprimento conta em quadrículas da planta. A orientação roda a fita à volta do seu centro.")}</small></div>`;
+        })() : ""}
         <div class="ptypes">${Object.entries(DEVICE_TYPES).map(([k, [icon, label]]) => `<button class="pill ${k === selType ? "solid" : ""}" data-pmtype="${k}" title="${t(label)}"><ha-icon icon="${icon}"></ha-icon>${t(label)}</button>`).join("")}</div>
       </div>` : ""}
     <div class="sub">${t("Divisão")}</div>
@@ -208,6 +218,23 @@ export function bindPlan(p, root, d, rooms) {
   on("[data-proom]", (el) => { plan.placeRoom = el.dataset.proom; plan.pmArmed = null; upd(); });
   on("[data-parment]", (el) => { const id = el.dataset.parment; plan.pmArmed = plan.pmArmed === id ? null : id; plan.pmSel = d.placements?.[id] ? id : null; upd(); });
   on("[data-pmremove]", () => { const P = placements(); delete P[plan.pmSel]; plan.pmSel = null; upd(); });
+  // LED strip length / angle: the bar follows the slider live, the plan is redrawn when it is let go
+  const stripInput = (sel, out, key, fmt) => {
+    const el = root.querySelector(sel);
+    if (!el) return;
+    const id = plan.pmSel;
+    const live = () => {
+      const P = placements(); P[id] = { ...P[id], [key]: Number(el.value) };
+      const S = stripOf(P[id]);
+      root.querySelector(out).textContent = fmt(Number(el.value));
+      const bar = root.querySelector(`[data-pst="${CSS.escape(id)}"]`);
+      if (bar) { bar.style.width = pct(S.l, COLS); bar.style.transform = `translate(-50%,-50%) rotate(${S.r}deg)`; }
+    };
+    el.addEventListener("input", live);
+    el.addEventListener("change", () => { live(); upd(); });
+  };
+  stripInput("[data-pslen]", "[data-pslenv]", "l", (v) => v.toLocaleString(undefined, { maximumFractionDigits: 2 }));
+  stripInput("[data-psrot]", "[data-psrotv]", "r", (v) => `${v}°`);
   on("[data-pmtype]", (el) => { const P = placements(); P[plan.pmSel] = { ...P[plan.pmSel], t: el.dataset.pmtype }; upd(); });
   on("[data-pshape]", () => { plan.tool = "paint"; plan.brush = plan.selected; upd(); });
   on("[data-parm]", (el) => { plan.armed = plan.armed === el.dataset.parm ? null : el.dataset.parm; plan.selected = null; upd(); });
@@ -390,6 +417,14 @@ export const cssPlan = `
 .wallh span{font-variant-numeric:tabular-nums;color:var(--muted);min-width:28px;text-align:right}
 .pm{position:absolute;z-index:3;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;display:grid;place-items:center;background:rgba(30,18,32,.85);color:#fff;border:2px solid rgba(255,255,255,.5);pointer-events:none;box-shadow:0 3px 10px rgba(0,0,0,.35)}
 .pm ha-icon{--mdc-icon-size:17px}
+.pst{position:absolute;z-index:2;height:8px;border-radius:4px;background:rgba(255,255,255,.45);box-shadow:0 0 0 1px rgba(0,0,0,.25);pointer-events:none}
+.pst.on{background:var(--amber);box-shadow:0 0 12px var(--amber)}
+.pstrip{display:flex;flex-direction:column;gap:8px;width:100%;margin:4px 0 6px}
+.pstrip label{display:flex;align-items:center;gap:12px}
+.pstrip span{width:110px;font-size:14px;color:var(--muted)}
+.pstrip input{flex:1;min-width:120px;accent-color:var(--amber);height:28px}
+.pstrip b{min-width:46px;text-align:right;font-variant-numeric:tabular-nums}
+.pstrip small{color:var(--muted);font-size:12px}
 .pm.on.k-light,.pm.on.k-ceiling,.pm.on.k-strip{background:var(--amber);color:var(--ink);border-color:#fff;box-shadow:0 0 14px var(--amber)}
 .pm.sel{border-color:var(--amber);box-shadow:0 0 0 4px color-mix(in srgb,var(--amber) 40%,transparent)}
 .pm.drag{transform:scale(1.2)}

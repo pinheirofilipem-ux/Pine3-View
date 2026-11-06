@@ -259,11 +259,14 @@ async def test_layout_cells(hass: HomeAssistant, hass_ws_client) -> None:
 async def test_placements(hass: HomeAssistant, hass_ws_client) -> None:
     await async_setup_api(hass)
     ws = await hass_ws_client(hass)
-    pl = {"light.sala_teto": {"f": 0, "x": 2.5, "y": 1.5, "t": "ceiling"}, "media_player.tv": {"f": 0, "x": 3, "y": 4}}
+    pl = {"light.sala_teto": {"f": 0, "x": 2.5, "y": 1.5, "t": "ceiling"}, "media_player.tv": {"f": 0, "x": 3, "y": 4},
+          "light.fita": {"f": 0, "x": 1, "y": 2, "t": "led", "l": 2.5, "r": 90}}
     await ws.send_json({"id": 1, "type": "pine3_view/settings", "placements": pl})
     msg = await ws.receive_json()
     assert msg["success"] and msg["result"]["placements"]["light.sala_teto"]["t"] == "ceiling"
-    for n, bad in enumerate([{"f": 0, "x": 99, "y": 1}, {"f": 0, "x": 1, "y": 1, "t": "rocket"}, {"x": 1, "y": 1}], start=2):
+    assert msg["result"]["placements"]["light.fita"]["l"] == 2.5 and msg["result"]["placements"]["light.fita"]["r"] == 90
+    for n, bad in enumerate([{"f": 0, "x": 99, "y": 1}, {"f": 0, "x": 1, "y": 1, "t": "rocket"}, {"x": 1, "y": 1},
+                             {"f": 0, "x": 1, "y": 1, "l": 0}, {"f": 0, "x": 1, "y": 1, "r": 400}], start=2):
         await ws.send_json({"id": n, "type": "pine3_view/settings", "placements": {"light.a": bad}})
         assert not (await ws.receive_json())["success"], bad
 

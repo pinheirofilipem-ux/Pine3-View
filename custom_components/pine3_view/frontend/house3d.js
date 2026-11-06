@@ -3,7 +3,7 @@
 
 import { esc, dom } from "./const.js";
 import { t, tp } from "./i18n.js";
-import { DEVICE_TYPES, typeOf } from "./devtypes.js";
+import { DEVICE_TYPES, typeOf, stripOf } from "./devtypes.js";
 
 const U = 56; // px per layout unit
 export const WALL_DEFAULT = 30; // wall height in px (Settings > 3D floor plan > Wall height)
@@ -108,6 +108,11 @@ export function houseView(p, rooms) {
         const pos = `left:${((P.x - b.x) / b.w) * 100}%;top:${((P.y - b.y) / b.d) * 100}%`;
         const on = p._isOn(id) ? "on" : "";
         const g = lightGlow(p, id);
+        if (kind === "strip") {
+          // an LED strip at its real length (grid units → px) and angle; its light spreads along it
+          const S = stripOf(P), w = S.l * U, rot = `--rot:${S.r}deg;--len:${w}px;`;
+          return `<i class="pin k-strip ${on}" data-pin="${esc(id)}" title="${esc(p._name(id))}" style="${pos};${rot}${glowVars(g)}"></i>${g ? `<i class="pool k-strip" style="${pos};${rot}${glowVars(g)}"></i>` : ""}`;
+        }
         if (kind !== "thing") return `<i class="pin k-${kind} ${on}" data-pin="${esc(id)}" title="${esc(p._name(id))}" style="${pos};${glowVars(g)}"></i>${g ? `<i class="pool k-${kind}" style="${pos};${glowVars(g)}"></i>` : ""}`;
         if (kind === "thing") return `<div class="mk3 ${on}" data-mk="${esc(id)}" title="${esc(p._name(id))}" style="${pos}"><div class="mki"><ha-icon icon="${icon}"></ha-icon></div></div>`;
         return `<i class="pin k-${kind} ${on}" data-pin="${esc(id)}" title="${esc(p._name(id))}" style="${pos}"></i>`;
@@ -279,7 +284,7 @@ export const css3d = `
 .pin{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.6);transform:translateZ(3px);cursor:pointer}
 .pin.k-ceiling{transform:translateZ(calc(var(--wall) - 2px));width:20px;height:20px;margin:-10px 0 0 -10px}
 .pin.k-ceiling.on{box-shadow:0 0 calc(10px + var(--li) * 16px) calc(var(--li) * 9px) var(--lc)}
-.pin.k-strip{width:44px;height:8px;margin:-4px 0 0 -22px;border-radius:4px}
+.pin.k-strip{--len:44px;--rot:0deg;width:var(--len);height:8px;margin:-4px 0 0 calc(var(--len) / -2);border-radius:4px;transform:translateZ(3px) rotate(var(--rot))}
 .pin.k-strip.on{box-shadow:0 0 calc(8px + var(--li) * 12px) calc(var(--li) * 6px) var(--lc)}
 .mk3{position:absolute;transform-style:preserve-3d;pointer-events:auto;cursor:pointer}
 .mki{transform:translateZ(16px) rotateZ(calc(var(--rz) * -1)) rotateX(calc(var(--rx) * -1)) translate(-50%,-50%);width:32px;height:32px;border-radius:50%;display:grid;place-items:center;
@@ -292,7 +297,7 @@ export const css3d = `
 /* the light it casts on the floor: its own colour, wider and brighter with the brightness */
 .pool{--lc:var(--amber);--li:1;position:absolute;width:calc(60px + var(--li) * 90px);height:calc(60px + var(--li) * 90px);border-radius:50%;transform:translate(-50%,-50%) translateZ(1px);pointer-events:none;
   background:radial-gradient(closest-side,color-mix(in srgb,var(--lc) calc(var(--li) * 75%),transparent),color-mix(in srgb,var(--lc) calc(var(--li) * 30%),transparent) 55%,transparent)}
-.pool.k-strip{width:calc(80px + var(--li) * 60px);height:calc(30px + var(--li) * 30px)}
+.pool.k-strip{--len:44px;--rot:0deg;width:calc(var(--len) + 30px + var(--li) * 40px);height:calc(28px + var(--li) * 34px);border-radius:999px;transform:translate(-50%,-50%) translateZ(1px) rotate(var(--rot))}
 .lbw{position:absolute;left:50%;top:50%;transform-style:preserve-3d;transform:translateZ(calc(var(--wall) + 26px)) rotateZ(calc(var(--rz) * -1)) rotateX(calc(var(--rx) * -1));pointer-events:none}
 .lb{transform:translate(-50%,-100%);white-space:nowrap;text-align:center;padding:6px 12px;border-radius:14px;background:rgba(20,10,22,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.14);line-height:1.2}
 .lb b{display:block;font-family:var(--display);font-weight:500;font-size:15px}

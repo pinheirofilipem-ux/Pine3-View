@@ -172,6 +172,9 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
                 vol.Required("x"): vol.All(vol.Coerce(float), vol.Range(min=0, max=60)),
                 vol.Required("y"): vol.All(vol.Coerce(float), vol.Range(min=0, max=60)),
                 vol.Optional("t"): vol.In(DEVICE_TYPES),
+                # LED strips: angle in degrees and length in grid units
+                vol.Optional("r"): vol.All(vol.Coerce(float), vol.Range(min=0, max=360)),
+                vol.Optional("l"): vol.All(vol.Coerce(float), vol.Range(min=0.25, max=30)),
             }
         },
         vol.Optional("settings_version"): int,
