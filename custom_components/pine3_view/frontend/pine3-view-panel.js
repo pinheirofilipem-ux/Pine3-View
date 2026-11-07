@@ -822,7 +822,7 @@ class Pine3ViewPanel extends HTMLElement {
     }
     this._viewKey = viewKey;
     this._app.innerHTML = `<div class="bg" style="background:${THEMES[cfg.theme || this._theme] || THEMES.ameixa}"></div>
-      <div class="wrap ${vin} ${cfg.layout === "list" ? "as-list" : ""} ${this._edit ? "editing" : ""}">${header}${body}</div>${editBar}${this._saver ? this._saverView(rooms) : this._modalView()}`;
+      <div class="wrap ${vin} ${this._view === "room" ? "roomv" : ""} ${cfg.layout === "list" ? "as-list" : ""} ${this._edit ? "editing" : ""}">${header}${body}</div>${editBar}${this._saver ? this._saverView(rooms) : this._modalView()}`;
     for (const [sel, pos] of scrolls) root.querySelectorAll(sel).forEach((e, k) => { if (pos[k]) { e.scrollTop = pos[k][0]; e.scrollLeft = pos[k][1]; } });
     this._updateDock(cfg);
     this._packSections();
@@ -1190,12 +1190,42 @@ class Pine3ViewPanel extends HTMLElement {
       ${hiddenHere ? `<div class="tiles" style="margin-top:18px"><div class="tile add" data-edrestore="devices"><ha-icon icon="mdi:plus"></ha-icon><span>${tp(hiddenHere, "Mostrar {n} escondido", "Mostrar {n} escondidos")}</span></div></div>` : ""}`;
   }
 
-  /** Room categories share rows: each spans as many grid columns as it has tiles (never more than the row). */
+  /**
+   * Room categories share rows: each spans as many grid columns as it has tiles (never more than the row).
+   * A category with more tiles than a row continues in a section of its own (no title), so the next
+   * categories can sit beside its last tiles instead of leaving the rest of that row empty.
+   */
   _packSections() {
     const box = this.shadowRoot?.querySelector(".secs");
     if (!box) return;
     const cols = getComputedStyle(box).gridTemplateColumns.split(" ").filter(Boolean).length || 1;
-    box.querySelectorAll(":scope > .sec").forEach((sec) => sec.style.setProperty("--span", Math.max(1, Math.min(cols, Number(sec.dataset.cells) || 1))));
+    if (box.dataset.cols && Number(box.dataset.cols) !== cols) { this._render(); return; } // the row changed: lay out again
+    box.dataset.cols = cols;
+    const width = (el) => (el.classList.contains("big") ? 2 : 1);
+    if (!this._edit) {
+      for (const sec of [...box.querySelectorAll(":scope > .sec")]) {
+        const chunks = [[]];
+        let used = 0;
+        for (const tile of sec.querySelectorAll(":scope > .tiles > .tile")) {
+          if (used + width(tile) > cols && chunks.at(-1).length) { chunks.push([]); used = 0; }
+          chunks.at(-1).push(tile);
+          used += width(tile);
+        }
+        let after = sec;
+        for (const chunk of chunks.slice(1)) {
+          const cont = document.createElement("section");
+          cont.className = "sec cont";
+          cont.innerHTML = `<h2 aria-hidden="true">&nbsp;</h2><div class="tiles"></div>`;
+          chunk.forEach((tile) => cont.lastChild.appendChild(tile));
+          after.after(cont);
+          after = cont;
+        }
+      }
+    }
+    box.querySelectorAll(":scope > .sec").forEach((sec) => {
+      const cells = [...sec.querySelectorAll(":scope > .tiles > .tile")].reduce((a, el) => a + width(el), 0);
+      sec.style.setProperty("--span", Math.max(1, Math.min(cols, cells || 1)));
+    });
   }
 
   _scenesView() {
