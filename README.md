@@ -52,7 +52,7 @@ download the new version in HACS and restart Home Assistant; the browser picks u
 Copy `custom_components/pine3_view` to `/config/custom_components/`, restart and add the integration.
 
 ## Features
-- **Home**: clock, weather (tap for the forecast), people, home status with *Turn all on/off*, scenes, room cards and summary cards (Climate, Security, Now playing).
+- **Home**: clock, weather (tap for the forecast), people, home status with *Lights on/off* (lights only: plugs and switches stay as they are), scenes (the last one activated stays highlighted while its devices are on; tap it again to turn them off), room cards and summary cards (Climate, Security, Now playing).
 - **Weather**: uses your Home Assistant weather entity or, if there is none, [Open-Meteo](https://open-meteo.com) for your home's location (no API key). Forecast for the next 12 hours and 7 days.
 - **3D Home**: every room is a block, stacked by floor (Home Assistant floors). Lit rooms glow in the colour and brightness of their lights (each light casts a pool of its own colour on the floor), lights show as points you can toggle, drag to rotate (the house turns with your finger), zoom with two fingers, the mouse wheel or the + and − buttons, and tap a room to open it. A tap near a light toggles it, even if you miss it slightly. Each floor's slab is only as big as its rooms, and the **wall height** is adjustable (↕ buttons in the 3D Home or a slider in Settings).
 - **Floor-plan editor** (*Settings → 3D floor plan*, or *Edit floor plan* in the 3D Home), a top view of one floor at a time:

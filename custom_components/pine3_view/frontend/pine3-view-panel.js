@@ -92,6 +92,7 @@ class Pine3ViewPanel extends HTMLElement {
     for (const r of rooms) { add(r.ents); add(r.temperature); add(r.humidity); }
     for (const m of Object.values(this._meta || {})) { add(m.extras); add(m.members); }
     add(this._model.persons); add(this._model.scenes); add(this._model.scripts);
+    for (const sc of this._model.scenes || []) { const l = this._s(sc)?.attributes.entity_id; if (Array.isArray(l)) add(l); } // a scene lights up while its devices are on
     add(Object.keys(this._hass.states).filter((i) => i.startsWith("weather.")));
     if (this._modal && !this._modal.startsWith("_")) w.add(this._modal);
     this._watch = w;
@@ -341,7 +342,8 @@ class Pine3ViewPanel extends HTMLElement {
   _tap(id) {
     const d = dom(id), s = this._s(id);
     if (!s || s.state === "unavailable") return;
-    if (d === "scene" || d === "script") return this._call(d, "turn_on", { entity_id: id });
+    if (d === "scene") return this._sceneTap(id);
+    if (d === "script") return this._call(d, "turn_on", { entity_id: id });
     if (d === "button") return this._call("button", "press", { entity_id: id });
     if (d === "cover") return this._call("cover", s.state === "closed" || s.state === "closing" ? "open_cover" : "close_cover", { entity_id: id });
     if (d === "lock") return this._call("lock", s.state === "locked" ? "unlock" : "lock", { entity_id: id });
@@ -513,7 +515,7 @@ class Pine3ViewPanel extends HTMLElement {
         ${this._choice("weather_entity", d.weather_entity, [["", t("Automático")], ...wxs.map((i) => [i, esc(this._s(i).attributes.friendly_name || i)]), ["open-meteo", "Open-Meteo"]],
           t("Fonte do tempo"), t("Automático usa a primeira entidade de tempo do Home Assistant ou, se não houver, a Open-Meteo para a localização da casa."))}
         ${this._toggle("show_people", d.show_people, t("Pessoas"), t("Quem está em casa."))}
-        ${this._toggle("show_status", d.show_status, t("Estado da casa"), t("Luzes acesas e botões Acender/Apagar tudo."))}
+        ${this._toggle("show_status", d.show_status, t("Estado da casa"), t("Luzes acesas e botões Acender/Apagar luzes."))}
         ${this._toggle("show_scenes", d.show_scenes, t("Cenas"), t("Faixa de cenas no início."))}
         ${this._toggle("show_summary", d.show_summary, t("Cartões de resumo"), t("Clima, Segurança e A tocar."))}
         ${this._toggle("clock_24h", d.clock_24h, t("Relógio de 24 horas"), t("Desliga para mostrar AM/PM."))}
@@ -896,6 +898,31 @@ class Pine3ViewPanel extends HTMLElement {
     return items.map(([k, html], i) => [pos(k, i), html]).sort((a, b) => a[0] - b[0]).map(([, html]) => html);
   }
 
+  // ---------- scenes ----------
+  /** Devices a scene sets (HA scenes list them in attributes.entity_id), limited to those that can be turned off. */
+  _sceneEnts(id) {
+    const list = this._s(id)?.attributes.entity_id;
+    return (Array.isArray(list) ? list : []).filter((e) => this._s(e) && ["light", "switch", "fan", "input_boolean", "media_player", "climate"].includes(dom(e)));
+  }
+  /** A scene is "on" when it is the last one activated and some of its devices are still on. */
+  _sceneOn(id) {
+    const at = (x) => { const v = Date.parse(this._s(x)?.state); return Number.isFinite(v) ? v : 0; };
+    const mine = at(id);
+    if (!mine || !this._sceneEnts(id).some((e) => this._isOn(e))) return false;
+    return !Object.keys(this._hass.states).some((x) => x !== id && dom(x) === "scene" && at(x) > mine);
+  }
+  /** Tap on a scene: activate it, or turn its devices off if it is the one on. */
+  _sceneTap(id) {
+    if (this._sceneOn(id)) {
+      const ents = this._sceneEnts(id).filter((e) => this._isOn(e));
+      if (ents.length) this._call("homeassistant", "turn_off", { entity_id: ents });
+      return;
+    }
+    this._call("scene", "turn_on", { entity_id: id });
+    this._fired = id; this._render();
+    setTimeout(() => { this._fired = null; this._render(); }, 1200);
+  }
+
   _roomCard(r) {
     const sw = this._switchables(r), on = sw.filter((i) => this._isOn(i));
     const c = this._roomClimate(r);
@@ -906,7 +933,7 @@ class Pine3ViewPanel extends HTMLElement {
     return `<div class="rc ${active ? "on" : "glass"} ${big ? "big" : ""}" data-room="${esc(r.id)}" data-key="${esc(r.id)}">
       ${this._editChrome("room", r.id)}
       <div class="row1"><div class="ri"><ha-icon icon="${r.icon || "mdi:home-outline"}"></ha-icon></div>
-        ${sw.length ? `<div class="pw" data-roomlights="${esc(r.id)}" title="${active ? t("Desligar tudo") : t("Ligar luzes")}"><ha-icon icon="mdi:power"></ha-icon></div>` : ""}</div>
+        ${sw.length ? `<div class="pw" data-roomlights="${esc(r.id)}" title="${active ? t("Apagar luzes") : t("Ligar luzes")}"><ha-icon icon="mdi:power"></ha-icon></div>` : ""}</div>
       ${quick}
       <div class="foot"><div class="nm">${esc(this._roomName(r))}</div><div class="meta">${meta}</div>
         <div class="dots">${sw.slice(0, 8).map((i) => `<i class="${this._isOn(i) ? "on" : ""}"></i>`).join("")}${c.temp ? `<span class="tmp">${c.temp.replace(/[,.]\d/, "").replace("°C", "°")}</span>` : ""}</div></div>
@@ -927,7 +954,7 @@ class Pine3ViewPanel extends HTMLElement {
 
     const scenes = (this._model ? this._model.scenes.filter((i) => this._s(i)) : Object.keys(h.states).filter((i) => dom(i) === "scene" && !h.entities?.[i]?.hidden)).slice(0, 12);
     const scenesHtml = scenes.length && cfg.show_scenes ? `<div class="sect hsc"><div class="eyebrow">${t("Cenas")} <span class="badge">${scenes.length}</span></div>
-      <div class="scenes">${scenes.map((i) => `<div class="scene glass ${this._fired === i ? "fired" : ""}" data-scene="${i}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon>${esc(this._name(i))}</div>`).join("")}</div></div>` : "";
+      <div class="scenes">${scenes.map((i) => `<div class="scene glass ${this._fired === i ? "fired" : ""} ${this._sceneOn(i) ? "on" : ""}" data-scene="${i}" title="${this._sceneOn(i) ? t("Toca para desligar") : ""}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon>${esc(this._name(i))}</div>`).join("")}</div></div>` : "";
 
     // Summary cards
     const cards = [];
@@ -976,7 +1003,7 @@ class Pine3ViewPanel extends HTMLElement {
 
     return `${this._topBar()}
       ${cfg.show_status && !this._edit ? `<div class="statusrow"><div><div class="eyebrow">${t("Estado da casa")}</div><div class="status">${status}</div></div>
-        ${lights.length ? `<div class="actions"><button class="pill" data-all="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender tudo")}</button><button class="pill solid" data-all="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar tudo")}</button></div>` : ""}</div>` : ""}
+        ${lights.length ? `<div class="actions"><button class="pill" data-all="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender luzes")}</button><button class="pill solid" data-all="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar luzes")}</button></div>` : ""}</div>` : ""}
       ${this._edit ? "" : scenesHtml}
       ${rooms.length || this._edit ? `<div class="grid hgrid" data-sortable="rooms">${this._homeItems(rooms, cfg.show_summary ? cards : []).join("")}${this._restoreCard(this._hiddenRooms.length)}</div>`
         : `<div class="empty">${t("Ainda não há divisões com dispositivos. Atribui áreas aos teus dispositivos no Home Assistant.")}</div>`}`;
@@ -1235,7 +1262,7 @@ class Pine3ViewPanel extends HTMLElement {
     }).join("");
     const hiddenHere = this._edit && this._model ? this._model.rooms.find((r) => r.id === room.id)?.devices.filter((d) => this._edit.hidden.includes(d.id)).length : 0;
     const scenes = room.ents.filter((i) => dom(i) === "scene");
-    const sc = scenes.length && !this._edit ? `<h2>${t("Cenas")}</h2><div class="scenes">${scenes.map((i) => `<div class="scene glass ${this._fired === i ? "fired" : ""}" data-scene="${i}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon>${esc(this._name(i))}</div>`).join("")}</div>` : "";
+    const sc = scenes.length && !this._edit ? `<h2>${t("Cenas")}</h2><div class="scenes">${scenes.map((i) => `<div class="scene glass ${this._fired === i ? "fired" : ""} ${this._sceneOn(i) ? "on" : ""}" data-scene="${i}" title="${this._sceneOn(i) ? t("Toca para desligar") : ""}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon>${esc(this._name(i))}</div>`).join("")}</div>` : "";
     return `<div class="hero"><div><div class="eyebrow">${tp(room.count, "{n} dispositivo", "{n} dispositivos")}</div><div class="t" style="margin-top:8px">${esc(this._roomName(room))}</div>${sub ? `<div class="s">${sub}</div>` : ""}${this._hint()}</div>
       <div class="right">${this._editBtn()}${this._gear()}</div></div>${sc}<div class="tiles secs">${sections}</div>
       ${hiddenHere ? `<div class="tiles" style="margin-top:18px"><div class="tile add" data-edrestore="devices"><ha-icon icon="mdi:plus"></ha-icon><span>${tp(hiddenHere, "Mostrar {n} escondido", "Mostrar {n} escondidos")}</span></div></div>` : ""}`;
@@ -1392,9 +1419,11 @@ class Pine3ViewPanel extends HTMLElement {
       on("[data-roomlights]", (el, ev) => {
         ev.stopPropagation();
         const r = this._rooms().find((x) => x.id === el.dataset.roomlights);
-        const sw = this._switchables(r), onNow = sw.filter((i) => this._isOn(i));
+        // the room's lights only (plugs and switches stay as they are); a room without lights switches its devices
+        const sw = this._switchables(r), lights = sw.filter((i) => dom(i) === "light"), pool = lights.length ? lights : sw;
+        const onNow = pool.filter((i) => this._isOn(i));
         if (onNow.length) this._call("homeassistant", "turn_off", { entity_id: onNow });
-        else this._call("homeassistant", "turn_on", { entity_id: sw.filter((i) => dom(i) === "light").length ? sw.filter((i) => dom(i) === "light") : sw });
+        else this._call("homeassistant", "turn_on", { entity_id: pool });
       });
       on("[data-all]", (el) => {
         const lights = this._rooms().flatMap((r) => r.ents).filter((i) => dom(i) === "light");
@@ -1418,11 +1447,7 @@ class Pine3ViewPanel extends HTMLElement {
         this._render();
       });
       on("[data-media]", (el, ev) => { ev.stopPropagation(); this._call("media_player", el.dataset.media, { entity_id: el.dataset.entId }); });
-      on("[data-scene]", (el) => {
-        this._call("scene", "turn_on", { entity_id: el.dataset.scene });
-        this._fired = el.dataset.scene; this._render();
-        setTimeout(() => { this._fired = null; this._render(); }, 1200);
-      });
+      on("[data-scene]", (el) => this._sceneTap(el.dataset.scene));
       // tiles: tap = action, long-press / right-click = details
       root.querySelectorAll("[data-ent]").forEach((el) => {
         const id = el.dataset.ent;
