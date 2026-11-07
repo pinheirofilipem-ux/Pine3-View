@@ -669,7 +669,12 @@ class Pine3ViewPanel extends HTMLElement {
     on("[data-move]", (el) => {
       const [k, dir] = el.dataset.move.split(":").map(Number), o = [...this._order], j = k + dir;
       if (j < 0 || j >= o.length) return;
-      [o[k], o[j]] = [o[j], o[k]]; d.room_order = o; upd();
+      [o[k], o[j]] = [o[j], o[k]];
+      // keep the summary cards (keys "@…") where they were in the home order
+      const full = [...d.room_order];
+      let n = 0;
+      d.room_order = full.map((x) => (x.startsWith("@") ? x : o[n++])).filter(Boolean).concat(o.slice(n));
+      upd();
     });
     on("[data-unhide]", (el) => { d.hidden = d.hidden.filter((x) => x !== el.dataset.unhide); upd(); });
     on("[data-reset]", () => { const keepLang = d.language; Object.assign(d, clone(DEFAULTS)); d.language = keepLang; d.room_order = (this._model?.rooms || []).map((r) => r.id); upd(); });
@@ -879,6 +884,18 @@ class Pine3ViewPanel extends HTMLElement {
       </div></div>`;
   }
 
+  /**
+   * The home grid: rooms and the summary cards (Climate, Security, Vacuum, Now playing) in one order,
+   * which the edit mode sorts by dragging. Summary cards are keyed "@climate", "@security", "@vacuum:<id>", "@media".
+   */
+  _homeItems(rooms, cards) {
+    const order = (this._edit || this._cfg()).room_order || [];
+    const keyOf = (html) => html.match(/data-key="([^"]+)"/)?.[1];
+    const items = [...rooms.map((r) => [r.id, this._roomCard(r)]), ...cards.map((c) => [keyOf(c), c])];
+    const pos = (k, i) => { const n = order.indexOf(k); return n < 0 ? 1e4 + i : n; };
+    return items.map(([k, html], i) => [pos(k, i), html]).sort((a, b) => a[0] - b[0]).map(([, html]) => html);
+  }
+
   _roomCard(r) {
     const sw = this._switchables(r), on = sw.filter((i) => this._isOn(i));
     const c = this._roomClimate(r);
@@ -923,14 +940,14 @@ class Pine3ViewPanel extends HTMLElement {
       const heating = climate && this._isOn(climate);
       // one device opens it directly; several open the Climate screen
       const go = climates.length > 1 ? `data-nav="climate"` : climate ? `data-open="${climate}"` : "";
-      cards.push(`<div class="rc ${heating ? "on" : "glass"}" ${go}>
+      cards.push(`<div data-key="@climate" class="rc ${heating ? "on" : "glass"}" ${go}>
         <div class="row1"><div class="ri" style="background:#34c759;color:#0d2a14"><ha-icon icon="mdi:thermometer"></ha-icon></div><div class="eyebrow" style="margin:14px 0 0 0;flex:1;padding-left:14px">${t("Clima")}</div></div>
         <div class="foot"><div class="big-num">${tt != null ? Math.round(tt) : "–"}°</div><div class="meta">${climates.length > 1 ? `${t("{a} de {b} ligados", { a: climates.filter((i) => this._isOn(i)).length, b: climates.length })} · ` : ""}${hums.length ? t("Humidade {n}%", { n: Math.round(hums.reduce((a, b) => a + b, 0) / hums.length) }) : climate ? esc(this._stateText(climate)) : t("Interior")}</div></div></div>`);
     }
     const secIds = all.filter((i) => dom(i) === "lock" || (dom(i) === "binary_sensor" && ["door", "window", "garage_door", "opening"].includes(this._s(i).attributes.device_class)));
     if (secIds.length) {
       const bad = secIds.filter((i) => (dom(i) === "lock" ? this._s(i).state === "unlocked" : this._s(i).state === "on"));
-      cards.push(`<div class="rc glass" data-nav="security">
+      cards.push(`<div data-key="@security" class="rc glass" data-nav="security">
         <div class="row1"><div class="ri" style="${bad.length ? "background:#ff9f0a;color:#2a1500" : ""}"><ha-icon icon="mdi:shield-${bad.length ? "alert-outline" : "check-outline"}"></ha-icon></div><div class="eyebrow" style="margin:14px 0 0 0;flex:1;padding-left:14px">${t("Segurança")}</div></div>
         <div class="foot"><div class="big-txt">${bad.length ? tp(bad.length, "{n} item aberto", "{n} itens abertos") : t("Tudo seguro")}</div><div class="meta">${tp(secIds.length, "{n} item monitorizado", "{n} itens monitorizados")}</div></div></div>`);
     }
@@ -941,7 +958,7 @@ class Pine3ViewPanel extends HTMLElement {
       const progress = on ? [this._vacMember(v, "sensor", "cleaning_area"), this._vacMember(v, "sensor", "clean_percent", "cleaning_progress")].filter(Boolean).map((e) => this._sensorVal(e)) : [];
       const err = this._vacMember(v, "sensor", "vacuum_error");
       const errOn = err && !["none", "ok", "unknown", "no_error"].includes(this._s(err).state);
-      cards.push(`<div class="rc ${on ? "on" : "glass"}" data-open="${esc(v)}">
+      cards.push(`<div data-key="@vacuum:${esc(v)}" class="rc ${on ? "on" : "glass"}" data-open="${esc(v)}">
         <div class="row1"><div class="ri" style="background:${errOn ? "#ff9f0a;color:#2a1500" : "#30d158;color:#06210f"}"><ha-icon icon="mdi:robot-vacuum"></ha-icon></div><div class="eyebrow" style="margin:14px 0 0 0;flex:1;padding-left:14px">${t("Aspirador")}</div></div>
         <div class="foot"><div class="big-txt">${esc(errOn ? this._fmtState(err) : this._fmtState(status || v))}</div>
           <div class="meta">${esc([level != null ? `🔋 ${level}%` : "", ...progress, this._name(v)].filter(Boolean).join(" · "))}</div></div></div>`);
@@ -950,7 +967,7 @@ class Pine3ViewPanel extends HTMLElement {
     if (media) {
       const a = this._s(media).attributes, roomName = rooms.find((r) => r.ents.includes(media))?.name;
       const pct = a.media_duration ? Math.min(100, ((a.media_position || 0) / a.media_duration) * 100) : 0;
-      cards.push(`<div class="rc glass media" data-open="${media}" style="${a.entity_picture ? `background-image:linear-gradient(rgba(30,16,32,.55),rgba(30,16,32,.85)),url('${esc(a.entity_picture)}');background-size:cover;background-position:center` : ""}">
+      cards.push(`<div data-key="@media" class="rc glass media" data-open="${media}" style="${a.entity_picture ? `background-image:linear-gradient(rgba(30,16,32,.55),rgba(30,16,32,.85)),url('${esc(a.entity_picture)}');background-size:cover;background-position:center` : ""}">
         <div class="eyebrow" style="color:#5ee08a;letter-spacing:.14em"><ha-icon icon="mdi:music-note" style="--mdc-icon-size:16px"></ha-icon>${esc([t("A tocar"), roomName, a.app_name].filter(Boolean).join(" · "))}</div>
         <div class="foot"><div class="ttl">${esc(a.media_title || this._name(media))}</div><div class="art">${esc(a.media_artist || "")}</div>
           ${pct ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ""}
@@ -961,7 +978,7 @@ class Pine3ViewPanel extends HTMLElement {
       ${cfg.show_status && !this._edit ? `<div class="statusrow"><div><div class="eyebrow">${t("Estado da casa")}</div><div class="status">${status}</div></div>
         ${lights.length ? `<div class="actions"><button class="pill" data-all="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender tudo")}</button><button class="pill solid" data-all="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar tudo")}</button></div>` : ""}</div>` : ""}
       ${this._edit ? "" : scenesHtml}
-      ${rooms.length || this._edit ? `<div class="grid hgrid" data-sortable="rooms">${rooms.map((r) => this._roomCard(r)).join("")}${this._restoreCard(this._hiddenRooms.length)}${cfg.show_summary && !this._edit ? cards.join("") : ""}</div>`
+      ${rooms.length || this._edit ? `<div class="grid hgrid" data-sortable="rooms">${this._homeItems(rooms, cfg.show_summary ? cards : []).join("")}${this._restoreCard(this._hiddenRooms.length)}</div>`
         : `<div class="empty">${t("Ainda não há divisões com dispositivos. Atribui áreas aos teus dispositivos no Home Assistant.")}</div>`}`;
   }
 
