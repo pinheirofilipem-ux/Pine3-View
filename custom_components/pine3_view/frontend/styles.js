@@ -79,6 +79,11 @@ header .sp{flex:1}
 .hero .s{color:var(--muted);font-size:17px;margin-top:8px}
 h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin:32px 2px 0;font-family:inherit}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:18px;margin-top:16px}
+/* a room's categories share rows: the outer grid has the same columns as the tiles, each category spans its own tiles */
+.tiles.secs{grid-auto-flow:row dense;align-items:start;row-gap:0;margin-top:0}
+.secs>.sec{grid-column:span var(--span,1);min-width:0}
+.secs>.sec>h2{margin-top:24px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.secs>.sec>.tiles{grid-template-columns:repeat(var(--span,1),minmax(0,1fr));margin-top:10px}
 .tile{position:relative;border-radius:26px;padding:18px;cursor:pointer;min-height:170px;display:flex;flex-direction:column;justify-content:space-between;transition:background .25s,color .25s,transform .12s;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .tile:active{transform:scale(.97)}
 .tile.big{grid-column:span 2}
@@ -432,6 +437,7 @@ a.pill{color:inherit;text-decoration:none}
   .tile .ic{width:42px;height:42px}.tile .ic ha-icon{--mdc-icon-size:22px}.tile .pw{width:46px;height:46px}.tile .pw ha-icon{--mdc-icon-size:22px}
   .tile .nm{font-size:17px;margin-top:8px}.tile .st{font-size:14px}
 }
+@media (min-width:721px) and (max-height:920px){.secs>.sec>h2{margin-top:14px;letter-spacing:.14em}.secs>.sec>.tiles{margin-top:8px}}
 /* the Home screen on a landscape tablet: clock, status, scenes and two rows of cards on one screen */
 @media (min-width:721px) and (max-height:920px){
   .top{padding-top:14px}.clock{font-size:52px;margin-top:4px}.wpill{height:48px}.wpill b{font-size:22px}.av,.top .iconbtn{width:46px;height:46px}

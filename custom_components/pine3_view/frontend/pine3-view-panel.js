@@ -50,7 +50,7 @@ class Pine3ViewPanel extends HTMLElement {
     const kiosk = /[?&#]kiosk\b/.test(location.search + location.hash);
     if (kiosk || store.get("hide_sidebar", false)) this._dockSidebar(true);
     this._applyWakeLock();
-    this._onResize = () => { this._fit3d?.(); this._fitDock(); this._placeBlob(false); };
+    this._onResize = () => { this._fit3d?.(); this._fitDock(); this._placeBlob(false); this._packSections(); };
     window.addEventListener("resize", this._onResize);
     if (this._hass) this._connect();
   }
@@ -825,6 +825,7 @@ class Pine3ViewPanel extends HTMLElement {
       <div class="wrap ${vin} ${cfg.layout === "list" ? "as-list" : ""} ${this._edit ? "editing" : ""}">${header}${body}</div>${editBar}${this._saver ? this._saverView(rooms) : this._modalView()}`;
     for (const [sel, pos] of scrolls) root.querySelectorAll(sel).forEach((e, k) => { if (pos[k]) { e.scrollTop = pos[k][0]; e.scrollLeft = pos[k][1]; } });
     this._updateDock(cfg);
+    this._packSections();
     if (this._view === "settings") this._bindSettings();
     else this._bind(rooms);
     if (refocus) {
@@ -1174,16 +1175,27 @@ class Pine3ViewPanel extends HTMLElement {
   _roomView(room) {
     const c = this._roomClimate(room);
     const sub = [c.temp, c.hum].filter(Boolean).join(" · ");
+    // each category takes only the columns it needs, so small ones sit side by side (see _packSections)
+    const bigs = this._cfg().big_devices || [];
     const sections = SECTIONS.map(([title, domains]) => {
       const ents = room.ents.filter((i) => domains.includes(dom(i)));
-      return ents.length ? `<h2>${t(title)}</h2><div class="tiles" data-sortable="dev:${esc(room.id)}">${ents.map((i) => this._tile(i)).join("")}</div>` : "";
+      const cells = ents.reduce((a, i) => a + (bigs.includes(i) ? 2 : 1), 0);
+      return ents.length ? `<section class="sec" data-cells="${cells}"><h2 title="${t(title)}">${t(title)}</h2><div class="tiles" data-sortable="dev:${esc(room.id)}">${ents.map((i) => this._tile(i)).join("")}</div></section>` : "";
     }).join("");
     const hiddenHere = this._edit && this._model ? this._model.rooms.find((r) => r.id === room.id)?.devices.filter((d) => this._edit.hidden.includes(d.id)).length : 0;
     const scenes = room.ents.filter((i) => dom(i) === "scene");
     const sc = scenes.length && !this._edit ? `<h2>${t("Cenas")}</h2><div class="scenes">${scenes.map((i) => `<div class="scene glass ${this._fired === i ? "fired" : ""}" data-scene="${i}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon>${esc(this._name(i))}</div>`).join("")}</div>` : "";
     return `<div class="hero"><div><div class="eyebrow">${tp(room.count, "{n} dispositivo", "{n} dispositivos")}</div><div class="t" style="margin-top:8px">${esc(this._roomName(room))}</div>${sub ? `<div class="s">${sub}</div>` : ""}${this._hint()}</div>
-      <div class="right">${this._editBtn()}${this._gear()}</div></div>${sc}${sections}
+      <div class="right">${this._editBtn()}${this._gear()}</div></div>${sc}<div class="tiles secs">${sections}</div>
       ${hiddenHere ? `<div class="tiles" style="margin-top:18px"><div class="tile add" data-edrestore="devices"><ha-icon icon="mdi:plus"></ha-icon><span>${tp(hiddenHere, "Mostrar {n} escondido", "Mostrar {n} escondidos")}</span></div></div>` : ""}`;
+  }
+
+  /** Room categories share rows: each spans as many grid columns as it has tiles (never more than the row). */
+  _packSections() {
+    const box = this.shadowRoot?.querySelector(".secs");
+    if (!box) return;
+    const cols = getComputedStyle(box).gridTemplateColumns.split(" ").filter(Boolean).length || 1;
+    box.querySelectorAll(":scope > .sec").forEach((sec) => sec.style.setProperty("--span", Math.max(1, Math.min(cols, Number(sec.dataset.cells) || 1))));
   }
 
   _scenesView() {
