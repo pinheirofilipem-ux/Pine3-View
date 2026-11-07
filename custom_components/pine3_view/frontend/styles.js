@@ -79,6 +79,14 @@ header .sp{flex:1}
 .hero .s{color:var(--muted);font-size:17px;margin-top:8px}
 h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin:32px 2px 0;font-family:inherit}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:18px;margin-top:16px}
+/* a room's categories share rows: the outer grid has the same columns as the tiles, each category spans its own tiles */
+.tiles.secs{grid-auto-flow:row dense;align-items:start;row-gap:0;margin-top:0}
+.secs>.sec{grid-column:span var(--span,1);min-width:0;display:flex;flex-direction:column}
+/* every device card in a room has the same height: each category is one row (see _packSections), rows share one height */
+.wrap:not(.editing) .tiles.secs{grid-auto-rows:1fr;align-items:stretch}
+.secs>.sec>.tiles{flex:1;grid-auto-rows:1fr}
+.secs>.sec>h2{margin-top:24px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.secs>.sec>.tiles{grid-template-columns:repeat(var(--span,1),minmax(0,1fr));margin-top:10px}
 .tile{position:relative;border-radius:26px;padding:18px;cursor:pointer;min-height:170px;display:flex;flex-direction:column;justify-content:space-between;transition:background .25s,color .25s,transform .12s;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .tile:active{transform:scale(.97)}
 .tile.big{grid-column:span 2}
@@ -428,10 +436,15 @@ a.pill{color:inherit;text-decoration:none}
   .ri{width:42px;height:42px}.ri ha-icon{--mdc-icon-size:22px}.pw{width:50px;height:50px}.pw ha-icon{--mdc-icon-size:24px}
   .rc .nm{font-size:19px}.rc .meta{font-size:14px;margin-top:2px}.dots{margin-top:8px;min-height:14px}.dots .tmp{font-size:14px}
   .tiles{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-top:12px}
-  .tile{min-height:clamp(112px,calc((100vh - 336px) / 3),170px);padding:14px;border-radius:22px}
+  .tile{min-height:clamp(112px,calc((100vh - 352px) / 3),170px);padding:14px;border-radius:22px}
   .tile .ic{width:42px;height:42px}.tile .ic ha-icon{--mdc-icon-size:22px}.tile .pw{width:46px;height:46px}.tile .pw ha-icon{--mdc-icon-size:22px}
   .tile .nm{font-size:17px;margin-top:8px}.tile .st{font-size:14px}
+  .tile.sensor .val{font-size:24px;margin-top:0;line-height:1.15}.tile.sensor .nm{margin-top:6px}.tile .ex{margin-top:2px}
 }
+@media (min-width:721px) and (max-height:920px){.secs>.sec>h2{margin-top:14px;letter-spacing:.14em}.secs>.sec>.tiles{margin-top:8px}}
+/* a room on a wide screen: the back button sits beside the title instead of on a row of its own */
+@media (min-width:721px){.roomv>header{position:absolute;padding:0;margin-top:32px}.roomv>header .iconbtn{width:46px;height:46px}.roomv>.hero{padding-left:62px}}
+@media (min-width:721px) and (max-height:920px){.roomv>header{margin-top:16px}}
 /* the Home screen on a landscape tablet: clock, status, scenes and two rows of cards on one screen */
 @media (min-width:721px) and (max-height:920px){
   .top{padding-top:14px}.clock{font-size:52px;margin-top:4px}.wpill{height:48px}.wpill b{font-size:22px}.av,.top .iconbtn{width:46px;height:46px}

@@ -50,7 +50,7 @@ class Pine3ViewPanel extends HTMLElement {
     const kiosk = /[?&#]kiosk\b/.test(location.search + location.hash);
     if (kiosk || store.get("hide_sidebar", false)) this._dockSidebar(true);
     this._applyWakeLock();
-    this._onResize = () => { this._fit3d?.(); this._fitDock(); this._placeBlob(false); };
+    this._onResize = () => { this._fit3d?.(); this._fitDock(); this._placeBlob(false); this._packSections(); };
     window.addEventListener("resize", this._onResize);
     if (this._hass) this._connect();
   }
@@ -199,9 +199,15 @@ class Pine3ViewPanel extends HTMLElement {
     const d = dom(id);
     if (d === "lock") return s.state === "unlocked";
     if (d === "climate") return s.state !== "off" && s.state !== "unavailable";
-    if (d === "media_player") return ["playing", "on", "paused", "buffering"].includes(s.state);
+    if (d === "media_player") return this._isTv(id) ? !["off", "standby", "unavailable", "unknown"].includes(s.state) : ["playing", "on", "paused", "buffering"].includes(s.state);
     if (d === "vacuum") return ["cleaning", "returning"].includes(s.state);
     return ["on", "open", "opening", "closing", "home"].includes(s.state);
+  }
+  /** A TV (device class "tv", e.g. HomeKit / Samsung / LG, or "TV" in its name), as opposed to a speaker. */
+  _isTv(id) {
+    const s = this._s(id);
+    if (dom(id) !== "media_player" || !s) return false;
+    return s.attributes.device_class === "tv" || /\btv\b|televis/i.test(`${this._meta?.[id]?.name || ""} ${s.attributes.friendly_name || ""}`);
   }
   _icon(id) {
     const s = this._s(id), d = dom(id), dc = s?.attributes.device_class;
@@ -211,6 +217,10 @@ class Pine3ViewPanel extends HTMLElement {
     if (d === "media_player" && /apple/i.test(m?.manufacturer || "")) {
       if (/homepod/i.test(m.model || "")) return "mdi:speaker";
       if (/tv/i.test(m.model || "")) return "mdi:television-box";
+    }
+    if (d === "media_player") {
+      if (this._isTv(id)) return "mdi:television";
+      if (dc === "receiver") return "mdi:audio-video";
     }
     if (d === "light") return this._isOn(id) ? "mdi:lightbulb-on" : "mdi:lightbulb-outline";
     if (d === "lock") return s?.state === "locked" ? "mdi:lock" : "mdi:lock-open-variant";
@@ -246,6 +256,7 @@ class Pine3ViewPanel extends HTMLElement {
       const title = a.media_title ? (a.media_artist ? `${a.media_title} · ${a.media_artist}` : a.media_title) : null;
       if (["playing", "paused"].includes(s.state) && (title || a.app_name)) return title || a.app_name;
       if (a.app_name && !["off", "standby"].includes(s.state)) return `${this._st(s.state)} · ${a.app_name}`;
+      if (a.source && this._isTv(id) && !["off", "standby"].includes(s.state)) return `${this._st(s.state)} · ${a.source}`;
     }
     if (d === "binary_sensor") { const m = BIN_PT[a.device_class]; if (m) return t(m[s.state === "on" ? 1 : 0]); }
     if (d === "sensor") return this._sensorVal(id);
@@ -334,7 +345,7 @@ class Pine3ViewPanel extends HTMLElement {
     if (d === "button") return this._call("button", "press", { entity_id: id });
     if (d === "cover") return this._call("cover", s.state === "closed" || s.state === "closing" ? "open_cover" : "close_cover", { entity_id: id });
     if (d === "lock") return this._call("lock", s.state === "locked" ? "unlock" : "lock", { entity_id: id });
-    if (d === "media_player") return this._call("media_player", "media_play_pause", { entity_id: id });
+    if (d === "media_player") return this._isTv(id) ? this._openModal(id) : this._call("media_player", "media_play_pause", { entity_id: id });
     if (d === "climate" || d === "vacuum" || d === "camera" || d === "sensor" || d === "binary_sensor") return this._openModal(id);
     if (TOGGLE.has(d)) return this._call("homeassistant", "toggle", { entity_id: id });
   }
@@ -822,9 +833,10 @@ class Pine3ViewPanel extends HTMLElement {
     }
     this._viewKey = viewKey;
     this._app.innerHTML = `<div class="bg" style="background:${THEMES[cfg.theme || this._theme] || THEMES.ameixa}"></div>
-      <div class="wrap ${vin} ${cfg.layout === "list" ? "as-list" : ""} ${this._edit ? "editing" : ""}">${header}${body}</div>${editBar}${this._saver ? this._saverView(rooms) : this._modalView()}`;
+      <div class="wrap ${vin} ${this._view === "room" ? "roomv" : ""} ${cfg.layout === "list" ? "as-list" : ""} ${this._edit ? "editing" : ""}">${header}${body}</div>${editBar}${this._saver ? this._saverView(rooms) : this._modalView()}`;
     for (const [sel, pos] of scrolls) root.querySelectorAll(sel).forEach((e, k) => { if (pos[k]) { e.scrollTop = pos[k][0]; e.scrollLeft = pos[k][1]; } });
     this._updateDock(cfg);
+    this._packSections();
     if (this._view === "settings") this._bindSettings();
     else this._bind(rooms);
     if (refocus) {
@@ -990,7 +1002,7 @@ class Pine3ViewPanel extends HTMLElement {
     const s = this._s(id), d = dom(id), on = this._isOn(id);
     const sensor = d === "sensor";
     const big = this._cfg().big_devices?.includes(id);
-    const power = ["light", "switch", "fan", "input_boolean"].includes(d);
+    const power = ["light", "switch", "fan", "input_boolean"].includes(d) || (this._isTv(id) && ((s.attributes.supported_features || 0) & 384) !== 0);
     return `<div class="tile ${on ? "on" : "glass"} ${sensor ? "sensor" : ""} ${big ? "big" : ""} ${s.state === "unavailable" ? "na" : ""}" data-ent="${esc(id)}" data-key="${esc(id)}" style="--acc:${this._accent(id)}">
       ${this._meta?.[id] ? this._editChrome("dev", id) : ""}
       <div class="row1"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div>${power ? `<div class="pw" data-pw="${esc(id)}"><ha-icon icon="mdi:power"></ha-icon></div>` : ""}</div>
@@ -1174,16 +1186,57 @@ class Pine3ViewPanel extends HTMLElement {
   _roomView(room) {
     const c = this._roomClimate(room);
     const sub = [c.temp, c.hum].filter(Boolean).join(" · ");
+    // each category takes only the columns it needs, so small ones sit side by side (see _packSections)
+    const bigs = this._cfg().big_devices || [];
     const sections = SECTIONS.map(([title, domains]) => {
       const ents = room.ents.filter((i) => domains.includes(dom(i)));
-      return ents.length ? `<h2>${t(title)}</h2><div class="tiles" data-sortable="dev:${esc(room.id)}">${ents.map((i) => this._tile(i)).join("")}</div>` : "";
+      const cells = ents.reduce((a, i) => a + (bigs.includes(i) ? 2 : 1), 0);
+      return ents.length ? `<section class="sec" data-cells="${cells}"><h2 title="${t(title)}">${t(title)}</h2><div class="tiles" data-sortable="dev:${esc(room.id)}">${ents.map((i) => this._tile(i)).join("")}</div></section>` : "";
     }).join("");
     const hiddenHere = this._edit && this._model ? this._model.rooms.find((r) => r.id === room.id)?.devices.filter((d) => this._edit.hidden.includes(d.id)).length : 0;
     const scenes = room.ents.filter((i) => dom(i) === "scene");
     const sc = scenes.length && !this._edit ? `<h2>${t("Cenas")}</h2><div class="scenes">${scenes.map((i) => `<div class="scene glass ${this._fired === i ? "fired" : ""}" data-scene="${i}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon>${esc(this._name(i))}</div>`).join("")}</div>` : "";
     return `<div class="hero"><div><div class="eyebrow">${tp(room.count, "{n} dispositivo", "{n} dispositivos")}</div><div class="t" style="margin-top:8px">${esc(this._roomName(room))}</div>${sub ? `<div class="s">${sub}</div>` : ""}${this._hint()}</div>
-      <div class="right">${this._editBtn()}${this._gear()}</div></div>${sc}${sections}
+      <div class="right">${this._editBtn()}${this._gear()}</div></div>${sc}<div class="tiles secs">${sections}</div>
       ${hiddenHere ? `<div class="tiles" style="margin-top:18px"><div class="tile add" data-edrestore="devices"><ha-icon icon="mdi:plus"></ha-icon><span>${tp(hiddenHere, "Mostrar {n} escondido", "Mostrar {n} escondidos")}</span></div></div>` : ""}`;
+  }
+
+  /**
+   * Room categories share rows: each spans as many grid columns as it has tiles (never more than the row).
+   * A category with more tiles than a row continues in a section of its own (no title), so the next
+   * categories can sit beside its last tiles instead of leaving the rest of that row empty.
+   */
+  _packSections() {
+    const box = this.shadowRoot?.querySelector(".secs");
+    if (!box) return;
+    const cols = getComputedStyle(box).gridTemplateColumns.split(" ").filter(Boolean).length || 1;
+    if (box.dataset.cols && Number(box.dataset.cols) !== cols) { this._render(); return; } // the row changed: lay out again
+    box.dataset.cols = cols;
+    const width = (el) => (el.classList.contains("big") ? 2 : 1);
+    if (!this._edit) {
+      for (const sec of [...box.querySelectorAll(":scope > .sec")]) {
+        const chunks = [[]];
+        let used = 0;
+        for (const tile of sec.querySelectorAll(":scope > .tiles > .tile")) {
+          if (used + width(tile) > cols && chunks.at(-1).length) { chunks.push([]); used = 0; }
+          chunks.at(-1).push(tile);
+          used += width(tile);
+        }
+        let after = sec;
+        for (const chunk of chunks.slice(1)) {
+          const cont = document.createElement("section");
+          cont.className = "sec cont";
+          cont.innerHTML = `<h2 aria-hidden="true">&nbsp;</h2><div class="tiles"></div>`;
+          chunk.forEach((tile) => cont.lastChild.appendChild(tile));
+          after.after(cont);
+          after = cont;
+        }
+      }
+    }
+    box.querySelectorAll(":scope > .sec").forEach((sec) => {
+      const cells = [...sec.querySelectorAll(":scope > .tiles > .tile")].reduce((a, el) => a + width(el), 0);
+      sec.style.setProperty("--span", Math.max(1, Math.min(cols, cells || 1)));
+    });
   }
 
   _scenesView() {
@@ -1243,11 +1296,20 @@ class Pine3ViewPanel extends HTMLElement {
         ${modes.length ? `<div class="row ${modes.length > 4 || compact ? "presets" : ""}">${modes.map((m) => `<button class="pill ${m === s.state ? "act" : ""}" data-hvac="${m}">${this._st(m)}</button>`).join("")}</div>` : ""}
         ${chips(t("Velocidade"), a.fan_modes, a.fan_mode, "fan_mode")}${chips(t("Oscilação"), a.swing_modes, a.swing_mode, "swing_mode")}${chips(t("Perfil"), a.preset_modes, a.preset_mode, "preset_mode")}`;
     } else if (d === "media_player") {
+      // only the controls the player supports (a HomeKit TV has power and inputs, no tracks)
+      const f = a.supported_features || 0, has = (b) => (f & b) !== 0;
       const vol = Math.round((a.volume_level ?? 0) * 100);
-      content = `${a.entity_picture ? `<img src="${esc(a.entity_picture)}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:20px;margin-top:18px">` : ""}
-        ${a.media_title ? `<div style="text-align:center;margin-top:14px;font-weight:700">${esc(a.media_title)}</div><div style="text-align:center;color:var(--muted);font-size:13px">${esc(a.media_artist || "")}</div>` : ""}
-        <div class="row"><button class="round" data-svc="media_player.media_previous_track">⏮</button><button class="round" data-svc="media_player.media_play_pause">${s.state === "playing" ? "⏸" : "▶"}</button><button class="round" data-svc="media_player.media_next_track">⏭</button></div>
-        ${a.volume_level != null ? `<div class="vslider" data-slider="volume" data-val="${vol}" style="height:200px;width:100px"><div class="fill" style="height:${vol}%"></div><div class="lbl">${vol}%</div></div>` : ""}`;
+      const sources = a.source_list || [];
+      const playing = s.state === "playing";
+      const transport = [has(16) ? `<button class="round" data-svc="media_player.media_previous_track">⏮</button>` : "",
+        has(1) || has(16384) ? `<button class="round" data-svc="media_player.media_play_pause">${playing ? "⏸" : "▶"}</button>` : "",
+        has(32) ? `<button class="round" data-svc="media_player.media_next_track">⏭</button>` : ""].join("");
+      content = `${a.entity_picture && on ? `<img src="${esc(a.entity_picture)}" style="width:100%;max-height:260px;object-fit:cover;border-radius:20px;margin-top:18px">` : ""}
+        ${a.media_title ? `<div style="text-align:center;margin-top:14px;font-weight:700">${esc(a.media_title)}</div><div style="text-align:center;color:var(--muted);font-size:13px">${esc(a.media_artist || a.app_name || "")}</div>` : ""}
+        ${on && transport ? `<div class="row">${transport}</div>` : ""}
+        ${on && sources.length ? `<div class="sub">${t("Entrada")}</div><div class="row presets">${sources.map((src) => `<button class="pill ${src === a.source ? "act" : ""}" data-src="${esc(src)}">${esc(src)}</button>`).join("")}</div>` : ""}
+        ${on && has(4) && a.volume_level != null ? `<div class="sub">${t("Volume")}</div>${this._slider("volume", vol, true)}`
+          : on && has(1024) ? `<div class="sub">${t("Volume")}</div><div class="row"><button class="round" data-svc="media_player.volume_down">−</button>${has(8) ? `<button class="round" data-mute><ha-icon icon="mdi:volume-${a.is_volume_muted ? "off" : "high"}"></ha-icon></button>` : ""}<button class="round" data-svc="media_player.volume_up">+</button></div>` : ""}`;
     } else if (d === "fan" && (a.percentage != null || a.preset_modes?.length)) {
       content = `${a.percentage != null ? this._slider("fan", on ? a.percentage : 0, compact) : ""}
         ${a.preset_modes?.length ? `<div class="row ${compact ? "presets" : ""}">${a.preset_modes.map((m) => `<button class="pill ${on && m === a.preset_mode ? "act" : ""}" data-preset="${esc(m)}">${esc(this._st(m))}</button>`).join("")}</div>` : ""}`;
@@ -1261,7 +1323,7 @@ class Pine3ViewPanel extends HTMLElement {
       content = `${d === "sensor" ? `<div style="font-size:48px;font-weight:300;text-align:center;margin:24px 0 6px">${esc(this._sensorVal(id))}</div>` : ""}
         ${rows.length ? `<div class="attrs">${rows.map(([k, v]) => `<span>${esc(k.replace(/_/g, " "))}</span><b>${esc(v)}</b>`).join("")}</div>` : ""}`;
     }
-    const canToggle = TOGGLE.has(d) && d !== "media_player";
+    const canToggle = TOGGLE.has(d) && (d !== "media_player" || ((a.supported_features || 0) & 384) !== 0);
     const device = d === "vacuum" ? this._vacuumSections(id) : this._deviceSection(id);
     return `<div class="ov ${this._ovEnter(id)} ${device ? "dev" : ""}" data-close><div class="sheet ${device ? "wide dev" : ""}" style="--acc:${this._accent(id)}">
       <div class="hd"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div><div style="flex:1;min-width:0"><div class="nm">${esc(this._name(id))}</div><div class="st">${esc(this._stateText(id))}</div></div>
@@ -1346,7 +1408,9 @@ class Pine3ViewPanel extends HTMLElement {
     if (!ov) return;
     ov.addEventListener("click", (ev) => { if (ev.target === ov && !this._ghost(ov)) { this._modal = null; this._render(); } });
     const id = this._modal;
-    on("[data-toggle]", () => this._tap(id));
+    on("[data-toggle]", () => (dom(id) === "media_player" ? this._call("media_player", this._isOn(id) ? "turn_off" : "turn_on", { entity_id: id }) : this._tap(id)));
+    on("[data-src]", (el) => this._call("media_player", "select_source", { entity_id: id, source: el.dataset.src }));
+    on("[data-mute]", () => this._call("media_player", "volume_mute", { entity_id: id, is_volume_muted: !this._s(id).attributes.is_volume_muted }));
     on("[data-more]", () => { this._modal = null; this._render(); this._moreInfo(id); });
     on("[data-svc]", (el) => { const [d, s] = el.dataset.svc.split("."); this._call(d, s, { entity_id: id }); });
     on("[data-vsec]", (el) => { const k = el.dataset.vsec; this._vacOpen[k] = !this._vacOpen[k]; this._render(); });
