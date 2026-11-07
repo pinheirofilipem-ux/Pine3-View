@@ -988,7 +988,7 @@ class Pine3ViewPanel extends HTMLElement {
     const power = ["light", "switch", "fan", "input_boolean"].includes(d);
     return `<div class="tile ${on ? "on" : "glass"} ${sensor ? "sensor" : ""} ${big ? "big" : ""} ${s.state === "unavailable" ? "na" : ""}" data-ent="${esc(id)}" data-key="${esc(id)}" style="--acc:${this._accent(id)}">
       ${this._meta?.[id] ? this._editChrome("dev", id) : ""}
-      <div class="row1"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div>${power ? `<div class="pw" data-pw="${esc(id)}"><ha-icon icon="mdi:power"></ha-icon></div>` : ""}${d === "vacuum" ? `<div class="pw" data-vgo="${esc(id)}" title="${on ? t("Voltar à base") : t("Iniciar")}"><ha-icon icon="mdi:${on ? "home-import-outline" : "play"}"></ha-icon></div>` : ""}</div>
+      <div class="row1"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div>${power ? `<div class="pw" data-pw="${esc(id)}"><ha-icon icon="mdi:power"></ha-icon></div>` : ""}</div>
       <div class="tx"><div class="nm">${esc(this._name(id))}</div>${sensor ? `<div class="val">${esc(this._sensorVal(id))}</div>` : `<div class="st">${esc(this._stateText(id))}</div>`}${this._extras(id)}</div>
     </div>`;
   }
@@ -1025,8 +1025,8 @@ class Pine3ViewPanel extends HTMLElement {
     return want.o;
   }
 
-  _deviceSection(id) {
-    const mem = (this._meta?.[id]?.members || []).filter((e) => this._s(e) && this._s(e).state !== "unavailable" && dom(e) !== "image");
+  _deviceSection(id, only = null) {
+    const mem = (only || this._meta?.[id]?.members || []).filter((e) => this._s(e) && this._s(e).state !== "unavailable" && dom(e) !== "image");
     if (!mem.length) return "";
     const readings = mem.filter((e) => ["sensor", "binary_sensor"].includes(dom(e)));
     const isToggle = (e) => ["switch", "input_boolean", "light", "fan"].includes(dom(e));
@@ -1091,6 +1091,28 @@ class Pine3ViewPanel extends HTMLElement {
     const sel = (this._meta?.[id]?.members || []).find((e) => dom(e) === "select" && (this._s(e)?.attributes.options || []).some((o) => names.includes(o)));
     return maps.find((m) => m.name === this._s(sel)?.state) || maps[0];
   }
+  /** The robot's other entities, sorted: what you use when cleaning up front; maintenance, settings and diagnostics folded away. */
+  _vacuumSections(id) {
+    const cat = (e) => this._hass.entities?.[e]?.entity_category || null;
+    const shown = new Set(["battery", "status", "cleaning_area", "cleaning_time", "clean_percent", "cleaning_progress", "vacuum_error", "dock_error"]
+      .map((x) => this._vacMember(id, "sensor", x)).filter(Boolean));
+    const mem = (this._meta?.[id]?.members || []).filter((e) => this._s(e) && this._s(e).state !== "unavailable" && dom(e) !== "image" && !shown.has(e));
+    const isReading = (e) => ["sensor", "binary_sensor"].includes(dom(e));
+    const maint = mem.filter((e) => (isReading(e) && /_(time_)?left$|_remaining$|consumable/.test(e)) || (dom(e) === "button" && /reset/.test(e)));
+    const main = mem.filter((e) => !maint.includes(e) && !isReading(e) && (dom(e) === "select" || !cat(e)));
+    const settings = mem.filter((e) => !maint.includes(e) && !main.includes(e) && !isReading(e));
+    const diag = mem.filter((e) => !maint.includes(e) && isReading(e));
+    this._vacOpen ||= {};
+    const fold = (key, title, icon, list) => {
+      if (!list.length) return "";
+      const open = this._vacOpen[key];
+      return `<button class="vac-sec ${open ? "open" : ""}" data-vsec="${key}"><ha-icon icon="mdi:${icon}"></ha-icon><span>${title}</span><small>${list.length}</small><ha-icon class="chev" icon="mdi:chevron-down"></ha-icon></button>
+        ${open ? `<div class="vac-secb">${this._deviceSection(id, list)}</div>` : ""}`;
+    };
+    return `${main.length ? this._deviceSection(id, main) : ""}
+      <div class="vac-folds">${fold("maint", t("Manutenção"), "wrench-outline", maint)}${fold("set", t("Definições do robô"), "tune-variant", settings)}${fold("diag", t("Diagnóstico"), "chart-box-outline", diag)}</div>`;
+  }
+
   _vacuumContent(id) {
     const s = this._s(id), a = s.attributes, on = this._isOn(id);
     const bat = this._vacMember(id, "sensor", "battery");
@@ -1235,7 +1257,7 @@ class Pine3ViewPanel extends HTMLElement {
         ${rows.length ? `<div class="attrs">${rows.map(([k, v]) => `<span>${esc(k.replace(/_/g, " "))}</span><b>${esc(v)}</b>`).join("")}</div>` : ""}`;
     }
     const canToggle = TOGGLE.has(d) && d !== "media_player";
-    const device = this._deviceSection(id);
+    const device = d === "vacuum" ? this._vacuumSections(id) : this._deviceSection(id);
     return `<div class="ov ${this._ovEnter(id)} ${device ? "dev" : ""}" data-close><div class="sheet ${device ? "wide dev" : ""}" style="--acc:${this._accent(id)}">
       <div class="hd"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div><div style="flex:1;min-width:0"><div class="nm">${esc(this._name(id))}</div><div class="st">${esc(this._stateText(id))}</div></div>
       ${canToggle ? `<button class="pill ${on ? "act" : ""}" data-toggle>${on ? t("Desligar") : t("Ligar")}</button>` : ""}</div>
@@ -1272,7 +1294,6 @@ class Pine3ViewPanel extends HTMLElement {
         if (lights.length) this._call("light", el.dataset.all === "on" ? "turn_on" : "turn_off", { entity_id: lights });
       });
       on("[data-pw]", (el, ev) => { ev.stopPropagation(); this._call("homeassistant", "toggle", { entity_id: el.dataset.pw }); });
-      on("[data-vgo]", (el, ev) => { ev.stopPropagation(); const id = el.dataset.vgo; this._call("vacuum", this._isOn(id) ? "return_to_base" : "start", { entity_id: id }); });
       on("[data-open]", (el) => this._openModal(el.dataset.open));
       // climate cards: power and ± target, without opening the card
       on("[data-cpw]", (el, ev) => {
@@ -1322,6 +1343,7 @@ class Pine3ViewPanel extends HTMLElement {
     on("[data-toggle]", () => this._tap(id));
     on("[data-more]", () => { this._modal = null; this._render(); this._moreInfo(id); });
     on("[data-svc]", (el) => { const [d, s] = el.dataset.svc.split("."); this._call(d, s, { entity_id: id }); });
+    on("[data-vsec]", (el) => { const k = el.dataset.vsec; this._vacOpen[k] = !this._vacOpen[k]; this._render(); });
     on("[data-vfan]", (el) => this._call("vacuum", "set_fan_speed", { entity_id: id, fan_speed: el.dataset.vfan }));
     on("[data-vroom]", (el) => {
       const sid = Number(el.dataset.vroom), pick = (this._vacPick[id] ||= []);

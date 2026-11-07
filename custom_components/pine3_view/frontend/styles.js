@@ -97,6 +97,11 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
 .vac-note{color:var(--muted);font-size:14px;margin-top:6px}
 .vac-map{display:block;width:100%;max-height:340px;object-fit:contain;border-radius:18px;margin-top:16px;background:rgba(0,0,0,.25)}
 [data-vclean][disabled]{opacity:.5;pointer-events:none}
+.vac-folds{margin-top:18px;display:flex;flex-direction:column;gap:8px}
+.vac-sec{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:13px 16px;border-radius:16px;background:rgba(255,255,255,.07);font-weight:600;font-size:15px}
+.vac-sec span{flex:1}.vac-sec small{color:var(--muted);font-weight:500}
+.vac-sec ha-icon{--mdc-icon-size:20px}.vac-sec .chev{transition:transform .2s}.vac-sec.open .chev{transform:rotate(180deg)}
+.vac-secb{padding:0 2px 6px}.vac-secb .sub:first-child{margin-top:6px}
 /* Climate screen */
 .tiles.clim{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
 .clc .clrow{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:12px}
