@@ -904,12 +904,17 @@ class Pine3ViewPanel extends HTMLElement {
     const list = this._s(id)?.attributes.entity_id;
     return (Array.isArray(list) ? list : []).filter((e) => this._s(e) && ["light", "switch", "fan", "input_boolean", "media_player", "climate"].includes(dom(e)));
   }
-  /** A scene is "on" when it is the last one activated and some of its devices are still on. */
+  /**
+   * A scene is "on" while some of its devices are on and no scene activated after it set any of the
+   * same devices: several scenes for different rooms can be on at once, a later scene on the same
+   * lights takes over.
+   */
   _sceneOn(id) {
     const at = (x) => { const v = Date.parse(this._s(x)?.state); return Number.isFinite(v) ? v : 0; };
-    const mine = at(id);
-    if (!mine || !this._sceneEnts(id).some((e) => this._isOn(e))) return false;
-    return !Object.keys(this._hass.states).some((x) => x !== id && dom(x) === "scene" && at(x) > mine);
+    const mine = at(id), ents = this._sceneEnts(id);
+    if (!mine || !ents.some((e) => this._isOn(e))) return false;
+    const own = new Set(ents);
+    return !Object.keys(this._hass.states).some((x) => x !== id && dom(x) === "scene" && at(x) > mine && this._sceneEnts(x).some((e) => own.has(e)));
   }
   /** Tap on a scene: activate it, or turn its devices off if it is the one on. */
   _sceneTap(id) {
