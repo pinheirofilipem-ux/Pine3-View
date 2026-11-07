@@ -95,6 +95,7 @@ export const DOCK_ITEMS = [
   ["rooms", "mdi:view-grid-outline", "Divisões", "Todas as divisões numa grelha."],
   ["house", "mdi:cube-outline", "Casa 3D", "Vista 3D da casa, por pisos."],
   ["scenes", "mdi:creation-outline", "Cenas", "Cenas e scripts."],
+  ["climate", "mdi:thermostat", "Clima", "Ar condicionado, termóstatos e temperatura por divisão."],
   ["security", "mdi:shield-outline", "Segurança", "Portas, janelas, fechaduras e câmaras."],
 ];
 export const DEFAULTS = {
