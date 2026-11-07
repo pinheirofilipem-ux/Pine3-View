@@ -321,3 +321,33 @@ async def test_device_members_air_purifier(hass: HomeAssistant) -> None:
     assert set(tile["members"]) == {pm25, allergen, filt, lock, mode}
     assert tile["members"][0] == pm25  # air-quality readings come first
     assert pm25 in tile["extras"]
+
+
+async def test_vacuum_dock_joins_vacuum(hass: HomeAssistant) -> None:
+    """Roborock registers the dock as a second device: its entities go with the vacuum's card."""
+    entry = MockConfigEntry(domain="roborock")
+    entry.add_to_hass(hass)
+    areas, devs, ents = ar.async_get(hass), dr.async_get(hass), er.async_get(hass)
+    sala = areas.async_create("Sala")
+    robot = devs.async_get_or_create(config_entry_id=entry.entry_id, identifiers={("roborock", "abc")}, name="Roborock S8")
+    robot = devs.async_update_device(robot.id, area_id=sala.id)
+    dock = devs.async_get_or_create(config_entry_id=entry.entry_id, identifiers={("roborock", "abc_dock")}, name="Roborock S8 Dock")  # no area
+    other = devs.async_get_or_create(config_entry_id=entry.entry_id, identifiers={("roborock", "zzz_dock")}, name="Unrelated")
+
+    def entity(domain, uid, device, state, attrs=None, **kw):
+        e = ents.async_get_or_create(domain, "roborock", uid, device_id=device.id, config_entry=entry, **kw)
+        hass.states.async_set(e.entity_id, state, attrs or {})
+        return e.entity_id
+
+    vac = entity("vacuum", "abc", robot, "docked", {"fan_speed_list": ["quiet", "turbo"]})
+    battery = entity("sensor", "abc_battery", robot, "90", {"device_class": "battery"}, entity_category=EntityCategory.DIAGNOSTIC)
+    empty = entity("switch", "abc_dust", dock, "off")
+    dock_err = entity("sensor", "abc_dock_error", dock, "ok", entity_category=EntityCategory.DIAGNOSTIC)
+    entity("switch", "zzz", other, "off")
+
+    rooms = {r["name"]: r for r in build_home(hass, {"hidden": [], "hidden_rooms": [], "room_order": []})["rooms"]}
+    sala_devs = rooms["Sala"]["devices"]
+    assert [d["id"] for d in sala_devs] == [vac]  # one card: the vacuum, not its dock's switch
+    assert {battery, empty, dock_err} <= set(sala_devs[0]["members"])
+    assert empty in {e["id"] for e in rooms["Sala"]["entities"]}  # the dock's entities are listed in the vacuum's room
+    assert "Outros" in rooms and all(d["id"] != empty for d in rooms["Outros"]["devices"])  # an unrelated "_dock" device stays apart

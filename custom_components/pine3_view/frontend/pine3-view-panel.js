@@ -332,8 +332,7 @@ class Pine3ViewPanel extends HTMLElement {
     if (d === "cover") return this._call("cover", s.state === "closed" || s.state === "closing" ? "open_cover" : "close_cover", { entity_id: id });
     if (d === "lock") return this._call("lock", s.state === "locked" ? "unlock" : "lock", { entity_id: id });
     if (d === "media_player") return this._call("media_player", "media_play_pause", { entity_id: id });
-    if (d === "vacuum") return this._call("vacuum", s.state === "cleaning" ? "return_to_base" : "start", { entity_id: id });
-    if (d === "climate" || d === "camera" || d === "sensor" || d === "binary_sensor") return this._openModal(id);
+    if (d === "climate" || d === "vacuum" || d === "camera" || d === "sensor" || d === "binary_sensor") return this._openModal(id);
     if (TOGGLE.has(d)) return this._call("homeassistant", "toggle", { entity_id: id });
   }
   _openModal(id) { this._modal = id; this._render(); }
@@ -989,7 +988,7 @@ class Pine3ViewPanel extends HTMLElement {
     const power = ["light", "switch", "fan", "input_boolean"].includes(d);
     return `<div class="tile ${on ? "on" : "glass"} ${sensor ? "sensor" : ""} ${big ? "big" : ""} ${s.state === "unavailable" ? "na" : ""}" data-ent="${esc(id)}" data-key="${esc(id)}" style="--acc:${this._accent(id)}">
       ${this._meta?.[id] ? this._editChrome("dev", id) : ""}
-      <div class="row1"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div>${power ? `<div class="pw" data-pw="${esc(id)}"><ha-icon icon="mdi:power"></ha-icon></div>` : ""}</div>
+      <div class="row1"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div>${power ? `<div class="pw" data-pw="${esc(id)}"><ha-icon icon="mdi:power"></ha-icon></div>` : ""}${d === "vacuum" ? `<div class="pw" data-vgo="${esc(id)}" title="${on ? t("Voltar à base") : t("Iniciar")}"><ha-icon icon="mdi:${on ? "home-import-outline" : "play"}"></ha-icon></div>` : ""}</div>
       <div class="tx"><div class="nm">${esc(this._name(id))}</div>${sensor ? `<div class="val">${esc(this._sensorVal(id))}</div>` : `<div class="st">${esc(this._stateText(id))}</div>`}${this._extras(id)}</div>
     </div>`;
   }
@@ -1027,7 +1026,7 @@ class Pine3ViewPanel extends HTMLElement {
   }
 
   _deviceSection(id) {
-    const mem = (this._meta?.[id]?.members || []).filter((e) => this._s(e) && this._s(e).state !== "unavailable");
+    const mem = (this._meta?.[id]?.members || []).filter((e) => this._s(e) && this._s(e).state !== "unavailable" && dom(e) !== "image");
     if (!mem.length) return "";
     const readings = mem.filter((e) => ["sensor", "binary_sensor"].includes(dom(e)));
     const isToggle = (e) => ["switch", "input_boolean", "light", "fan"].includes(dom(e));
@@ -1064,6 +1063,71 @@ class Pine3ViewPanel extends HTMLElement {
       ${controls.length ? `<div class="dv-list">${controls.map(ctl).join("")}</div>` : ""}`;
     this._selShown = this._selOpen; // the open option row animates once, not on every redraw
     return html;
+  }
+
+  // ---------- robot vacuum (Roborock and others) ----------
+  /** A member of the vacuum's device by its entity id suffix (Roborock: sensor.<robot>_battery, _status…). */
+  _vacMember(id, d, ...suffixes) {
+    const mem = this._meta?.[id]?.members || [];
+    return mem.find((e) => dom(e) === d && this._s(e) && suffixes.some((x) => e.endsWith("_" + x)));
+  }
+  /** Rooms of the robot's maps (Roborock: roborock.get_maps), loaded once per card. */
+  _vacLoadRooms(id) {
+    this._vacRooms ||= {};
+    if (this._vacRooms[id] !== undefined) return;
+    const plat = this._hass.entities?.[id]?.platform;
+    const roborock = plat === "roborock" || (!plat && /roborock/i.test(this._meta?.[id]?.manufacturer || ""));
+    if (!roborock) { this._vacRooms[id] = null; return; }
+    this._vacRooms[id] = "loading";
+    this._hass.callWS({ type: "call_service", domain: "roborock", service: "get_maps", target: { entity_id: id }, return_response: true })
+      .then((r) => { const res = r?.response?.[id] ?? r?.response; this._vacRooms[id] = res?.maps || []; })
+      .catch((e) => { console.warn("Pine3 View: roborock.get_maps", e); this._vacRooms[id] = []; })
+      .finally(() => { if (this._modal === id) this._render(); });
+  }
+  /** The map the robot is using: the one named by its "selected map" select, else the first. */
+  _vacMap(id, maps) {
+    if (!maps?.length) return null;
+    const names = maps.map((m) => m.name);
+    const sel = (this._meta?.[id]?.members || []).find((e) => dom(e) === "select" && (this._s(e)?.attributes.options || []).some((o) => names.includes(o)));
+    return maps.find((m) => m.name === this._s(sel)?.state) || maps[0];
+  }
+  _vacuumContent(id) {
+    const s = this._s(id), a = s.attributes, on = this._isOn(id);
+    const bat = this._vacMember(id, "sensor", "battery");
+    const level = a.battery_level ?? (bat ? Number(this._s(bat).state) : null);
+    const status = this._vacMember(id, "sensor", "status");
+    const area = this._vacMember(id, "sensor", "cleaning_area"), time = this._vacMember(id, "sensor", "cleaning_time"), pct = this._vacMember(id, "sensor", "clean_percent", "cleaning_progress");
+    const err = this._vacMember(id, "sensor", "vacuum_error", "dock_error");
+    const errOn = err && !["none", "ok", "unknown", "no_error"].includes(this._s(err).state);
+    const now = on ? [area, time, pct].filter(Boolean).map((e) => this._sensorVal(e)).join(" · ") : "";
+    // the integration's own translations (HA language) for its states and fan speeds, else ours
+    const h = this._hass;
+    const fmt = (e) => { try { return h.formatEntityState?.(this._s(e)) || this._stateText(e); } catch { return this._stateText(e); } };
+    const fanLabel = (f) => { try { const v = h.formatEntityAttributeValue?.(s, "fan_speed", f); return v && v !== f ? v : this._st(f); } catch { return this._st(f); } };
+    const btn = (svc, icon, label, act) => `<button class="vac-b ${act ? "act" : ""}" data-svc="vacuum.${svc}"><ha-icon icon="mdi:${icon}"></ha-icon><span>${label}</span></button>`;
+    const fans = a.fan_speed_list || [];
+    // rooms (Roborock): pick some and clean only those
+    this._vacLoadRooms(id);
+    const maps = this._vacRooms?.[id], map = Array.isArray(maps) ? this._vacMap(id, maps) : null;
+    const rooms = map ? Object.entries(map.rooms || {}) : [];
+    const pick = (this._vacPick ||= {})[id] ||= [];
+    // the map picture of the map in use (Roborock: one image entity per map)
+    const imgs = (this._meta?.[id]?.members || []).filter((e) => dom(e) === "image" && this._s(e)?.attributes.entity_picture);
+    const img = imgs.find((e) => map && (this._s(e).attributes.friendly_name || "").toLowerCase().includes(String(map.name).toLowerCase())) || imgs[0];
+    return `<div class="vac-hd">
+        ${level != null && Number.isFinite(level) ? `<div class="vac-bat"><ha-icon icon="mdi:battery${level >= 95 ? "" : "-" + Math.max(10, Math.round(level / 10) * 10)}"></ha-icon><b>${Math.round(level)}%</b></div>` : ""}
+        <div class="vac-st"><b>${esc(fmt(status || id))}</b>${now ? `<small>${esc(now)}</small>` : ""}${errOn ? `<small class="vac-err">${esc(fmt(err))}</small>` : ""}</div>
+      </div>
+      <div class="vac-btns">
+        ${s.state === "cleaning" ? btn("pause", "pause", t("Pausar"), true) : btn("start", "play", s.state === "paused" ? t("Retomar") : t("Iniciar"))}
+        ${btn("return_to_base", "home-import-outline", t("Voltar à base"), s.state === "returning")}
+        ${btn("locate", "map-marker-radius-outline", t("Localizar"))}
+      </div>
+      ${fans.length > 1 ? `<div class="sub">${t("Potência")}</div><div class="row presets">${fans.map((f) => `<button class="pill ${f === a.fan_speed ? "act" : ""}" data-vfan="${esc(f)}">${esc(fanLabel(f))}</button>`).join("")}</div>` : ""}
+      ${maps === "loading" ? `<div class="sub">${t("Divisões")}</div><div class="vac-note">${t("A carregar as divisões…")}</div>` : rooms.length ? `<div class="sub">${t("Limpar divisões")}</div>
+        <div class="row presets">${rooms.map(([sid, name]) => `<button class="pill ${pick.includes(Number(sid)) ? "act" : ""}" data-vroom="${esc(sid)}">${esc(name)}</button>`).join("")}</div>
+        <div class="row"><button class="pill solid" data-vclean ${pick.length ? "" : "disabled"}><ha-icon icon="mdi:broom"></ha-icon>${pick.length ? tp(pick.length, "Limpar {n} divisão", "Limpar {n} divisões") : t("Escolhe as divisões")}</button></div>` : ""}
+      ${img ? `<img class="vac-map" src="${esc(this._s(img).attributes.entity_picture)}" alt="">` : ""}`;
   }
 
   _extras(id) {
@@ -1160,6 +1224,8 @@ class Pine3ViewPanel extends HTMLElement {
     } else if (d === "fan" && (a.percentage != null || a.preset_modes?.length)) {
       content = `${a.percentage != null ? this._slider("fan", on ? a.percentage : 0, compact) : ""}
         ${a.preset_modes?.length ? `<div class="row ${compact ? "presets" : ""}">${a.preset_modes.map((m) => `<button class="pill ${on && m === a.preset_mode ? "act" : ""}" data-preset="${esc(m)}">${esc(this._st(m))}</button>`).join("")}</div>` : ""}`;
+    } else if (d === "vacuum") {
+      content = this._vacuumContent(id);
     } else if (d === "camera") {
       content = `<img src="/api/camera_proxy/${esc(id)}?token=${esc(a.access_token || "")}&t=${Date.now()}" style="width:100%;border-radius:18px;margin-top:18px;background:#000">`;
     } else {
@@ -1206,6 +1272,7 @@ class Pine3ViewPanel extends HTMLElement {
         if (lights.length) this._call("light", el.dataset.all === "on" ? "turn_on" : "turn_off", { entity_id: lights });
       });
       on("[data-pw]", (el, ev) => { ev.stopPropagation(); this._call("homeassistant", "toggle", { entity_id: el.dataset.pw }); });
+      on("[data-vgo]", (el, ev) => { ev.stopPropagation(); const id = el.dataset.vgo; this._call("vacuum", this._isOn(id) ? "return_to_base" : "start", { entity_id: id }); });
       on("[data-open]", (el) => this._openModal(el.dataset.open));
       // climate cards: power and ± target, without opening the card
       on("[data-cpw]", (el, ev) => {
@@ -1255,6 +1322,20 @@ class Pine3ViewPanel extends HTMLElement {
     on("[data-toggle]", () => this._tap(id));
     on("[data-more]", () => { this._modal = null; this._render(); this._moreInfo(id); });
     on("[data-svc]", (el) => { const [d, s] = el.dataset.svc.split("."); this._call(d, s, { entity_id: id }); });
+    on("[data-vfan]", (el) => this._call("vacuum", "set_fan_speed", { entity_id: id, fan_speed: el.dataset.vfan }));
+    on("[data-vroom]", (el) => {
+      const sid = Number(el.dataset.vroom), pick = (this._vacPick[id] ||= []);
+      this._vacPick[id] = pick.includes(sid) ? pick.filter((x) => x !== sid) : [...pick, sid];
+      this._render();
+    });
+    on("[data-vclean]", () => {
+      const segs = this._vacPick?.[id] || [];
+      if (!segs.length) return;
+      // what the Roborock integration itself sends to clean rooms (segments of the current map)
+      this._call("vacuum", "send_command", { entity_id: id, command: "app_segment_clean", params: [{ segments: segs }] });
+      this._vacPick[id] = [];
+      this._render();
+    });
     on("[data-color]", (el) => { const h = el.dataset.color; this._call("light", "turn_on", { entity_id: id, rgb_color: [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) }); });
     on("[data-preset]", (el) => this._call(dom(id), "set_preset_mode", { entity_id: id, preset_mode: el.dataset.preset }));
     on("[data-dvtg]", (el) => this._call("homeassistant", "toggle", { entity_id: el.dataset.dvtg }));

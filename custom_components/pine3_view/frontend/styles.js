@@ -82,6 +82,21 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
 .tile{position:relative;border-radius:26px;padding:18px;cursor:pointer;min-height:170px;display:flex;flex-direction:column;justify-content:space-between;transition:background .25s,color .25s,transform .12s;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .tile:active{transform:scale(.97)}
 .tile.big{grid-column:span 2}
+/* robot vacuum card */
+.vac-hd{display:flex;align-items:center;gap:16px;margin-top:18px}
+.vac-bat{display:flex;flex-direction:column;align-items:center;justify-content:center;width:86px;height:86px;border-radius:50%;background:color-mix(in srgb,var(--acc) 22%,transparent);flex:none}
+.vac-bat ha-icon{--mdc-icon-size:26px;color:var(--acc)}.vac-bat b{font-size:18px;font-weight:600}
+.vac-st b{display:block;font-family:var(--display);font-size:24px;font-weight:400}
+.vac-st small{display:block;color:var(--muted);font-size:14px;margin-top:3px}
+.vac-st .vac-err{color:#ff9f0a}
+.vac-btns{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+.vac-b{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px;border-radius:18px;background:rgba(255,255,255,.08);font-size:14px;font-weight:600;text-align:center}
+.vac-b ha-icon{--mdc-icon-size:24px}
+.vac-b.act{background:var(--cream);color:var(--ink)}
+.vac-b:active{transform:scale(.96)}
+.vac-note{color:var(--muted);font-size:14px;margin-top:6px}
+.vac-map{display:block;width:100%;max-height:340px;object-fit:contain;border-radius:18px;margin-top:16px;background:rgba(0,0,0,.25)}
+[data-vclean][disabled]{opacity:.5;pointer-events:none}
 /* Climate screen */
 .tiles.clim{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
 .clc .clrow{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:12px}
