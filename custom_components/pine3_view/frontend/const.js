@@ -49,7 +49,7 @@ export const STATE_PT = {
   locked: "Trancado", unlocked: "Destrancado", playing: "A tocar", paused: "Em pausa", idle: "Inativo",
   standby: "Em espera", unavailable: "Indisponível", unknown: "Desconhecido", heat: "Aquecer", cool: "Arrefecer",
   auto: "Automático", heat_cool: "Aquecer/Arrefecer", dry: "Desumidificar", fan_only: "Ventilação",
-  cleaning: "A limpar", docked: "Na base", returning: "A regressar",
+  balanced: "Equilibrado", max: "Máximo", max_plus: "Máximo+", gentle: "Suave", charging: "A carregar", cleaning: "A limpar", docked: "Na base", returning: "A regressar",
   // fan / air purifier preset modes
   sleep: "Noturno", turbo: "Turbo", manual: "Manual", silent: "Silencioso", eco: "Eco", boost: "Reforço",
   allergen: "Alérgenos", bacteria: "Bactérias", night: "Noturno", smart: "Inteligente", natural: "Natural",

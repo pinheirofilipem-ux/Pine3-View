@@ -33,7 +33,7 @@ AIR_QUALITY = ["pm25", "pm10", "pm1", "aqi", "carbon_dioxide", "volatile_organic
 EXTRA_SENSOR_CLASSES = {"power", "energy", "battery", "temperature", "humidity", "illuminance", *AIR_QUALITY}
 SENSOR_PRIORITY = ["temperature", "humidity", *AIR_QUALITY, "illuminance", "power", "energy", "battery"]
 # Everything a device can expose on its detail card (readings and controls), beyond the tile domains.
-MEMBER_DOMAINS = {"sensor", "binary_sensor", "switch", "light", "fan", "select", "number", "button", "cover", "lock", "climate", "media_player", "vacuum", "input_boolean"}
+MEMBER_DOMAINS = {"sensor", "binary_sensor", "switch", "light", "fan", "select", "number", "button", "cover", "lock", "climate", "media_player", "vacuum", "input_boolean", "image"}
 BINARY_PRIORITY = ["door", "window", "garage_door", "opening", "motion", "occupancy", "presence", "moisture", "smoke", "gas"]
 
 # Room icon from the area name (pt + en keywords, accent-insensitive).
@@ -113,12 +113,51 @@ def kind_of(hass: HomeAssistant, entity_id: str, entry: er.RegistryEntry | None)
     return domain
 
 
+def companions(devices: dr.DeviceRegistry, entities: er.EntityRegistry) -> dict[str, str]:
+    """Devices that belong with a robot vacuum (its dock...): device id -> the vacuum's device id.
+
+    Integrations such as Roborock register the dock as a second device, so its entities
+    (dust collection, mop washing, dock errors...) would end up on a card of their own.
+    A device joins a vacuum's device when it is connected through it (via_device) or
+    shares its identifier with a "_dock" suffix.
+    """
+    vacuums = {e.device_id for e in entities.entities.values() if e.device_id and e.entity_id.startswith("vacuum.") and not e.disabled_by}
+    if not vacuums:
+        return {}
+    by_ident = {}
+    for d in devices.devices.values():
+        for ident in d.identifiers:
+            by_ident[tuple(ident)] = d.id
+    out = {}
+    for d in devices.devices.values():
+        if d.id in vacuums:
+            continue
+        parent = d.via_device_id if d.via_device_id in vacuums else None
+        for ident in d.identifiers if not parent else ():
+            dom, val = ident[0], ident[-1]
+            if isinstance(val, str) and val.endswith("_dock") and by_ident.get((dom, val[:-5])) in vacuums:
+                parent = by_ident[(dom, val[:-5])]
+                break
+        if parent:
+            out[d.id] = parent
+    return out
+
+
 def build_home(hass: HomeAssistant, settings: dict[str, Any]) -> dict[str, Any]:
     areas = ar.async_get(hass)
     devices = dr.async_get(hass)
     entities = er.async_get(hass)
     floors = fr.async_get(hass) if fr else None
     hidden = set(settings.get("hidden", []))
+    alias = companions(devices, entities)  # a vacuum's dock joins the vacuum
+
+    def device_of(entry: er.RegistryEntry):
+        """The device an entity is shown with (a dock's entities go with its vacuum) and its area."""
+        dev_id = alias.get(entry.device_id, entry.device_id) if entry.device_id else None
+        device = devices.async_get(dev_id) if dev_id else None
+        own = devices.async_get(entry.device_id) if entry.device_id else None
+        area_id = entry.area_id or (device.area_id if device else None) or (own.area_id if own else None) or "_none"
+        return dev_id, device, own, area_id
 
     # 1. Collect visible entities, grouped by (area, device).
     groups: dict[tuple[str, str], list[str]] = {}
@@ -129,11 +168,10 @@ def build_home(hass: HomeAssistant, settings: dict[str, Any]) -> dict[str, Any]:
             continue
         if hass.states.get(eid) is None:
             continue
-        device = devices.async_get(entry.device_id) if entry.device_id else None
-        if device and device.disabled_by:
+        dev_id, device, own, area_id = device_of(entry)
+        if (device and device.disabled_by) or (own and own.disabled_by):
             continue
-        area_id = entry.area_id or (device.area_id if device else None) or "_none"
-        groups.setdefault((area_id, entry.device_id or f"entity:{eid}"), []).append(eid)
+        groups.setdefault((area_id, dev_id or f"entity:{eid}"), []).append(eid)
 
     # Entities defined in YAML (no registry entry) only matter as scenes/scripts.
     scenes = sorted(
@@ -201,10 +239,9 @@ def build_home(hass: HomeAssistant, settings: dict[str, Any]) -> dict[str, Any]:
         state = hass.states.get(eid)
         if state is None:
             continue
-        device = devices.async_get(entry.device_id) if entry.device_id else None
-        if device and device.disabled_by:
+        _dev_id, device, own, area_id = device_of(entry)
+        if (device and device.disabled_by) or (own and own.disabled_by):
             continue
-        area_id = entry.area_id or (device.area_id if device else None) or "_none"
         area = areas.async_get_area(area_id) if area_id != "_none" else None
         room = rooms.setdefault(area_id, {"devices": [], "temperature": [], "humidity": [], "scenes": []})
         room.setdefault("entities", []).append({
@@ -225,7 +262,7 @@ def build_home(hass: HomeAssistant, settings: dict[str, Any]) -> dict[str, Any]:
             continue
         if entry.entity_id.split(".")[0] not in MEMBER_DOMAINS or hass.states.get(entry.entity_id) is None:
             continue
-        by_device.setdefault(entry.device_id, []).append(entry.entity_id)
+        by_device.setdefault(alias.get(entry.device_id, entry.device_id), []).append(entry.entity_id)
     for room in rooms.values():
         for dev in room["devices"]:
             members = [e for e in by_device.get(dev["device_id"] or "", []) if e != dev["id"]]

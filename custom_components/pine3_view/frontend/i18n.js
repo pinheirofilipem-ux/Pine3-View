@@ -120,6 +120,8 @@ export const EN = {
   "Câmara": "Camera", "Fechadura": "Lock", "Aspirador": "Vacuum", "Outro": "Other",
   // full screen & kiosk
   "Ecrã inteiro": "Full screen", "Sair do ecrã inteiro": "Exit full screen", "Este dispositivo": "This device",
+  "Voltar à base": "Back to dock", "Equilibrado": "Balanced", "Máximo": "Max", "Máximo+": "Max+", "Suave": "Gentle", "A carregar": "Charging", "Iniciar": "Start", "Pausar": "Pause", "Retomar": "Resume", "Localizar": "Locate", "Potência": "Suction",
+  "Limpar divisões": "Clean rooms", "A carregar as divisões…": "Loading rooms…", "Limpar {n} divisão": "Clean {n} room", "Limpar {n} divisões": "Clean {n} rooms", "Escolhe as divisões": "Pick the rooms",
   "Temperatura por divisão": "Temperature by room", "Ar condicionado, termóstatos e temperatura por divisão.": "Air conditioners, thermostats and temperature by room.", "Baixar": "Lower", "Subir": "Raise",
   "3D completo": "Full 3D", "3D leve": "Light 3D", "Imagem 3D": "3D picture", "Planta 2D": "2D plan", "Automático ({m})": "Auto ({m})",
   "Vista da Casa 3D": "3D Home view",
