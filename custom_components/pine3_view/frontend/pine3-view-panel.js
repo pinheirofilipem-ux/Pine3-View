@@ -934,6 +934,18 @@ class Pine3ViewPanel extends HTMLElement {
         <div class="row1"><div class="ri" style="${bad.length ? "background:#ff9f0a;color:#2a1500" : ""}"><ha-icon icon="mdi:shield-${bad.length ? "alert-outline" : "check-outline"}"></ha-icon></div><div class="eyebrow" style="margin:14px 0 0 0;flex:1;padding-left:14px">${t("Segurança")}</div></div>
         <div class="foot"><div class="big-txt">${bad.length ? tp(bad.length, "{n} item aberto", "{n} itens abertos") : t("Tudo seguro")}</div><div class="meta">${tp(secIds.length, "{n} item monitorizado", "{n} itens monitorizados")}</div></div></div>`);
     }
+    // robot vacuums: status, battery and (while cleaning) progress; a tap opens its card, never starts it
+    for (const v of all.filter((i) => dom(i) === "vacuum" && this._s(i))) {
+      const on = this._isOn(v), level = this._vacBattery(v);
+      const status = this._vacMember(v, "sensor", "status");
+      const progress = on ? [this._vacMember(v, "sensor", "cleaning_area"), this._vacMember(v, "sensor", "clean_percent", "cleaning_progress")].filter(Boolean).map((e) => this._sensorVal(e)) : [];
+      const err = this._vacMember(v, "sensor", "vacuum_error");
+      const errOn = err && !["none", "ok", "unknown", "no_error"].includes(this._s(err).state);
+      cards.push(`<div class="rc ${on ? "on" : "glass"}" data-open="${esc(v)}">
+        <div class="row1"><div class="ri" style="background:${errOn ? "#ff9f0a;color:#2a1500" : "#30d158;color:#06210f"}"><ha-icon icon="mdi:robot-vacuum"></ha-icon></div><div class="eyebrow" style="margin:14px 0 0 0;flex:1;padding-left:14px">${t("Aspirador")}</div></div>
+        <div class="foot"><div class="big-txt">${esc(errOn ? this._fmtState(err) : this._fmtState(status || v))}</div>
+          <div class="meta">${esc([level != null ? `🔋 ${level}%` : "", ...progress, this._name(v)].filter(Boolean).join(" · "))}</div></div></div>`);
+    }
     const media = all.find((i) => dom(i) === "media_player" && this._s(i).state === "playing") || all.find((i) => dom(i) === "media_player" && this._s(i).state === "paused");
     if (media) {
       const a = this._s(media).attributes, roomName = rooms.find((r) => r.ents.includes(media))?.name;
@@ -1130,6 +1142,17 @@ class Pine3ViewPanel extends HTMLElement {
       <div class="vac-folds">${fold("maint", t("Manutenção"), "wrench-outline", maint)}${fold("set", t("Definições do robô"), "tune-variant", settings)}${fold("diag", t("Diagnóstico"), "chart-box-outline", diag)}</div>`;
   }
 
+  /** A state in the integration's own words (HA's translations, e.g. Roborock's "Charging"), else ours. */
+  _fmtState(e) {
+    try { return this._hass.formatEntityState?.(this._s(e)) || this._stateText(e); } catch { return this._stateText(e); }
+  }
+  /** Battery level of a vacuum: its attribute or its device's battery sensor. */
+  _vacBattery(id) {
+    const a = this._s(id)?.attributes || {}, bat = this._vacMember(id, "sensor", "battery");
+    const v = a.battery_level ?? (bat ? Number(this._s(bat).state) : null);
+    return v != null && Number.isFinite(Number(v)) ? Math.round(Number(v)) : null;
+  }
+
   _vacuumContent(id) {
     const s = this._s(id), a = s.attributes, on = this._isOn(id);
     const bat = this._vacMember(id, "sensor", "battery");
@@ -1141,7 +1164,7 @@ class Pine3ViewPanel extends HTMLElement {
     const now = on ? [area, time, pct].filter(Boolean).map((e) => this._sensorVal(e)).join(" · ") : "";
     // the integration's own translations (HA language) for its states and fan speeds, else ours
     const h = this._hass;
-    const fmt = (e) => { try { return h.formatEntityState?.(this._s(e)) || this._stateText(e); } catch { return this._stateText(e); } };
+    const fmt = (e) => this._fmtState(e);
     const fanLabel = (f) => { try { const v = h.formatEntityAttributeValue?.(s, "fan_speed", f); return v && v !== f ? v : this._st(f); } catch { return this._st(f); } };
     const btn = (svc, icon, label, act) => `<button class="vac-b ${act ? "act" : ""}" data-svc="vacuum.${svc}"><ha-icon icon="mdi:${icon}"></ha-icon><span>${label}</span></button>`;
     const fans = a.fan_speed_list || [];
