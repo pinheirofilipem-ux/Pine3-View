@@ -42,6 +42,8 @@ header .sp{flex:1}
 .scene ha-icon{--mdc-icon-size:20px}
 .scene:active{transform:scale(.96)}
 .scene.fired{background:var(--cream);color:var(--ink)}
+.scene.on{background:var(--cream);color:var(--ink);border-color:transparent}
+.scene.on ha-icon{color:var(--amber)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:20px;margin-top:22px}
 .rc{position:relative;min-width:0;border-radius:var(--r);padding:22px;min-height:250px;cursor:pointer;display:flex;flex-direction:column;transition:transform .15s,background .25s,color .25s}
 .rc:active{transform:scale(.98)}
