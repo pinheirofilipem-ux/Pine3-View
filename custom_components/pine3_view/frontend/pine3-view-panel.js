@@ -11,6 +11,9 @@ import { Weather } from "./weather.js";
 import { houseView, bindHouse, css3d } from "./house3d.js";
 import { planView, bindPlan, cssPlan } from "./plan2d.js";
 
+// the version of this file, from its URL (/pine3_view/<version>/…): differs from the integration's when the browser kept an old copy
+const FRONT_VERSION = (import.meta.url.match(/\/(\d+\.\d+\.\d+)\//) || [])[1] || null;
+
 loadFonts();
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -335,7 +338,9 @@ class Pine3ViewPanel extends HTMLElement {
     if (d === "climate" || d === "vacuum" || d === "camera" || d === "sensor" || d === "binary_sensor") return this._openModal(id);
     if (TOGGLE.has(d)) return this._call("homeassistant", "toggle", { entity_id: id });
   }
-  _openModal(id) { this._modal = id; this._render(); }
+  _openModal(id) { this._modal = id; this._modalAt = Date.now(); this._render(); }
+  /** A click that lands on a card just opened: the end of the press that opened it (a long press on a tablet), not a choice. */
+  _ghost(el) { return !!el.closest?.(".ov") && Date.now() - (this._modalAt || 0) < 600; }
   _moreInfo(id) {
     this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: id }, bubbles: true, composed: true }));
   }
@@ -548,7 +553,7 @@ class Pine3ViewPanel extends HTMLElement {
       const rooms = this._model?.rooms || [];
       const devs = rooms.reduce((a, r) => a + r.devices.length, 0);
       main = `<div class="panel glass"><h3 style="margin-top:0">${t("Sistema")}</h3><div class="facts">
-          <div><small>${t("Versão")}</small><b>${esc(this._model?.version || "—")}</b></div>
+          <div><small>${t("Versão")}</small><b>${esc(this._model?.version || "—")}${FRONT_VERSION && this._model?.version && FRONT_VERSION !== this._model.version ? ` · ${esc(t("painel {v}", { v: FRONT_VERSION }))}` : ""}</b></div>
           <div><small>${t("Modo")}</small><b>${this._model ? t("Integração") : t("Local (sem API)")}</b></div>
           <div><small>${t("Divisões")}</small><b>${rooms.length || this._localRooms().length}</b></div>
           <div><small>${t("Dispositivos")}</small><b>${devs || "—"}</b></div>
@@ -1266,7 +1271,7 @@ class Pine3ViewPanel extends HTMLElement {
 
   _bind() {
     const root = this.shadowRoot;
-    const on = (sel, fn) => root.querySelectorAll(sel).forEach((el) => el.addEventListener("click", (ev) => fn(el, ev)));
+    const on = (sel, fn) => root.querySelectorAll(sel).forEach((el) => el.addEventListener("click", (ev) => { if (!this._ghost(el)) fn(el, ev); }));
     if (this._saver) {
       root.querySelector("[data-saver]")?.addEventListener("click", () => { this._saver = false; this._lastActivity = Date.now(); this._render(); });
       return;
@@ -1320,7 +1325,8 @@ class Pine3ViewPanel extends HTMLElement {
       root.querySelectorAll("[data-ent]").forEach((el) => {
         const id = el.dataset.ent;
         let timer, long = false;
-        const start = () => { long = false; timer = setTimeout(() => { long = true; if (DETAIL.has(dom(id)) || this._meta?.[id]) this._openModal(id); }, 450); };
+        // a robot vacuum opens its card on a plain tap: no long press, so the end of a press never lands on Start
+        const start = () => { long = false; if (dom(id) === "vacuum") return; timer = setTimeout(() => { long = true; if (DETAIL.has(dom(id)) || this._meta?.[id]) this._openModal(id); }, 450); };
         const cancel = () => clearTimeout(timer);
         el.addEventListener("pointerdown", start);
         el.addEventListener("pointerup", cancel);
@@ -1338,7 +1344,7 @@ class Pine3ViewPanel extends HTMLElement {
     // modal
     const ov = root.querySelector(".ov");
     if (!ov) return;
-    ov.addEventListener("click", (ev) => { if (ev.target === ov) { this._modal = null; this._render(); } });
+    ov.addEventListener("click", (ev) => { if (ev.target === ov && !this._ghost(ov)) { this._modal = null; this._render(); } });
     const id = this._modal;
     on("[data-toggle]", () => this._tap(id));
     on("[data-more]", () => { this._modal = null; this._render(); this._moreInfo(id); });
