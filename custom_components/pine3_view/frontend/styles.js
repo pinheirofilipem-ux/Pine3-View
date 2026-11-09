@@ -498,6 +498,19 @@ a.pill{color:inherit;text-decoration:none}
 .wxc.tall{flex-direction:column;gap:12px;margin-top:20px}
 .wxc.tall .wx-hrs{padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .wxc.tall .wx-tom{flex-direction:row;align-items:center;justify-content:space-between}
+/* IPMA warnings: a banner coloured by level */
+.wx-alert{display:flex;align-items:flex-start;gap:10px;padding:8px 12px;border-radius:14px;background:color-mix(in srgb,var(--lv) 22%,transparent);border:1px solid color-mix(in srgb,var(--lv) 55%,transparent)}
+.wx-alert>ha-icon{--mdc-icon-size:20px;color:var(--lv);flex:none;margin-top:1px}
+.wx-alert b{display:block;font-size:14px;font-weight:600}.wx-alert small{display:block;font-size:12px;color:var(--muted)}
+.wx-alert p{margin:8px 0 0;font-size:14px;line-height:1.4}
+.wx-alert.full{margin-top:16px;padding:12px 14px}.wx-alert.full b{font-size:16px}
+.lv-yellow{--lv:#ffcc00}.lv-orange{--lv:#ff9500}.lv-red{--lv:#ff3b30}
+.wxc.wide.has-alert{flex-wrap:wrap;row-gap:10px}.wxc.wide .wx-alert{flex-basis:100%}
+.wx-al{--mdc-icon-size:18px;color:var(--lv);margin-left:2px}
+.wx-ok{display:flex;align-items:center;gap:8px;margin-top:14px;color:var(--muted);font-size:14px}.wx-ok ha-icon{--mdc-icon-size:18px;color:#30d158}
+.wx-chips{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.wx-chips span{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.08);font-size:13px;color:var(--muted)}
+.wx-chips span b{color:#fff}.wx-chips ha-icon{--mdc-icon-size:16px;color:var(--amber)}
 /* "Two columns": clock, weather and what is on in a third; actions, scenes and cards in two thirds */
 .hcols{display:grid;grid-template-columns:minmax(250px,1fr) 2fr;gap:36px;align-items:start;padding-top:26px}
 .hleft{position:sticky;top:20px;min-width:0}
