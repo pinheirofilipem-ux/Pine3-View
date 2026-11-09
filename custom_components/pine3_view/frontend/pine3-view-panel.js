@@ -425,6 +425,41 @@ class Pine3ViewPanel extends HTMLElement {
     this._fc = await this._weather.forecast(this._hass, this._cfg().weather_entity);
     if (this._modal === "_wx") this._render();
   }
+  /** The forecast for the home weather card, refreshed every 15 minutes (loads in the background, then redraws). */
+  _homeForecast() {
+    const c = this._hfc;
+    if ((!c || Date.now() - c.at > 15 * 60e3) && !this._hfcLoading) {
+      this._hfcLoading = true;
+      this._weather.forecast(this._hass, this._cfg().weather_entity)
+        .then((fc) => { this._hfc = { fc, at: Date.now() }; })
+        .catch(() => { this._hfc = { fc: { hourly: [], daily: [] }, at: Date.now() }; })
+        .finally(() => { this._hfcLoading = false; if (this._view === "home" && !this._drag) this._render(); });
+    }
+    return c?.fc || null;
+  }
+  /**
+   * Weather card for the home screen: now (big temperature, condition, today's high/low and rain),
+   * the next hours and tomorrow. "wide" lays them side by side, "tall" stacks them. A tap opens the full forecast.
+   */
+  _wxCard(kind) {
+    const w = this._wx(), fc = this._homeForecast();
+    const icon = (c) => WEATHER_ICON[c] || "mdi:weather-cloudy";
+    const deg = (v) => (v == null ? "–" : `${num(Math.round(v))}°`);
+    const rain = (p) => (p != null && p >= 10 ? `<small class="pp"><ha-icon icon="mdi:water-outline"></ha-icon>${Math.round(p)}%</small>` : "");
+    const daily = fc?.daily || [];
+    const isToday = (d) => d && new Date(d.time).toDateString() === new Date().toDateString();
+    const today = isToday(daily[0]) ? daily[0] : null, tom = today ? daily[1] : daily[0];
+    const hrs = (fc?.hourly || []).filter((f) => f.time >= Date.now() - 30 * 60e3).slice(0, kind === "wide" ? 4 : 5);
+    const hh = (d) => d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+    const now = w ? `<div class="wx-now"><ha-icon icon="${icon(w.cond)}"></ha-icon><div class="wx-t"><b>${deg(w.temp)}</b><span>${esc(this._wxLabel(w.cond))}</span>
+        ${today ? `<small>${t("Máx.")} ${deg(today.temp)} · ${t("Mín.")} ${deg(today.low)}</small>` : ""}</div></div>`
+      : `<div class="wx-now"><ha-icon icon="mdi:weather-cloudy-clock"></ha-icon><div class="wx-t"><span>${t("A carregar o tempo…")}</span></div></div>`;
+    const hours = hrs.length ? `<div class="wx-hrs">${hrs.map((f) => `<div><small>${hh(f.time)}</small><ha-icon icon="${icon(f.cond)}"></ha-icon><b>${deg(f.temp)}</b>${rain(f.precip)}</div>`).join("")}</div>`
+      : fc ? "" : `<div class="wx-hrs wx-wait">${t("A carregar a previsão…")}</div>`;
+    const next = tom ? `<div class="wx-tom"><small>${t("Amanhã")}</small><div class="wx-tl"><ha-icon icon="${icon(tom.cond)}"></ha-icon><b>${deg(tom.temp)}</b><span>${deg(tom.low)}</span></div>${rain(tom.precip)}</div>` : "";
+    return `<div class="wxc ${kind} glass" data-wx title="${t("Previsão")}">${now}${hours}${next}</div>`;
+  }
+
   _forecastSheet() {
     const w = this._wx(), fc = this._fc;
     const src = w?.source.kind === "entity" ? this._s(w.source.id)?.attributes.friendly_name || w.source.id : "Open-Meteo";
@@ -515,7 +550,8 @@ class Pine3ViewPanel extends HTMLElement {
         ${this._choice("weather_entity", d.weather_entity, [["", t("Automático")], ...wxs.map((i) => [i, esc(this._s(i).attributes.friendly_name || i)]), ["open-meteo", "Open-Meteo"]],
           t("Fonte do tempo"), t("Automático usa a primeira entidade de tempo do Home Assistant ou, se não houver, a Open-Meteo para a localização da casa."))}
         ${this._toggle("show_people", d.show_people, t("Pessoas"), t("Quem está em casa."))}
-        ${this._toggle("show_status", d.show_status, t("Estado da casa"), t("Luzes acesas e botões Acender/Apagar luzes."))}
+        ${this._choice("home_layout", d.home_layout || "top", [["top", t("Relógio grande")], ["columns", t("Duas colunas")], ["classic", t("Clássica")]], t("Disposição do início"), t("Relógio grande com o estado da casa ao lado; ou duas colunas, com o relógio, o tempo e o que está ligado à esquerda e os cartões à direita; ou a disposição original."))}
+        ${this._toggle("show_status", d.show_status, t("Estado da casa"), t("Luzes acesas, outros aparelhos ligados e botões Acender/Apagar luzes."))}
         ${this._toggle("show_scenes", d.show_scenes, t("Cenas"), t("Faixa de cenas no início."))}
         ${this._toggle("show_summary", d.show_summary, t("Cartões de resumo"), t("Clima, Segurança e A tocar."))}
         ${this._toggle("clock_24h", d.clock_24h, t("Relógio de 24 horas"), t("Desliga para mostrar AM/PM."))}
@@ -878,12 +914,24 @@ class Pine3ViewPanel extends HTMLElement {
       const ini = (p.attributes.friendly_name || "?").trim()[0].toUpperCase();
       return `<div class="av ${p.state === "home" ? "home" : ""}" title="${esc(p.attributes.friendly_name)}" style="background-color:${tint[k % 4]};${pic ? `background-image:url('${esc(pic)}')` : ""}">${pic ? "" : esc(ini)}<i></i></div>`;
     }).join("")}</div>` : "";
+    this._peopleHtml = cfg.show_people ? people : "";
     return `<div class="top">
       <div><div class="eyebrow">${esc(this._dateText())}</div><div class="clock">${this._clockText()}</div>${this._hint()}</div>
       <div class="right">
         ${cfg.show_weather ? this._wxPill() : ""}
         ${cfg.show_people ? people : ""}${this._editBtn()}${this._gear()}
       </div></div>`;
+  }
+
+  /** What else is on besides lights (plugs, switches, fans/purifiers, TVs and speakers, AC, a cleaning vacuum). */
+  _activeOthers(all) {
+    return all.filter((i) => ["switch", "input_boolean", "fan", "media_player", "climate", "vacuum"].includes(dom(i)) && this._isOn(i));
+  }
+  /** One line for the status: the names of the first few, then "+N". */
+  _othersLine(others) {
+    if (!others.length) return "";
+    const names = others.slice(0, 3).map((i) => this._name(i));
+    return `${tp(others.length, "Também ligado:", "Também ligados:")} ${names.join(", ")}${others.length > 3 ? ` +${others.length - 3}` : ""}`;
   }
 
   /**
@@ -1006,12 +1054,47 @@ class Pine3ViewPanel extends HTMLElement {
           <div class="ctl"><span data-media="media_previous_track" data-ent-id="${media}"><ha-icon icon="mdi:skip-previous"></ha-icon></span><span class="pp" data-media="media_play_pause" data-ent-id="${media}"><ha-icon icon="mdi:${this._s(media).state === "playing" ? "pause" : "play"}"></ha-icon></span><span data-media="media_next_track" data-ent-id="${media}"><ha-icon icon="mdi:skip-next"></ha-icon></span></div></div></div>`);
     }
 
-    return `${this._topBar()}
-      ${cfg.show_status && !this._edit ? `<div class="statusrow"><div><div class="eyebrow">${t("Estado da casa")}</div><div class="status">${status}</div></div>
-        ${lights.length ? `<div class="actions"><button class="pill" data-all="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender luzes")}</button><button class="pill solid" data-all="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar luzes")}</button></div>` : ""}</div>` : ""}
+    const others = this._activeOthers(all);
+    const lightBtns = lights.length ? `<div class="actions"><button class="pill" data-all="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender luzes")}</button><button class="pill solid" data-all="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar luzes")}</button></div>` : "";
+    const grid = rooms.length || this._edit ? `<div class="grid hgrid" data-sortable="rooms">${this._homeItems(rooms, cfg.show_summary ? cards : []).join("")}${this._restoreCard(this._hiddenRooms.length)}</div>`
+      : `<div class="empty">${t("Ainda não há divisões com dispositivos. Atribui áreas aos teus dispositivos no Home Assistant.")}</div>`;
+    const showStatus = cfg.show_status && !this._edit;
+    const layout = cfg.home_layout || "top";
+    const topBar = this._topBar(); // also prepares the people avatars
+    const right = `${cfg.show_weather ? this._wxPill() : ""}${this._peopleHtml}${this._editBtn()}${this._gear()}`;
+
+    if (layout === "columns") {
+      // 1/3: date, a big clock, weather, people and what is on · 2/3: actions, scenes and the cards (3 rows of 4)
+      const list = [...lightsOn.length ? [[`mdi:lightbulb-on`, tp(lightsOn.length, "{n} luz acesa", "{n} luzes acesas")]] : [], ...others.map((i) => [this._icon(i), this._name(i)])];
+      return `<div class="hcols ${this._edit ? "editing" : ""}">
+        <aside class="hleft">
+          <div class="eyebrow tdate">${esc(this._dateText())}</div><div class="clock">${this._clockText()}</div>${this._hint()}
+          ${showStatus ? `<div class="hstat"><div class="eyebrow">${t("Estado da casa")}</div><div class="status">${list.length ? (lightsOn.length ? tp(lightsOn.length, "{n} luz acesa", "{n} luzes acesas") : tp(others.length, "{n} dispositivo ligado", "{n} dispositivos ligados")) : status}</div>
+            ${list.length ? `<ul class="hon">${list.slice(lightsOn.length ? 1 : 0, 6).map(([icon, n]) => `<li><ha-icon icon="${icon}"></ha-icon>${esc(n)}</li>`).join("")}${list.length > 6 ? `<li class="hmore">+${list.length - 6}</li>` : ""}</ul>` : ""}</div>` : ""}
+          ${cfg.show_weather ? this._wxCard("tall") : ""}
+        </aside>
+        <div class="hmain">
+          <div class="hbar">${showStatus ? lightBtns : ""}<span class="sp"></span>${this._peopleHtml}${this._editBtn()}${this._gear()}</div>
+          ${this._edit ? "" : scenesHtml}
+          ${grid}
+        </div>
+      </div>`;
+    }
+    if (layout === "top") {
+      // a big clock with the home status beside it, then scenes and cards
+      return `<div class="top t1">
+          <div class="tclock"><div class="eyebrow tdate">${esc(this._dateText())}</div><div class="clock">${this._clockText()}</div>${this._hint()}</div>
+          ${showStatus ? `<div class="tstat"><div class="eyebrow">${t("Estado da casa")}</div><div class="status">${lightsOn.length ? tp(lightsOn.length, "{n} luz acesa", "{n} luzes acesas") : status}</div>${others.length ? `<div class="sdet">${esc(this._othersLine(others))}</div>` : ""}${lightBtns}</div>` : `<div class="tstat"></div>`}
+          <div class="tside"><div class="right">${this._peopleHtml}${this._editBtn()}${this._gear()}</div>${cfg.show_weather ? this._wxCard("wide") : ""}</div>
+          <div class="tsc">${this._edit ? "" : scenesHtml}</div>
+        </div>
+        ${grid}`;
+    }
+    return `${topBar}
+      ${showStatus ? `<div class="statusrow"><div><div class="eyebrow">${t("Estado da casa")}</div><div class="status">${status}</div>${others.length ? `<div class="sdet">${esc(this._othersLine(others))}</div>` : ""}</div>
+        ${lightBtns}</div>` : ""}
       ${this._edit ? "" : scenesHtml}
-      ${rooms.length || this._edit ? `<div class="grid hgrid" data-sortable="rooms">${this._homeItems(rooms, cfg.show_summary ? cards : []).join("")}${this._restoreCard(this._hiddenRooms.length)}</div>`
-        : `<div class="empty">${t("Ainda não há divisões com dispositivos. Atribui áreas aos teus dispositivos no Home Assistant.")}</div>`}`;
+      ${grid}`;
   }
 
   _roomsView(rooms) {
