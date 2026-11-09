@@ -373,3 +373,25 @@ async def test_ipma_warnings(hass: HomeAssistant, hass_ws_client, aioclient_mock
     await ws.send_json({"id": 2, "type": "pine3_view/ipma_warnings", "area": "GDA"})
     assert [w["awarenessLevelID"] for w in (await ws.receive_json())["result"]["warnings"]] == ["red"]
     assert aioclient_mock.call_count == 1  # cached
+
+
+async def test_identify_buttons_hidden(hass: HomeAssistant) -> None:
+    """HomeKit's "Identify" buttons never show on a device's card."""
+    entry = MockConfigEntry(domain="homekit_controller")
+    entry.add_to_hass(hass)
+    areas, devs, ents = ar.async_get(hass), dr.async_get(hass), er.async_get(hass)
+    sala = areas.async_create("Sala")
+    tv = devs.async_get_or_create(config_entry_id=entry.entry_id, identifiers={("hk", "tv")}, name="TV")
+    tv = devs.async_update_device(tv.id, area_id=sala.id)
+
+    def entity(domain, uid, state, attrs=None, **kw):
+        e = ents.async_get_or_create(domain, "homekit_controller", uid, device_id=tv.id, config_entry=entry, **kw)
+        hass.states.async_set(e.entity_id, state, attrs or {})
+        return e.entity_id
+
+    mp = entity("media_player", "tv", "on", {"device_class": "tv"})
+    ident = entity("button", "tv_identify", "unknown", {"device_class": "identify"}, entity_category=EntityCategory.DIAGNOSTIC)
+    mute = entity("switch", "tv_mute", "off")
+    rooms = {r["name"]: r for r in build_home(hass, {"hidden": [], "hidden_rooms": [], "room_order": []})["rooms"]}
+    dev = next(d for d in rooms["Sala"]["devices"] if d["id"] == mp)
+    assert mute in dev["members"] and ident not in dev["members"]
