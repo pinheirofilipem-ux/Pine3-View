@@ -1310,7 +1310,7 @@ class Pine3ViewPanel extends HTMLElement {
     };
     const html = `${readings.length ? `<div class="sub">${t("Leituras")}</div><div class="dv-grid">${readings.map((e) =>
         `<div class="dv-r"><div class="dv-rv"><ha-icon icon="${this._icon(e)}"></ha-icon><b>${esc(value(e))}</b></div><small>${esc(this._memberName(id, e))}</small></div>`).join("")}</div>` : ""}
-      ${toggles.length || selects.length || controls.length ? `<div class="sub">${t("Controlos")}</div>` : ""}
+      <!--side-->${toggles.length || selects.length || controls.length ? `<div class="sub">${t("Controlos")}</div>` : ""}
       ${toggles.length || selects.length ? `<div class="dv-tgrid" style="grid-auto-flow:row dense">${toggles.map((e) => `<button class="dv-t ${this._isOn(e) ? "on" : ""}" data-dvtg="${esc(e)}"><ha-icon icon="${this._icon(e)}"></ha-icon><span>${esc(this._memberName(id, e))}</span></button>`).join("")}${selects.map(sel).join("")}</div>` : ""}
       ${controls.length ? `<div class="dv-list">${controls.map(ctl).join("")}</div>` : ""}`;
     this._selShown = this._selOpen; // the open option row animates once, not on every redraw
@@ -1527,11 +1527,11 @@ class Pine3ViewPanel extends HTMLElement {
       const pct = on ? Math.round(((a.brightness ?? 255) / 255) * 100) : 0;
       const colors = (a.supported_color_modes || []).some((m) => ["hs", "rgb", "rgbw", "rgbww", "xy"].includes(m));
       content = `${this._slider("brightness", pct, compact)}
-        ${colors ? `<div class="swatches">${["#ffffff", "#ffd28a", "#ff8a5c", "#ff5ca8", "#8a7cff", "#5cc8ff", "#5cff9d"].map((c) => `<div class="sw" data-color="${c}" style="background:${c}"></div>`).join("")}</div>` : ""}`;
+        <!--side-->${colors ? `<div class="sub sh-only">${t("Cor")}</div>` : ""}${colors ? `<div class="swatches">${["#ffffff", "#ffd28a", "#ff8a5c", "#ff5ca8", "#8a7cff", "#5cc8ff", "#5cff9d"].map((c) => `<div class="sw" data-color="${c}" style="background:${c}"></div>`).join("")}</div>` : ""}`;
     } else if (d === "cover" && a.current_position != null) {
       const pct = a.current_position;
       content = `${this._slider("position", pct, compact)}
-        <div class="row"><button class="pill" data-svc="cover.open_cover">${t("Abrir")}</button><button class="pill" data-svc="cover.stop_cover">${t("Parar")}</button><button class="pill" data-svc="cover.close_cover">${t("Fechar")}</button></div>`;
+        <!--side--><div class="row"><button class="pill" data-svc="cover.open_cover">${t("Abrir")}</button><button class="pill" data-svc="cover.stop_cover">${t("Parar")}</button><button class="pill" data-svc="cover.close_cover">${t("Fechar")}</button></div>`;
     } else if (d === "climate") {
       // single target ("temperature") or a range (heat_cool / auto: target_temp_low + target_temp_high, e.g. Tado via HomeKit)
       const step = a.target_temp_step || 0.5, min = a.min_temp ?? 7, max = a.max_temp ?? 35;
@@ -1569,12 +1569,12 @@ class Pine3ViewPanel extends HTMLElement {
       content = `${a.entity_picture && on ? `<img src="${esc(a.entity_picture)}" style="width:100%;max-height:260px;object-fit:cover;border-radius:20px;margin-top:18px">` : ""}
         ${a.media_title ? `<div style="text-align:center;margin-top:14px;font-weight:700">${esc(a.media_title)}</div><div style="text-align:center;color:var(--muted);font-size:13px">${esc(a.media_artist || a.app_name || "")}</div>` : ""}
         ${on && transport ? `<div class="row">${transport}</div>` : ""}
-        ${on && sources.length ? `<div class="sub">${t("Entrada")}</div><div class="row presets">${sources.map((src) => `<button class="pill ${src === a.source ? "act" : ""}" data-src="${esc(src)}">${esc(src)}</button>`).join("")}</div>` : ""}
+        <!--side-->${on && sources.length ? `<div class="sub">${t("Entrada")}</div><div class="row presets">${sources.map((src) => `<button class="pill ${src === a.source ? "act" : ""}" data-src="${esc(src)}">${esc(src)}</button>`).join("")}</div>` : ""}
         ${on && has(4) && a.volume_level != null ? `<div class="sub">${t("Volume")}</div>${this._slider("volume", vol, true)}`
           : on && has(1024) ? `<div class="sub">${t("Volume")}</div><div class="row"><button class="round" data-svc="media_player.volume_down">−</button>${has(8) ? `<button class="round" data-mute><ha-icon icon="mdi:volume-${a.is_volume_muted ? "off" : "high"}"></ha-icon></button>` : ""}<button class="round" data-svc="media_player.volume_up">+</button></div>` : ""}`;
     } else if (d === "fan" && (a.percentage != null || a.preset_modes?.length)) {
       content = `${a.percentage != null ? this._slider("fan", on ? a.percentage : 0, compact) : ""}
-        ${a.preset_modes?.length ? `<div class="row ${compact ? "presets" : ""}">${a.preset_modes.map((m) => `<button class="pill ${on && m === a.preset_mode ? "act" : ""}" data-preset="${esc(m)}">${esc(this._st(m))}</button>`).join("")}</div>` : ""}`;
+        <!--side-->${a.preset_modes?.length ? `<div class="sub sh-only">${t("Modo")}</div>` : ""}${a.preset_modes?.length ? `<div class="row ${compact ? "presets" : ""}">${a.preset_modes.map((m) => `<button class="pill ${on && m === a.preset_mode ? "act" : ""}" data-preset="${esc(m)}">${esc(this._st(m))}</button>`).join("")}</div>` : ""}`;
     } else if (d === "vacuum") {
       content = this._vacuumContent(id);
     } else if (d === "camera") {
@@ -1583,21 +1583,25 @@ class Pine3ViewPanel extends HTMLElement {
       const skip = new Set(["friendly_name", "icon", "entity_picture", "supported_features", "attribution"]);
       const rows = Object.entries(a).filter(([k, v]) => !skip.has(k) && typeof v !== "object").slice(0, 8);
       content = `${d === "sensor" ? `<div style="font-size:48px;font-weight:300;text-align:center;margin:24px 0 6px">${esc(this._sensorVal(id))}</div>` : ""}
-        ${rows.length ? `<div class="attrs">${rows.map(([k, v]) => `<span>${esc(k.replace(/_/g, " "))}</span><b>${esc(v)}</b>`).join("")}</div>` : ""}`;
+        <!--side-->${rows.length ? `<div class="attrs">${rows.map(([k, v]) => `<span>${esc(k.replace(/_/g, " "))}</span><b>${esc(v)}</b>`).join("")}</div>` : ""}`;
     }
     const canToggle = TOGGLE.has(d) && (d !== "media_player" || ((a.supported_features || 0) & 384) !== 0);
     const device = d === "vacuum" ? this._vacuumSections(id) : this._deviceSection(id);
     const more = `<div class="more"><button data-more title="${t("Mais definições")}" aria-label="${t("Mais definições")}"><ha-icon icon="mdi:cog-outline"></ha-icon></button></div>`;
     // wide screens: the main control on the left, everything else of the device on the right
-    // a big main control (ring, slider, picture, vacuum) sits beside the device's other entities;
-    // a small one (a row of modes) goes on top of a wide sheet whose grids fit more per row
-    const big = /class="(ring|vslider|vac-hd)|<img/.test(content);
-    const cols = (device || (d === "climate" && content.includes("<!--side-->"))) && big;
-    const layout = cols ? "wide dev cols" : !device ? "" : "wide dev wide1";
+    // landscape screens: two columns wherever there are two parts. Left: the main control (and, without a
+    // second part of its own, the device's readings); right: the rest (modes, inputs, colours, controls...).
+    const has = (h) => h.replace(/<!--side-->|\s/g, "") !== "";
+    const [cm, cs = ""] = content.split("<!--side-->"), [dm, ds = ""] = device.split("<!--side-->");
+    let left, right;
+    const c = cm + cs;
+    if (has(cm) && has(cs)) { left = cm; right = cs + device; } else if (has(ds) && has(c + dm)) { left = c + dm; right = ds; } else if (has(c) && has(dm)) { left = c; right = dm; }
+    const cols = !!(left && right && has(left) && has(right));
+    const layout = cols ? `wide dev cols ${device ? "" : "cols-sm"}` : device ? "wide dev" : "";
     return `<div class="ov ${this._ovEnter(id)} ${device ? "dev" : ""}" data-close><div class="sheet ${layout}" style="--acc:${this._accent(id)}">
       <div class="hd"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div><div style="flex:1;min-width:0"><div class="nm">${esc(this._name(id))}</div><div class="st">${esc(this._stateText(id))}</div></div>
       ${canToggle ? `<button class="pill ${on ? "act" : ""}" data-toggle>${on ? t("Desligar") : t("Ligar")}</button>` : ""}<button class="sh-x" data-closex title="${t("Fechar")}" aria-label="${t("Fechar")}"><ha-icon icon="mdi:close"></ha-icon></button></div>
-      ${cols ? (() => { const [m, sd = ""] = content.split("<!--side-->"); return `<div class="sh-main">${m}${more}</div><div class="sh-side">${sd}${device}</div>`; })() : `${content}${device}${more}`}</div></div>`;
+      ${cols ? `<div class="sh-main">${left}${more}</div><div class="sh-side">${right}</div>` : `${content}${device}${more}`}</div></div>`;
   }
 
   _bind() {

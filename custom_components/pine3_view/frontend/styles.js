@@ -210,7 +210,11 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
   .sheet.cols .sh-side>.sub:first-child{margin-top:12px}
   .sheet.cols .sh-side>.row:first-of-type{justify-content:flex-start}
   .sheet.cols .sh-side .vac-map{margin-top:12px;max-height:300px}
-  .ov .sheet.wide1{width:min(1000px,calc(100vw - 64px))}
+  .ov .sheet.cols-sm{width:min(860px,calc(100vw - 64px))}
+  .sheet.cols .sh-side .swatches{justify-content:flex-start;flex-wrap:wrap}
+  .sheet.cols .sh-side .attrs{margin-top:12px}
+  .sheet.cols .sh-side>.row{justify-content:flex-start}
+  .sheet.cols .sh-main>.vslider:first-child{margin-top:18px}
   .sheet.wide1 .dv-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
   .sheet.wide1 .dv-tgrid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
   .sheet.wide1 .row.presets{flex-wrap:wrap;overflow:visible}
