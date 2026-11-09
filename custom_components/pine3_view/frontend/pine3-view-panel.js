@@ -3,7 +3,7 @@
 
 import {
   SHOWN, TOGGLE, DETAIL, SECTIONS, DOMAIN_ICON, DEVICE_CLASS_ICON, ACCENT, STATE_PT, WEATHER_PT, WEATHER_ICON,
-  BIN_PT, NAME_ICON, THEMES, LIGHT_THEMES, CARD_COLORS, ACCENTS, DOCK_ITEMS, DEFAULTS, THEME_NAMES, esc, dom, store, loadFonts,
+  BIN_PT, NAME_ICON, THEMES, LIGHT_THEMES, VIVID_THEMES, CARD_COLORS, ACCENTS, DOCK_ITEMS, DEFAULTS, THEME_NAMES, esc, dom, store, loadFonts,
 } from "./const.js";
 import { css } from "./styles.js";
 import { t, tp, num, locale, setLang, lang } from "./i18n.js";
@@ -620,15 +620,15 @@ class Pine3ViewPanel extends HTMLElement {
         </div>
         ${(() => {
           // themes: dark and light; automatic = one for the day and one for the night, by sunrise and sunset
-          const keys = Object.keys(THEMES), dark = keys.filter((k) => !LIGHT_THEMES.has(k)), lightK = keys.filter((k) => LIGHT_THEMES.has(k));
+          const keys = Object.keys(THEMES), dark = keys.filter((k) => !LIGHT_THEMES.has(k) && !VIVID_THEMES.has(k)), vivid = keys.filter((k) => VIVID_THEMES.has(k)), lightK = keys.filter((k) => LIGHT_THEMES.has(k));
           const grid = (attr, cur, list) => `<div class="bgs">${list.map((k) => `<div class="bgc ${k === cur ? "act" : ""}" data-${attr}="${k}"><div style="background:${THEMES[k]}"></div><span>${t(THEME_NAMES[k])}</span></div>`).join("")}</div>`;
           const auto = d.appearance === "auto";
           const sun = this._s("sun.sun");
           return `<div class="panel glass"><h3 style="margin-top:0">${t("Fundo")}</h3><p>${t("O ambiente por trás dos cartões. Os fundos claros põem todo o painel em modo claro.")}</p>
             <div class="opts">${this._choice("appearance", auto ? "auto" : "fixed", [["fixed", t("Fixo")], ["auto", t("Automático")]], t("Modo"),
               auto ? (sun ? t("Usa o fundo de dia entre o nascer e o pôr do sol (sun.sun) e o de noite no resto do tempo.") : t("Sem a entidade sun.sun: usa o fundo de dia das 7h às 19h.")) : t("Um fundo sempre igual, ou um para o dia e outro para a noite, ao nascer e ao pôr do sol."))}</div>
-            ${auto ? `<h3>${t("De dia")}</h3>${grid("themeday", d.theme_day || "linho", [...lightK, ...dark])}<h3>${t("À noite")}</h3>${grid("themenight", d.theme_night || "ameixa", [...dark, ...lightK])}`
-              : `<h3>${t("Escuros")}</h3>${grid("theme", d.theme, dark)}<h3>${t("Claros")}</h3>${grid("theme", d.theme, lightK)}`}</div>`;
+            ${auto ? `<h3>${t("De dia")}</h3>${grid("themeday", d.theme_day || "linho", [...lightK, ...vivid, ...dark])}<h3>${t("À noite")}</h3>${grid("themenight", d.theme_night || "ameixa", [...dark, ...vivid, ...lightK])}`
+              : `<h3>${t("Vivos")}</h3>${grid("theme", d.theme, vivid)}<h3>${t("Escuros")}</h3>${grid("theme", d.theme, dark)}<h3>${t("Claros")}</h3>${grid("theme", d.theme, lightK)}`}</div>`;
         })()}`;
     } else if (sec === "home") {
       const wxs = this._weather.entities(this._hass);
