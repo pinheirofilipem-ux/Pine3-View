@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
 from typing import Any
 
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.storage import Store
 
@@ -77,6 +80,7 @@ async def async_setup_api(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_home)
     websocket_api.async_register_command(hass, ws_settings)
     websocket_api.async_register_command(hass, ws_subscribe)
+    websocket_api.async_register_command(hass, ws_ipma_warnings)
 
     pending: list = []
 
@@ -197,3 +201,34 @@ async def ws_settings(hass: HomeAssistant, connection: websocket_api.ActiveConne
     await data["store"].async_save(data["settings"])
     hass.bus.async_fire(EVENT_UPDATED)
     connection.send_result(msg["id"], data["settings"])
+
+
+# IPMA (Portuguese weather service): the HA integration exposes only the first warning of an area,
+# so the panel asks for all of them here (server side: no CORS, one download for every panel).
+IPMA_WARNINGS_URL = "https://api.ipma.pt/open-data/forecast/warnings/warnings_www.json"
+IPMA_TTL = 600  # seconds
+IPMA_FIELDS = ("text", "awarenessTypeName", "awarenessLevelID", "startTime", "endTime")
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/ipma_warnings", vol.Required("area"): str})
+@websocket_api.async_response
+async def ws_ipma_warnings(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
+    cache = hass.data.setdefault(f"{DOMAIN}_ipma", {})
+    if cache.get("raw") is None or time.monotonic() - cache.get("at", 0) > IPMA_TTL:
+        try:
+            async with asyncio.timeout(10):
+                resp = await async_get_clientsession(hass).get(IPMA_WARNINGS_URL)
+                resp.raise_for_status()
+                raw = await resp.json(content_type=None)
+            if isinstance(raw, list):
+                cache.update(raw=raw, at=time.monotonic())
+        except Exception as err:  # noqa: BLE001 - network or format: keep the last list if there is one
+            if cache.get("raw") is None:
+                connection.send_error(msg["id"], "unavailable", str(err))
+                return
+    warnings = [
+        {k: w.get(k) for k in IPMA_FIELDS}
+        for w in cache.get("raw") or []
+        if isinstance(w, dict) and w.get("idAreaAviso") == msg["area"] and w.get("awarenessLevelID") not in (None, "green")
+    ]
+    connection.send_result(msg["id"], {"warnings": warnings})
