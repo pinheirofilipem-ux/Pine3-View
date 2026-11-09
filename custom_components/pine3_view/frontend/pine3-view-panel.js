@@ -51,7 +51,7 @@ class Pine3ViewPanel extends HTMLElement {
     const kiosk = /[?&#]kiosk\b/.test(location.search + location.hash);
     if (kiosk || store.get("hide_sidebar", false)) this._dockSidebar(true);
     this._applyWakeLock();
-    this._onResize = () => { this._fit3d?.(); this._fitDock(); this._placeBlob(false); this._packSections(); };
+    this._onResize = () => { this._fit3d?.(); this._fitDock(); this._dockSpace(); this._placeBlob(false); this._packSections(); };
     window.addEventListener("resize", this._onResize);
     if (this._hass) this._connect();
   }
@@ -303,6 +303,7 @@ class Pine3ViewPanel extends HTMLElement {
     nav.querySelectorAll("button").forEach((b) => b.classList.toggle("act", b.dataset.dock === active));
     if (!show) { this._blobAt = null; return; }
     this._fitDock(active);
+    this._dockSpace();
     this._placeBlob(this._blobAt != null && this._blobAt !== active);
     this._blobAt = active;
   }
@@ -321,6 +322,13 @@ class Pine3ViewPanel extends HTMLElement {
   }
 
   /** The glass lens under the active tab; with `animate` it slides there and stretches like a drop on the way. */
+  /** The space the floating dock takes at the bottom, so the content stops right above it (no needless scroll). */
+  _dockSpace() {
+    const nav = this._dockEl;
+    if (!nav || nav.hidden) { this.style.removeProperty("--dock-space"); return; }
+    const top = nav.getBoundingClientRect().top;
+    if (top > 0) this.style.setProperty("--dock-space", `${Math.ceil(window.innerHeight - top)}px`);
+  }
   _placeBlob(animate) {
     const nav = this._dockEl, blob = nav?.querySelector(".blob"), act = nav?.querySelector("button.act");
     if (!blob) return;

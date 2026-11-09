@@ -8,7 +8,7 @@ export const css = `
   --ring-bg:#202329;--ring-dim:rgba(255,255,255,.12);--ring-off:rgba(255,255,255,.2);--ring-idle:rgba(255,255,255,.4)}
 .bg{position:fixed;inset:0;z-index:0;transition:background .6s}
 .bg::after{content:"";position:absolute;inset:0;background:radial-gradient(transparent 45%,rgba(0,0,0,.28))}
-.wrap{position:relative;z-index:1;max-width:1500px;margin:0 auto;padding:0 40px 130px}
+.wrap{position:relative;z-index:1;max-width:1500px;margin:0 auto;padding:0 40px calc(var(--dock-space,108px) + 14px)}
 .glass{background:var(--glass);backdrop-filter:blur(30px) saturate(150%);-webkit-backdrop-filter:blur(30px) saturate(150%);border:1px solid var(--line)}
 .hero .t,h2,.rc .nm,.clock,.status,.tile .nm,.tile.sensor .val,.ring .tgt,.sheet .hd .nm,.wpill b,.big-num,.media .ttl{font-family:var(--display)}
 header{display:flex;align-items:center;gap:10px;padding:22px 0 0}
@@ -453,7 +453,7 @@ a.pill{color:inherit;text-decoration:none}
   .set-nav button{height:46px;font-size:15px;flex:none;padding:0 14px 0 8px}.set-nav .ni{width:30px;height:30px}
   .panel{padding:20px;border-radius:26px}.swc{width:44px;height:44px}.pv{width:160px;min-height:190px}.bgs{grid-template-columns:1fr 1fr}
 
-  .wrap{padding:0 16px 116px}.top{padding-top:20px}.statusrow{margin-top:24px}
+  .wrap{padding:0 16px calc(var(--dock-space,94px) + 12px)}.top{padding-top:20px}.statusrow{margin-top:24px}
   .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.rc{min-height:190px;padding:16px;border-radius:24px}
   .rc .nm{font-size:18px}.rc .meta{font-size:14px}.ri{width:44px;height:44px}.pw{width:50px;height:50px}
   .tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.tile{min-height:150px;padding:14px}.tile .nm{font-size:16px}.tile .pw{width:44px;height:44px}
@@ -483,7 +483,7 @@ a.pill{color:inherit;text-decoration:none}
   .statusrow{margin-top:12px}.status{font-size:28px;margin-top:4px}.statusrow .pill{height:42px}
   .hsc{margin-top:14px}.hsc .scenes{padding-top:8px}.hsc .scene{height:42px;padding:0 18px 0 16px;font-size:15px}
   .hgrid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-top:14px}
-  .hgrid .rc{min-height:clamp(116px,calc((100vh - 372px) / 2),210px)}
+  .hgrid .rc{min-height:clamp(116px,calc((100vh - 384px) / 2),210px)}
   .hgrid .big-num{font-size:36px}.hgrid .big-txt{font-size:22px}.hgrid .media .ttl{font-size:18px}.hgrid .media .ctl{gap:14px;margin-top:8px}.hgrid .media .ctl .pp{width:42px;height:42px}.hgrid .media .bar{margin-top:8px}
 }
 @media (min-width:721px) and (max-height:680px){
@@ -560,7 +560,7 @@ a.pill{color:inherit;text-decoration:none}
 .hbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.hbar .sp{flex:1}.hbar .actions{display:flex;gap:10px}
 .hmain .hsc{margin-top:14px}
 .hcols .hgrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
-.hcols .hgrid .rc{min-height:clamp(120px,calc((100vh - 296px) / 3),230px);padding:16px}
+.hcols .hgrid .rc{min-height:clamp(120px,calc((100vh - 316px) / 3),230px);padding:16px}
 .hcols .hgrid .rc .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hcols .hgrid .big-num{font-size:32px}.hcols .hgrid .big-txt{font-size:20px}
 .hcols .hgrid .media .ttl{font-size:16px}.hcols .hgrid .media .art{font-size:13px}.hcols .hgrid .media .bar{margin-top:6px}
@@ -568,6 +568,10 @@ a.pill{color:inherit;text-decoration:none}
 @media (min-width:721px) and (max-height:920px){
   .t1 .pill,.hbar .pill{height:42px}
   .hcols{padding-top:14px;gap:28px}.hwx{margin-top:12px}.hstat{margin-top:16px}.hon{font-size:15px;gap:6px}
+}
+@media (min-width:721px) and (max-height:760px){
+  .hcols .hgrid{gap:10px;margin-top:12px}.hcols .hgrid .rc{padding:12px 14px}.hmain .hsc{margin-top:8px}.hmain .hsc .scenes{padding-top:6px}
+  .hcols .ri{width:38px;height:38px}.hcols .pw{width:44px;height:44px}
 }
 @media (max-width:720px){
   .top.t1{grid-template-columns:1fr;grid-template-areas:"side" "clock" "stat" "sc";gap:14px}.t1 .tstat{border:0;padding:0}.wxc.wide{flex-wrap:wrap}.wxc.wide .wx-hrs{order:3;flex-basis:100%;border:0;padding:8px 0 0}
