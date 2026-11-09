@@ -96,6 +96,7 @@ class Pine3ViewPanel extends HTMLElement {
     if (this._cfg().appearance === "auto") w.add("sun.sun"); // day / night theme
     for (const sc of this._model.scenes || []) { const l = this._s(sc)?.attributes.entity_id; if (Array.isArray(l)) add(l); } // a scene lights up while its devices are on
     add(Object.keys(this._hass.states).filter((i) => i.startsWith("weather.")));
+    { const ip = this._ipma(); add([ip.alert, ip.uv, ip.fire].filter(Boolean)); } // IPMA warnings
     if (this._modal && !this._modal.startsWith("_")) w.add(this._modal);
     this._watch = w;
   }
@@ -418,7 +419,8 @@ class Pine3ViewPanel extends HTMLElement {
   _wxPill() {
     const w = this._wx();
     if (!w) return `<div class="wpill glass" data-wx><ha-icon icon="mdi:weather-cloudy-clock"></ha-icon><span>${t("A carregar o tempo…")}</span></div>`;
-    return `<div class="wpill glass" data-wx title="${t("Previsão")}"><ha-icon icon="${WEATHER_ICON[w.cond] || "mdi:weather-partly-cloudy"}"></ha-icon><b>${num(Math.round(w.temp ?? 0))}°</b><span>${esc(this._wxLabel(w.cond))}</span></div>`;
+    const al = this._ipmaAlert();
+    return `<div class="wpill glass" data-wx title="${t("Previsão")}"><ha-icon icon="${WEATHER_ICON[w.cond] || "mdi:weather-partly-cloudy"}"></ha-icon><b>${num(Math.round(w.temp ?? 0))}°</b><span>${esc(this._wxLabel(w.cond))}</span>${al ? `<ha-icon class="wx-al lv-${al.level}" icon="mdi:alert"></ha-icon>` : ""}</div>`;
   }
   async _openForecast() {
     this._modal = "_wx";
@@ -427,6 +429,38 @@ class Pine3ViewPanel extends HTMLElement {
     this._fc = await this._weather.forecast(this._hass, this._cfg().weather_entity);
     if (this._modal === "_wx") this._render();
   }
+  // ---------- IPMA (Portuguese weather service): warnings, UV index and fire risk ----------
+  _ipma() {
+    const h = this._hass, st = h.states;
+    const ids = Object.keys(st).filter((i) => dom(i) === "sensor" && (h.entities?.[i]?.platform === "ipma" || /ipma/.test(i)));
+    const levels = ["green", "yellow", "orange", "red"];
+    return {
+      alert: ids.find((i) => st[i].attributes.awarenessTypeName != null || (levels.includes(st[i].state) && /alert|aviso|warning/.test(i))),
+      uv: ids.find((i) => /uv/.test(i)),
+      fire: ids.find((i) => /rcm|fire|incend/.test(i)),
+    };
+  }
+  /** The active IPMA warning (yellow / orange / red), or null. */
+  _ipmaAlert() {
+    const id = this._ipma().alert, s = id && this._s(id);
+    if (!s || !["yellow", "orange", "red"].includes(s.state)) return null;
+    const a = s.attributes, when = (v) => (v ? new Date(String(v).replace(" ", "T")) : null);
+    return { level: s.state, type: a.awarenessTypeName || "", text: a.text || "", start: when(a.startTime), end: when(a.endTime) };
+  }
+  _alertWhen(al) {
+    const fmt = (d) => {
+      const today = d.toDateString() === new Date().toDateString();
+      const hm = d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+      return today ? hm : `${d.toLocaleDateString(locale(), { weekday: "short" })} ${hm}`;
+    };
+    if (al.start && al.start > new Date()) return t("a partir de {t}", { t: fmt(al.start) });
+    return al.end && !isNaN(al.end) ? t("até {t}", { t: fmt(al.end) }) : "";
+  }
+  _alertBanner(al, full = false) {
+    const lv = { yellow: t("Aviso amarelo"), orange: t("Aviso laranja"), red: t("Aviso vermelho") }[al.level];
+    return `<div class="wx-alert lv-${al.level} ${full ? "full" : ""}"><ha-icon icon="mdi:alert"></ha-icon><div><b>${esc(lv)}${al.type ? ` · ${esc(al.type)}` : ""}</b>${this._alertWhen(al) ? `<small>${esc(this._alertWhen(al))}</small>` : ""}${full && al.text ? `<p>${esc(al.text)}</p>` : ""}</div></div>`;
+  }
+
   /** The forecast for the home weather card, refreshed every 15 minutes (loads in the background, then redraws). */
   _homeForecast() {
     const c = this._hfc;
@@ -459,7 +493,8 @@ class Pine3ViewPanel extends HTMLElement {
     const hours = hrs.length ? `<div class="wx-hrs">${hrs.map((f) => `<div><small>${hh(f.time)}</small><ha-icon icon="${icon(f.cond)}"></ha-icon><b>${deg(f.temp)}</b>${rain(f.precip)}</div>`).join("")}</div>`
       : fc ? "" : `<div class="wx-hrs wx-wait">${t("A carregar a previsão…")}</div>`;
     const next = tom ? `<div class="wx-tom"><small>${t("Amanhã")}</small><div class="wx-tl"><ha-icon icon="${icon(tom.cond)}"></ha-icon><b>${deg(tom.temp)}</b><span>${deg(tom.low)}</span></div>${rain(tom.precip)}</div>` : "";
-    return `<div class="wxc ${kind} glass" data-wx title="${t("Previsão")}">${now}${hours}${next}</div>`;
+    const al = this._ipmaAlert();
+    return `<div class="wxc ${kind} glass ${al ? "has-alert" : ""}" data-wx title="${t("Previsão")}">${now}${hours}${al && kind === "tall" ? "" : next}${al ? this._alertBanner(al) : ""}</div>`;
   }
 
   _forecastSheet() {
@@ -473,6 +508,13 @@ class Pine3ViewPanel extends HTMLElement {
     return `<div class="ov ${this._ovEnter("_wx")}" data-close><div class="sheet wide">
       <div class="hd"><div class="ic" style="background:var(--amber);color:var(--ink)"><ha-icon icon="${w ? icon(w.cond) : "mdi:weather-partly-cloudy"}"></ha-icon></div>
         <div style="flex:1;min-width:0"><div class="nm">${w ? `${num(Math.round(w.temp))}° · ${esc(this._wxLabel(w.cond))}` : t("Tempo")}</div><div class="st">${sub}</div></div></div>
+      ${(() => {
+        const al = this._ipmaAlert(), ip = this._ipma();
+        const uv = ip.uv && this._s(ip.uv), fire = ip.fire && this._s(ip.fire);
+        const chips = [uv && uv.state !== "unknown" ? `<span><ha-icon icon="mdi:sun-wireless-outline"></ha-icon>${t("Índice UV")} <b>${esc(uv.state)}</b></span>` : "",
+          fire && fire.state !== "unknown" ? `<span><ha-icon icon="mdi:fire"></ha-icon>${t("Risco de incêndio")} <b>${esc(this._fmtState(ip.fire))}</b></span>` : ""].join("");
+        return `${al ? this._alertBanner(al, true) : ip.alert ? `<div class="wx-ok"><ha-icon icon="mdi:check-circle-outline"></ha-icon>${t("Sem avisos do IPMA")}</div>` : ""}${chips ? `<div class="wx-chips">${chips}</div>` : ""}`;
+      })()}
       ${!fc ? `<div class="empty" style="text-align:center">${t("A carregar a previsão…")}</div>` : `
         ${fc.hourly.length ? `<div class="sub">${t("Próximas horas")}</div><div class="fhs">${fc.hourly.map(hour).join("")}</div>` : ""}
         ${fc.daily.length ? `<div class="sub">${t("Próximos dias")}</div><div class="fds">${fc.daily.map(day).join("")}</div>` : ""}
@@ -1094,7 +1136,7 @@ class Pine3ViewPanel extends HTMLElement {
         <aside class="hleft">
           <div class="eyebrow tdate">${esc(this._dateText())}</div><div class="clock">${this._clockText()}</div>${this._hint()}
           ${showStatus ? `<div class="hstat"><div class="eyebrow">${t("Estado da casa")}</div><div class="status">${list.length ? (lightsOn.length ? tp(lightsOn.length, "{n} luz acesa", "{n} luzes acesas") : tp(others.length, "{n} dispositivo ligado", "{n} dispositivos ligados")) : status}</div>
-            ${list.length ? `<ul class="hon">${list.slice(lightsOn.length ? 1 : 0, 6).map(([icon, n]) => `<li><ha-icon icon="${icon}"></ha-icon>${esc(n)}</li>`).join("")}${list.length > 6 ? `<li class="hmore">+${list.length - 6}</li>` : ""}</ul>` : ""}</div>` : ""}
+            ${(() => { const max = this._ipmaAlert() && cfg.show_weather ? 5 : 6; return list.length ? `<ul class="hon">${list.slice(lightsOn.length ? 1 : 0, max).map(([icon, n]) => `<li><ha-icon icon="${icon}"></ha-icon>${esc(n)}</li>`).join("")}${list.length > max ? `<li class="hmore">+${list.length - max}</li>` : ""}</ul>` : ""; })()}</div>` : ""}
           ${cfg.show_weather ? this._wxCard("tall") : ""}
         </aside>
         <div class="hmain">
