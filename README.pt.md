@@ -78,7 +78,7 @@ Copia `custom_components/pine3_view` para `/config/custom_components/`, reinicia
 
 ## Definições
 Botão ⚙ no canto superior direito:
-- **Aparência**: idioma, disposição, cor dos cartões, cor de destaque e fundo, com pré-visualização ao vivo.
+- **Aparência**: idioma, disposição, cor dos cartões, cor de destaque e fundo, com pré-visualização ao vivo. Seis fundos escuros e seis claros (Linho, Névoa, Pêssego, Menta, Lavanda, Céu); um fundo claro põe todo o painel em modo claro. O modo **Automático** usa um fundo de dia e outro à noite, trocando ao nascer e ao pôr do sol (`sun.sun`; sem ela, das 7h às 19h).
 - **Início**: meteorologia e fonte do tempo, pessoas, estado da casa, cenas, cartões de resumo, relógio 12/24 h, ecrã de descanso e as opções deste dispositivo (barra lateral, ecrã ligado, ecrã inteiro).
 - **Divisões**: ordenar, esconder e escolher o tamanho de cada divisão na planta automática; voltar a mostrar dispositivos escondidos.
 - **Entidades**: escolher exatamente o que aparece.

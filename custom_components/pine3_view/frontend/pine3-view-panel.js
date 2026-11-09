@@ -3,11 +3,12 @@
 
 import {
   SHOWN, TOGGLE, DETAIL, SECTIONS, DOMAIN_ICON, DEVICE_CLASS_ICON, ACCENT, STATE_PT, WEATHER_PT, WEATHER_ICON,
-  BIN_PT, NAME_ICON, THEMES, CARD_COLORS, ACCENTS, DOCK_ITEMS, DEFAULTS, THEME_NAMES, esc, dom, store, loadFonts,
+  BIN_PT, NAME_ICON, THEMES, LIGHT_THEMES, CARD_COLORS, ACCENTS, DOCK_ITEMS, DEFAULTS, THEME_NAMES, esc, dom, store, loadFonts,
 } from "./const.js";
 import { css } from "./styles.js";
 import { t, tp, num, locale, setLang, lang } from "./i18n.js";
 import { Weather } from "./weather.js";
+import { toLight, currentTheme, isLight } from "./theme.js";
 import { houseView, bindHouse, css3d } from "./house3d.js";
 import { planView, bindPlan, cssPlan } from "./plan2d.js";
 
@@ -92,6 +93,7 @@ class Pine3ViewPanel extends HTMLElement {
     for (const r of rooms) { add(r.ents); add(r.temperature); add(r.humidity); }
     for (const m of Object.values(this._meta || {})) { add(m.extras); add(m.members); }
     add(this._model.persons); add(this._model.scenes); add(this._model.scripts);
+    if (this._cfg().appearance === "auto") w.add("sun.sun"); // day / night theme
     for (const sc of this._model.scenes || []) { const l = this._s(sc)?.attributes.entity_id; if (Array.isArray(l)) add(l); } // a scene lights up while its devices are on
     add(Object.keys(this._hass.states).filter((i) => i.startsWith("weather.")));
     if (this._modal && !this._modal.startsWith("_")) w.add(this._modal);
@@ -541,8 +543,18 @@ class Pine3ViewPanel extends HTMLElement {
           <h3>${t("Cor de destaque")}</h3><p>${t("Ícones acesos, pontos das luzes, sliders e contadores.")}</p>
           <div class="swr">${ACCENTS.map((c) => `<div class="swc ${c === d.accent_color ? "act" : ""}" data-accent="${c}" style="background:${c}"></div>`).join("")}</div>
         </div>
-        <div class="panel glass"><h3 style="margin-top:0">${t("Fundo")}</h3><p>${t("O ambiente por trás dos cartões.")}</p>
-          <div class="bgs">${Object.keys(THEMES).map((k) => `<div class="bgc ${k === d.theme ? "act" : ""}" data-theme="${k}"><div style="background:${THEMES[k]}"></div><span>${t(THEME_NAMES[k])}</span></div>`).join("")}</div></div>`;
+        ${(() => {
+          // themes: dark and light; automatic = one for the day and one for the night, by sunrise and sunset
+          const keys = Object.keys(THEMES), dark = keys.filter((k) => !LIGHT_THEMES.has(k)), lightK = keys.filter((k) => LIGHT_THEMES.has(k));
+          const grid = (attr, cur, list) => `<div class="bgs">${list.map((k) => `<div class="bgc ${k === cur ? "act" : ""}" data-${attr}="${k}"><div style="background:${THEMES[k]}"></div><span>${t(THEME_NAMES[k])}</span></div>`).join("")}</div>`;
+          const auto = d.appearance === "auto";
+          const sun = this._s("sun.sun");
+          return `<div class="panel glass"><h3 style="margin-top:0">${t("Fundo")}</h3><p>${t("O ambiente por trás dos cartões. Os fundos claros põem todo o painel em modo claro.")}</p>
+            <div class="opts">${this._choice("appearance", auto ? "auto" : "fixed", [["fixed", t("Fixo")], ["auto", t("Automático")]], t("Modo"),
+              auto ? (sun ? t("Usa o fundo de dia entre o nascer e o pôr do sol (sun.sun) e o de noite no resto do tempo.") : t("Sem a entidade sun.sun: usa o fundo de dia das 7h às 19h.")) : t("Um fundo sempre igual, ou um para o dia e outro para a noite, ao nascer e ao pôr do sol."))}</div>
+            ${auto ? `<h3>${t("De dia")}</h3>${grid("themeday", d.theme_day || "linho", [...lightK, ...dark])}<h3>${t("À noite")}</h3>${grid("themenight", d.theme_night || "ameixa", [...dark, ...lightK])}`
+              : `<h3>${t("Escuros")}</h3>${grid("theme", d.theme, dark)}<h3>${t("Claros")}</h3>${grid("theme", d.theme, lightK)}`}</div>`;
+        })()}`;
     } else if (sec === "home") {
       const wxs = this._weather.entities(this._hass);
       main = `<div class="panel glass"><h3 style="margin-top:0">${t("Ecrã inicial")}</h3><p>${t("O que aparece no início.")}</p><div class="opts">
@@ -689,6 +701,8 @@ class Pine3ViewPanel extends HTMLElement {
     on("[data-card]", (el) => { d.card_color = el.dataset.card; upd(); });
     on("[data-accent]", (el) => { d.accent_color = el.dataset.accent; upd(); });
     on("[data-theme]", (el) => { d.theme = el.dataset.theme; upd(); });
+    on("[data-themeday]", (el) => { d.theme_day = el.dataset.themeday; upd(); });
+    on("[data-themenight]", (el) => { d.theme_night = el.dataset.themenight; upd(); });
     on("[data-choice]", (el) => { d[el.dataset.choice] = el.dataset.type === "number" ? Number(el.dataset.val) : el.dataset.val; upd(); });
     on("[data-tg]", (el) => {
       const k = el.dataset.tg;
@@ -868,14 +882,24 @@ class Pine3ViewPanel extends HTMLElement {
     this.classList.toggle("lite", this._liteFx());
     if (!this._app) {
       // the dock lives outside the redrawn part, so it doesn't flicker or replay its animation on every update
-      root.innerHTML = `<style>${css}${css3d}${cssPlan}</style><div id="app"></div><nav class="dock" hidden><i class="blob"></i></nav>`;
+      root.innerHTML = `<style></style><div id="app"></div><nav class="dock" hidden><i class="blob"></i></nav>`;
+      this._styleEl = root.querySelector("style");
       this._app = root.getElementById("app");
       this._dockEl = root.querySelector(".dock");
       new ResizeObserver(() => this._placeBlob(false)).observe(this._dockEl); // fonts loading, window size…
       document.fonts?.ready?.then(() => { if (this._dockEl) { this._dockEl._fit = null; this._fitDock(); this._placeBlob(false); } });
     }
+    // appearance: a fixed theme, or the day / night one by the sun; light themes get the light stylesheet
+    const themeKey = currentTheme(cfg, this._hass, this._theme);
+    const light = isLight(themeKey);
+    this.classList.toggle("light", light);
+    if (this._styleLight !== light) {
+      const all = `${css}${css3d}${cssPlan}`;
+      this._styleEl.textContent = light ? (this._lightCss ||= toLight(all)) : all;
+      this._styleLight = light;
+    }
     this._viewKey = viewKey;
-    this._app.innerHTML = `<div class="bg" style="background:${THEMES[cfg.theme || this._theme] || THEMES.ameixa}"></div>
+    this._app.innerHTML = `<div class="bg" style="background:${THEMES[themeKey] || THEMES.ameixa}"></div>
       <div class="wrap ${vin} ${this._view === "room" ? "roomv" : ""} ${cfg.layout === "list" ? "as-list" : ""} ${this._edit ? "editing" : ""}">${header}${body}</div>${editBar}${this._saver ? this._saverView(rooms) : this._modalView()}`;
     for (const [sel, pos] of scrolls) root.querySelectorAll(sel).forEach((e, k) => { if (pos[k]) { e.scrollTop = pos[k][0]; e.scrollLeft = pos[k][1]; } });
     this._updateDock(cfg);
@@ -1047,7 +1071,7 @@ class Pine3ViewPanel extends HTMLElement {
     if (media) {
       const a = this._s(media).attributes, roomName = rooms.find((r) => r.ents.includes(media))?.name;
       const pct = a.media_duration ? Math.min(100, ((a.media_position || 0) / a.media_duration) * 100) : 0;
-      cards.push(`<div data-key="@media" class="rc glass media" data-open="${media}" style="${a.entity_picture ? `background-image:linear-gradient(rgba(30,16,32,.55),rgba(30,16,32,.85)),url('${esc(a.entity_picture)}');background-size:cover;background-position:center` : ""}">
+      cards.push(`<div data-key="@media" class="rc glass media ${a.entity_picture ? "pic" : ""}" data-open="${media}" style="${a.entity_picture ? `background-image:linear-gradient(rgba(30,16,32,.55),rgba(30,16,32,.85)),url('${esc(a.entity_picture)}');background-size:cover;background-position:center` : ""}">
         <div class="eyebrow" style="color:#5ee08a;letter-spacing:.14em"><ha-icon icon="mdi:music-note" style="--mdc-icon-size:16px"></ha-icon>${esc([t("A tocar"), roomName, a.app_name].filter(Boolean).join(" · "))}</div>
         <div class="foot"><div class="ttl">${esc(a.media_title || this._name(media))}</div><div class="art">${esc(a.media_artist || "")}</div>
           ${pct ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ""}
@@ -1436,15 +1460,15 @@ class Pine3ViewPanel extends HTMLElement {
       const off = s.state === "off" || s.state === "unavailable";
       const act = off ? null : a.hvac_action; // what it is doing right now: heating, cooling, idle…
       const mode = { heating: "heat", preheating: "heat", cooling: "cool", defrosting: "cool", drying: "dry", fan: "fan_only", idle: "idle" }[act] || s.state;
-      const col = off ? "rgba(255,255,255,.2)" : { cool: "#5ac8fa", dry: "#64d2ff", fan_only: "#a8b0bd", idle: "rgba(255,255,255,.4)" }[mode] || "#ff9f0a";
-      const dim = "rgba(255,255,255,.12)";
+      const col = off ? "var(--ring-off)" : { cool: "#5ac8fa", dry: "#64d2ff", fan_only: "#a8b0bd", idle: "var(--ring-idle)" }[mode] || "#ff9f0a";
+      const dim = "var(--ring-dim)";
       const grad = range ? `${dim} 0 ${pos(lo)}%, ${col} 0 ${pos(hi)}%, ${dim} 0` : `${col} 0 ${tg != null ? pos(tg) : 0}%, ${dim} 0`;
       const info = [a.current_temperature != null ? `${t("Atual")} ${num(a.current_temperature)}°` : "", a.current_humidity != null ? `${Math.round(a.current_humidity)}% ${t("hum.")}` : ""].filter(Boolean).join(" · ");
       const setter = (end, v, label) => `<div class="tset"><span>${label}</span><button class="round" data-temp="${-step}" data-end="${end}">−</button><b>${num(v)}°</b><button class="round" data-temp="${step}" data-end="${end}">+</button></div>`;
       const chips = (label, list, cur, attr) => list?.length > 1 ? `<div class="sub">${label}</div><div class="row presets">${list.map((m) => `<button class="pill ${m === cur ? "act" : ""}" data-cmode="${attr}" data-v="${esc(m)}">${esc(this._st(m))}</button>`).join("")}</div>` : "";
       const modes = a.hvac_modes || [];
       content = `<div class="ring ${compact ? "sm" : ""}" style="background:conic-gradient(${grad})">
-        <div style="position:absolute;inset:14px;border-radius:50%;background:#202329"></div>
+        <div style="position:absolute;inset:14px;border-radius:50%;background:var(--ring-bg)"></div>
         <div style="position:relative;text-align:center"><div class="tgt ${range ? "rng" : ""}">${range ? `${num(lo)}–${num(hi)}°` : tg != null ? num(tg) + "°" : "–"}</div>
         ${act && act !== "off" ? `<div class="act" style="color:${col}">${esc(this._st(act))}</div>` : ""}${info ? `<div class="cur">${info}</div>` : ""}</div></div>
         ${range ? setter("low", lo, t("Mínima")) + setter("high", hi, t("Máxima")) : tg != null ? `<div class="row"><button class="round" data-temp="${-step}">−</button><button class="round" data-temp="${step}">+</button></div>` : ""}

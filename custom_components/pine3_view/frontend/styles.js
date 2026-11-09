@@ -4,7 +4,8 @@ export const css = `
 :host{display:block;position:relative;min-height:100vh;color:#fff;font-family:"Pine3 Figtree",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;
   --display:"Pine3 Outfit","Pine3 Figtree",sans-serif;
   --glass:rgba(255,255,255,.09);--glass-hi:rgba(255,255,255,.14);--glass-strong:rgba(38,26,40,.82);--line:rgba(255,255,255,.12);--muted:rgba(255,255,255,.66);
-  --cream:#f5efe1;--ink:#2a221f;--ink-soft:rgba(42,34,31,.6);--amber:#f6b83f;--r:28px}
+  --cream:#f5efe1;--ink:#2a221f;--ink-soft:rgba(42,34,31,.6);--amber:#f6b83f;--r:28px;
+  --ring-bg:#202329;--ring-dim:rgba(255,255,255,.12);--ring-off:rgba(255,255,255,.2);--ring-idle:rgba(255,255,255,.4)}
 .bg{position:fixed;inset:0;z-index:0;transition:background .6s}
 .bg::after{content:"";position:absolute;inset:0;background:radial-gradient(transparent 45%,rgba(0,0,0,.28))}
 .wrap{position:relative;z-index:1;max-width:1500px;margin:0 auto;padding:0 40px 130px}
