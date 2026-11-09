@@ -528,20 +528,22 @@ class Pine3ViewPanel extends HTMLElement {
     const day = (f, k) => `<div class="fd"><span>${k === 0 ? t("Hoje") : cap(f.time.toLocaleDateString(locale(), { weekday: "long" }))}</span><ha-icon icon="${icon(f.cond)}"></ha-icon>
       <small class="pp">${f.precip != null ? Math.round(f.precip) + "%" : ""}</small><b>${num(Math.round(f.temp))}°</b><small>${f.low != null ? num(Math.round(f.low)) + "°" : ""}</small></div>`;
     const sub = [w?.humidity != null ? t("Humidade {n}%", { n: Math.round(w.humidity) }) : null, w?.wind != null ? `${t("Vento")} ${Math.round(w.wind)} ${esc(w.windUnit)}` : null, esc(src)].filter(Boolean).join(" · ");
-    return `<div class="ov ${this._ovEnter("_wx")}" data-close><div class="sheet wide">
-      <div class="hd"><div class="ic" style="background:var(--amber);color:var(--ink)"><ha-icon icon="${w ? icon(w.cond) : "mdi:weather-partly-cloudy"}"></ha-icon></div>
-        <div style="flex:1;min-width:0"><div class="nm">${w ? `${num(Math.round(w.temp))}° · ${esc(this._wxLabel(w.cond))}` : t("Tempo")}</div><div class="st">${sub}</div></div></div>
-      ${(() => {
+    const side = (() => {
         const als = this._ipmaAlerts(), ip = this._ipma();
         const uv = ip.uv && this._s(ip.uv), fire = ip.fire && this._s(ip.fire);
         const chips = [uv && uv.state !== "unknown" ? `<span><ha-icon icon="mdi:sun-wireless-outline"></ha-icon>${t("Índice UV")} <b>${esc(uv.state)}</b></span>` : "",
           fire && fire.state !== "unknown" ? `<span><ha-icon icon="mdi:fire"></ha-icon>${t("Risco de incêndio")} <b>${esc(this._fmtState(ip.fire))}</b></span>` : ""].join("");
         return `${als.length ? als.map((w) => this._alertBanner(w, true)).join("") : ip.alert ? `<div class="wx-ok"><ha-icon icon="mdi:check-circle-outline"></ha-icon>${t("Sem avisos do IPMA")}</div>` : ""}${chips ? `<div class="wx-chips">${chips}</div>` : ""}`;
-      })()}
-      ${!fc ? `<div class="empty" style="text-align:center">${t("A carregar a previsão…")}</div>` : `
+      })();
+    const main = !fc ? `<div class="empty" style="text-align:center">${t("A carregar a previsão…")}</div>` : `
         ${fc.hourly.length ? `<div class="sub">${t("Próximas horas")}</div><div class="fhs">${fc.hourly.map(hour).join("")}</div>` : ""}
         ${fc.daily.length ? `<div class="sub">${t("Próximos dias")}</div><div class="fds">${fc.daily.map(day).join("")}</div>` : ""}
-        ${!fc.hourly.length && !fc.daily.length ? `<div class="empty">${t("Sem previsão disponível.")}</div>` : ""}`}
+        ${!fc.hourly.length && !fc.daily.length ? `<div class="empty">${t("Sem previsão disponível.")}</div>` : ""}`;
+    // wide screens: warnings / UV / fire risk on the left, the forecast on the right
+    return `<div class="ov ${this._ovEnter("_wx")}" data-close><div class="sheet wide ${side ? "cols" : ""}">
+      <div class="hd"><div class="ic" style="background:var(--amber);color:var(--ink)"><ha-icon icon="${w ? icon(w.cond) : "mdi:weather-partly-cloudy"}"></ha-icon></div>
+        <div style="flex:1;min-width:0"><div class="nm">${w ? `${num(Math.round(w.temp))}° · ${esc(this._wxLabel(w.cond))}` : t("Tempo")}</div><div class="st">${sub}</div></div><button class="sh-x" data-closex title="${t("Fechar")}" aria-label="${t("Fechar")}"><ha-icon icon="mdi:close"></ha-icon></button></div>
+      ${side ? `<div class="sh-main">${side}</div><div class="sh-side">${main}</div>` : `<div class="sh-main">${main}</div>`}
     </div></div>`;
   }
 
@@ -936,7 +938,7 @@ class Pine3ViewPanel extends HTMLElement {
     const refocus = this._entFocus;
     // keep scroll positions of inner scrollers across the redraw
     const root = this.shadowRoot;
-    const scrolls = [".sheet", ".scenes", ".fhs", ".set-nav"].map((sel) => [sel, [...root.querySelectorAll(sel)].map((e) => [e.scrollTop, e.scrollLeft])]);
+    const scrolls = [".sheet", ".sh-main", ".sh-side", ".scenes", ".fhs", ".set-nav"].map((sel) => [sel, [...root.querySelectorAll(sel)].map((e) => [e.scrollTop, e.scrollLeft])]);
     if (!this._modal && !this._saver) this._ovShown = null;
     this._collectWatch(rooms);
     // entering another screen: the content flows in (no blur on the 3D Home, a filter would flatten it)
@@ -1410,7 +1412,7 @@ class Pine3ViewPanel extends HTMLElement {
       ${maps === "loading" ? `<div class="sub">${t("Divisões")}</div><div class="vac-note">${t("A carregar as divisões…")}</div>` : rooms.length ? `<div class="sub">${t("Limpar divisões")}</div>
         <div class="row presets">${rooms.map(([sid, name]) => `<button class="pill ${pick.includes(Number(sid)) ? "act" : ""}" data-vroom="${esc(sid)}">${esc(name)}</button>`).join("")}</div>
         <div class="row"><button class="pill solid" data-vclean ${pick.length ? "" : "disabled"}><ha-icon icon="mdi:broom"></ha-icon>${pick.length ? tp(pick.length, "Limpar {n} divisão", "Limpar {n} divisões") : t("Escolhe as divisões")}</button></div>` : ""}
-      ${img ? `<img class="vac-map" src="${esc(this._s(img).attributes.entity_picture)}" alt="">` : ""}`;
+      <!--side-->${img ? `<img class="vac-map" src="${esc(this._s(img).attributes.entity_picture)}" alt="">` : ""}`;
   }
 
   _extras(id) {
@@ -1537,6 +1539,7 @@ class Pine3ViewPanel extends HTMLElement {
         <div style="position:relative;text-align:center"><div class="tgt ${range ? "rng" : ""}">${range ? `${num(lo)}–${num(hi)}°` : tg != null ? num(tg) + "°" : "–"}</div>
         ${act && act !== "off" ? `<div class="act" style="color:${col}">${esc(this._st(act))}</div>` : ""}${info ? `<div class="cur">${info}</div>` : ""}</div></div>
         ${range ? setter("low", lo, t("Mínima")) + setter("high", hi, t("Máxima")) : tg != null ? `<div class="row"><button class="round" data-temp="${-step}">−</button><button class="round" data-temp="${step}">+</button></div>` : ""}
+        <!--side-->${modes.length ? `<div class="sub sh-only">${t("Modo")}</div>` : ""}
         ${modes.length ? `<div class="row ${modes.length > 4 || compact ? "presets" : ""}">${modes.map((m) => `<button class="pill ${m === s.state ? "act" : ""}" data-hvac="${m}">${this._st(m)}</button>`).join("")}</div>` : ""}
         ${chips(t("Velocidade"), a.fan_modes, a.fan_mode, "fan_mode")}${chips(t("Oscilação"), a.swing_modes, a.swing_mode, "swing_mode")}${chips(t("Perfil"), a.preset_modes, a.preset_mode, "preset_mode")}`;
     } else if (d === "media_player") {
@@ -1569,10 +1572,17 @@ class Pine3ViewPanel extends HTMLElement {
     }
     const canToggle = TOGGLE.has(d) && (d !== "media_player" || ((a.supported_features || 0) & 384) !== 0);
     const device = d === "vacuum" ? this._vacuumSections(id) : this._deviceSection(id);
-    return `<div class="ov ${this._ovEnter(id)} ${device ? "dev" : ""}" data-close><div class="sheet ${device ? "wide dev" : ""}" style="--acc:${this._accent(id)}">
+    const more = `<div class="more"><button data-more title="${t("Mais definições")}" aria-label="${t("Mais definições")}"><ha-icon icon="mdi:cog-outline"></ha-icon></button></div>`;
+    // wide screens: the main control on the left, everything else of the device on the right
+    // a big main control (ring, slider, picture, vacuum) sits beside the device's other entities;
+    // a small one (a row of modes) goes on top of a wide sheet whose grids fit more per row
+    const big = /class="(ring|vslider|vac-hd)|<img/.test(content);
+    const cols = (device || (d === "climate" && content.includes("<!--side-->"))) && big;
+    const layout = cols ? "wide dev cols" : !device ? "" : "wide dev wide1";
+    return `<div class="ov ${this._ovEnter(id)} ${device ? "dev" : ""}" data-close><div class="sheet ${layout}" style="--acc:${this._accent(id)}">
       <div class="hd"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div><div style="flex:1;min-width:0"><div class="nm">${esc(this._name(id))}</div><div class="st">${esc(this._stateText(id))}</div></div>
-      ${canToggle ? `<button class="pill ${on ? "act" : ""}" data-toggle>${on ? t("Desligar") : t("Ligar")}</button>` : ""}</div>
-      ${content}${device}<div class="more"><button data-more title="${t("Mais definições")}" aria-label="${t("Mais definições")}"><ha-icon icon="mdi:cog-outline"></ha-icon></button></div></div></div>`;
+      ${canToggle ? `<button class="pill ${on ? "act" : ""}" data-toggle>${on ? t("Desligar") : t("Ligar")}</button>` : ""}<button class="sh-x" data-closex title="${t("Fechar")}" aria-label="${t("Fechar")}"><ha-icon icon="mdi:close"></ha-icon></button></div>
+      ${cols ? (() => { const [m, sd = ""] = content.split("<!--side-->"); return `<div class="sh-main">${m}${more}</div><div class="sh-side">${sd}${device}</div>`; })() : `${content}${device}${more}`}</div></div>`;
   }
 
   _bind() {
@@ -1649,6 +1659,7 @@ class Pine3ViewPanel extends HTMLElement {
     const ov = root.querySelector(".ov");
     if (!ov) return;
     ov.addEventListener("click", (ev) => { if (ev.target === ov && !this._ghost(ov)) { this._modal = null; this._render(); } });
+    on("[data-closex]", () => { this._modal = null; this._render(); });
     const id = this._modal;
     on("[data-toggle]", () => (dom(id) === "media_player" ? this._call("media_player", this._isOn(id) ? "turn_off" : "turn_on", { entity_id: id }) : this._tap(id)));
     on("[data-src]", (el) => this._call("media_player", "select_source", { entity_id: id, source: el.dataset.src }));

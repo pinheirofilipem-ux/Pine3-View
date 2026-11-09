@@ -74,7 +74,9 @@ export class Weather {
         }
       };
       const [hourly, daily] = await Promise.all([get("hourly"), get("daily")]);
-      const norm = (f) => ({ time: new Date(f.datetime), cond: f.condition, temp: f.temperature, low: f.templow, precip: f.precipitation_probability });
+      // some sources (e.g. IPMA) send -99 for "no data"
+      const pct = (v) => (v == null || v < 0 ? null : v);
+      const norm = (f) => ({ time: new Date(f.datetime), cond: f.condition, temp: f.temperature, low: f.templow, precip: pct(f.precipitation_probability) });
       if (hourly.length || daily.length) {
         return { hourly: hourly.filter((f) => new Date(f.datetime) >= Date.now() - 3600e3).slice(0, 12).map(norm), daily: daily.slice(0, 7).map(norm) };
       }
