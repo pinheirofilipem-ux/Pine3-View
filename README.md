@@ -78,7 +78,7 @@ Copy `custom_components/pine3_view` to `/config/custom_components/`, restart and
 
 ## Settings
 ⚙ button in the top-right corner:
-- **Appearance**: language, layout, card colour, highlight colour and background, with a live preview. Six dark and six light backgrounds (Linen, Mist, Peach, Mint, Lavender, Sky); a light background switches the whole panel to light mode. **Automatic** mode uses one background by day and another at night, switching at sunrise and sunset (`sun.sun`; without it 7:00–19:00).
+- **Appearance**: language, layout, card colour, highlight colour and background, with a live preview. Eight vivid backgrounds (Amber, Coral, Lime, Blue, Violet, Magenta, Turquoise, Sunset), six dark and six light ones (Linen, Mist, Peach, Mint, Lavender, Sky); a light background switches the whole panel to light mode. **Automatic** mode uses one background by day and another at night, switching at sunrise and sunset (`sun.sun`; without it 7:00–19:00).
 - **Home**: weather and its source, people, home status, scenes, summary cards, 12/24-hour clock, screensaver, and the per-device options (sidebar, keep screen on, full screen).
 - **Rooms**: reorder and hide rooms, choose their size in the automatic 3D layout, show hidden devices again.
 - **Entities**: pick exactly what appears.
