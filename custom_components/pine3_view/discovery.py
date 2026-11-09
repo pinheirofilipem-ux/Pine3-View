@@ -103,6 +103,15 @@ def _rank(hass: HomeAssistant, entity_id: str, entry: er.RegistryEntry | None) -
     return (base, sub, entity_id)
 
 
+def _is_identify(hass: HomeAssistant, entry: er.RegistryEntry) -> bool:
+    """A button that only identifies the device (blinks / beeps), e.g. HomeKit's "Identify"."""
+    if not entry.entity_id.startswith("button."):
+        return False
+    state = hass.states.get(entry.entity_id)
+    dc = (state.attributes.get("device_class") if state else None) or entry.device_class or entry.original_device_class
+    return dc == "identify"
+
+
 def kind_of(hass: HomeAssistant, entity_id: str, entry: er.RegistryEntry | None) -> str:
     domain = entity_id.split(".")[0]
     dc = _sensor_class(hass, entity_id, entry)
@@ -262,6 +271,8 @@ def build_home(hass: HomeAssistant, settings: dict[str, Any]) -> dict[str, Any]:
             continue
         if entry.entity_id.split(".")[0] not in MEMBER_DOMAINS or hass.states.get(entry.entity_id) is None:
             continue
+        if _is_identify(hass, entry):
+            continue  # "Identify" (HomeKit and others) only makes the device blink or beep
         by_device.setdefault(alias.get(entry.device_id, entry.device_id), []).append(entry.entity_id)
     for room in rooms.values():
         for dev in room["devices"]:

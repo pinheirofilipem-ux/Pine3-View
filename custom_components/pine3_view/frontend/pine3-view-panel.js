@@ -1286,7 +1286,8 @@ class Pine3ViewPanel extends HTMLElement {
   }
 
   _deviceSection(id, only = null) {
-    const mem = (only || this._meta?.[id]?.members || []).filter((e) => this._s(e) && this._s(e).state !== "unavailable" && dom(e) !== "image");
+    const mem = (only || this._meta?.[id]?.members || []).filter((e) => this._s(e) && this._s(e).state !== "unavailable" && dom(e) !== "image"
+      && !(dom(e) === "button" && this._s(e).attributes.device_class === "identify")); // "Identify" only makes the device blink
     if (!mem.length) return "";
     const readings = mem.filter((e) => ["sensor", "binary_sensor"].includes(dom(e)));
     const isToggle = (e) => ["switch", "input_boolean", "light", "fan"].includes(dom(e));
