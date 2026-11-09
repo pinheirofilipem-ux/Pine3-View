@@ -440,25 +440,48 @@ class Pine3ViewPanel extends HTMLElement {
       fire: ids.find((i) => /rcm|fire|incend/.test(i)),
     };
   }
-  /** The active IPMA warning (yellow / orange / red), or null. */
-  _ipmaAlert() {
+  /**
+   * The active IPMA warnings (yellow / orange / red), most severe first. The integration's sensor holds only
+   * the first one; when it names its area (idAreaAviso), all of them are asked of the integration's backend
+   * (pine3_view/ipma_warnings, every 10 minutes) and that list wins.
+   */
+  _ipmaAlerts() {
     const id = this._ipma().alert, s = id && this._s(id);
-    if (!s || !["yellow", "orange", "red"].includes(s.state)) return null;
+    if (!s) return [];
     const a = s.attributes, when = (v) => (v ? new Date(String(v).replace(" ", "T")) : null);
-    return { level: s.state, type: a.awarenessTypeName || "", text: a.text || "", start: when(a.startTime), end: when(a.endTime) };
+    const norm = (w) => ({ level: w.awarenessLevelID, type: w.awarenessTypeName || "", text: w.text || "", start: when(w.startTime), end: when(w.endTime) });
+    const area = a.idAreaAviso;
+    if (area && this._model) {
+      const c = this._ipmaW;
+      if ((!c || c.area !== area || Date.now() - c.at > 10 * 60e3) && !this._ipmaLoading) {
+        this._ipmaLoading = true;
+        this._hass.callWS({ type: "pine3_view/ipma_warnings", area })
+          .then((r) => { this._ipmaW = { area, at: Date.now(), list: r.warnings || [] }; })
+          .catch(() => { this._ipmaW = { area, at: Date.now(), list: null }; })
+          .finally(() => { this._ipmaLoading = false; if (this._view === "home" || this._modal === "_wx") this._render(); });
+      }
+    }
+    const rank = { red: 3, orange: 2, yellow: 1 };
+    const fromApi = this._ipmaW?.area === area && Array.isArray(this._ipmaW.list) ? this._ipmaW.list.map(norm) : null;
+    const list = fromApi ?? (["yellow", "orange", "red"].includes(s.state) ? [norm({ ...a, awarenessLevelID: s.state })] : []);
+    return list.filter((w) => rank[w.level] && !(w.end && w.end < new Date()))
+      .sort((x, y) => rank[y.level] - rank[x.level] || (x.start || 0) - (y.start || 0));
+  }
+  _ipmaAlert() { return this._ipmaAlerts()[0] || null; }
+  _alertFmt(d) {
+    const today = d.toDateString() === new Date().toDateString();
+    const hm = d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+    return today ? hm : `${d.toLocaleDateString(locale(), { weekday: "short" })} ${hm}`;
   }
   _alertWhen(al) {
-    const fmt = (d) => {
-      const today = d.toDateString() === new Date().toDateString();
-      const hm = d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
-      return today ? hm : `${d.toLocaleDateString(locale(), { weekday: "short" })} ${hm}`;
-    };
-    if (al.start && al.start > new Date()) return t("a partir de {t}", { t: fmt(al.start) });
-    return al.end && !isNaN(al.end) ? t("até {t}", { t: fmt(al.end) }) : "";
+    if (al.start && al.start > new Date()) return t("a partir de {t}", { t: this._alertFmt(al.start) });
+    return al.end && !isNaN(al.end) ? t("até {t}", { t: this._alertFmt(al.end) }) : "";
   }
-  _alertBanner(al, full = false) {
+  /** A warning as a strip ("+N" for the others), or in full with its start, end and text. */
+  _alertBanner(al, full = false, more = 0) {
     const lv = { yellow: t("Aviso amarelo"), orange: t("Aviso laranja"), red: t("Aviso vermelho") }[al.level];
-    return `<div class="wx-alert lv-${al.level} ${full ? "full" : ""}"><ha-icon icon="mdi:alert"></ha-icon><div><b>${esc(lv)}${al.type ? ` · ${esc(al.type)}` : ""}</b>${this._alertWhen(al) ? `<small>${esc(this._alertWhen(al))}</small>` : ""}${full && al.text ? `<p>${esc(al.text)}</p>` : ""}</div></div>`;
+    const period = full ? [al.start && !isNaN(al.start) ? `${t("Começa")} ${this._alertFmt(al.start)}` : "", al.end && !isNaN(al.end) ? `${t("Termina")} ${this._alertFmt(al.end)}` : ""].filter(Boolean).join(" · ") : this._alertWhen(al);
+    return `<div class="wx-alert lv-${al.level} ${full ? "full" : ""}"><ha-icon icon="mdi:alert"></ha-icon><div class="wx-at"><b>${esc(lv)}${al.type ? ` · ${esc(al.type)}` : ""}</b>${period ? `<small>${esc(period)}</small>` : ""}${full && al.text ? `<p>${esc(al.text)}</p>` : ""}</div>${more ? `<span class="wx-more">+${more}</span>` : ""}</div>`;
   }
 
   /** The forecast for the home weather card, refreshed every 15 minutes (loads in the background, then redraws). */
@@ -493,8 +516,8 @@ class Pine3ViewPanel extends HTMLElement {
     const hours = hrs.length ? `<div class="wx-hrs">${hrs.map((f) => `<div><small>${hh(f.time)}</small><ha-icon icon="${icon(f.cond)}"></ha-icon><b>${deg(f.temp)}</b>${rain(f.precip)}</div>`).join("")}</div>`
       : fc ? "" : `<div class="wx-hrs wx-wait">${t("A carregar a previsão…")}</div>`;
     const next = tom ? `<div class="wx-tom"><small>${t("Amanhã")}</small><div class="wx-tl"><ha-icon icon="${icon(tom.cond)}"></ha-icon><b>${deg(tom.temp)}</b><span>${deg(tom.low)}</span></div>${rain(tom.precip)}</div>` : "";
-    const al = this._ipmaAlert();
-    return `<div class="wxc ${kind} glass ${al ? "has-alert" : ""}" data-wx title="${t("Previsão")}">${now}${hours}${al && kind === "tall" ? "" : next}${al ? this._alertBanner(al) : ""}</div>`;
+    const als = this._ipmaAlerts(), al = als[0];
+    return `<div class="wxc ${kind} glass ${al ? "has-alert" : ""}" data-wx title="${t("Previsão")}">${now}${hours}${next}${al ? this._alertBanner(al, false, als.length - 1) : ""}</div>`;
   }
 
   _forecastSheet() {
@@ -509,11 +532,11 @@ class Pine3ViewPanel extends HTMLElement {
       <div class="hd"><div class="ic" style="background:var(--amber);color:var(--ink)"><ha-icon icon="${w ? icon(w.cond) : "mdi:weather-partly-cloudy"}"></ha-icon></div>
         <div style="flex:1;min-width:0"><div class="nm">${w ? `${num(Math.round(w.temp))}° · ${esc(this._wxLabel(w.cond))}` : t("Tempo")}</div><div class="st">${sub}</div></div></div>
       ${(() => {
-        const al = this._ipmaAlert(), ip = this._ipma();
+        const als = this._ipmaAlerts(), ip = this._ipma();
         const uv = ip.uv && this._s(ip.uv), fire = ip.fire && this._s(ip.fire);
         const chips = [uv && uv.state !== "unknown" ? `<span><ha-icon icon="mdi:sun-wireless-outline"></ha-icon>${t("Índice UV")} <b>${esc(uv.state)}</b></span>` : "",
           fire && fire.state !== "unknown" ? `<span><ha-icon icon="mdi:fire"></ha-icon>${t("Risco de incêndio")} <b>${esc(this._fmtState(ip.fire))}</b></span>` : ""].join("");
-        return `${al ? this._alertBanner(al, true) : ip.alert ? `<div class="wx-ok"><ha-icon icon="mdi:check-circle-outline"></ha-icon>${t("Sem avisos do IPMA")}</div>` : ""}${chips ? `<div class="wx-chips">${chips}</div>` : ""}`;
+        return `${als.length ? als.map((w) => this._alertBanner(w, true)).join("") : ip.alert ? `<div class="wx-ok"><ha-icon icon="mdi:check-circle-outline"></ha-icon>${t("Sem avisos do IPMA")}</div>` : ""}${chips ? `<div class="wx-chips">${chips}</div>` : ""}`;
       })()}
       ${!fc ? `<div class="empty" style="text-align:center">${t("A carregar a previsão…")}</div>` : `
         ${fc.hourly.length ? `<div class="sub">${t("Próximas horas")}</div><div class="fhs">${fc.hourly.map(hour).join("")}</div>` : ""}
@@ -1136,7 +1159,7 @@ class Pine3ViewPanel extends HTMLElement {
         <aside class="hleft">
           <div class="eyebrow tdate">${esc(this._dateText())}</div><div class="clock">${this._clockText()}</div>${this._hint()}
           ${showStatus ? `<div class="hstat"><div class="eyebrow">${t("Estado da casa")}</div><div class="status">${list.length ? (lightsOn.length ? tp(lightsOn.length, "{n} luz acesa", "{n} luzes acesas") : tp(others.length, "{n} dispositivo ligado", "{n} dispositivos ligados")) : status}</div>
-            ${(() => { const max = this._ipmaAlert() && cfg.show_weather ? 5 : 6; return list.length ? `<ul class="hon">${list.slice(lightsOn.length ? 1 : 0, max).map(([icon, n]) => `<li><ha-icon icon="${icon}"></ha-icon>${esc(n)}</li>`).join("")}${list.length > max ? `<li class="hmore">+${list.length - max}</li>` : ""}</ul>` : ""; })()}</div>` : ""}
+            ${(() => { const max = this._ipmaAlert() && cfg.show_weather ? 4 : 6; return list.length ? `<ul class="hon">${list.slice(lightsOn.length ? 1 : 0, max).map(([icon, n]) => `<li><ha-icon icon="${icon}"></ha-icon>${esc(n)}</li>`).join("")}${list.length > max ? `<li class="hmore">+${list.length - max}</li>` : ""}</ul>` : ""; })()}</div>` : ""}
           ${cfg.show_weather ? this._wxCard("tall") : ""}
         </aside>
         <div class="hmain">

@@ -351,3 +351,25 @@ async def test_vacuum_dock_joins_vacuum(hass: HomeAssistant) -> None:
     assert {battery, empty, dock_err} <= set(sala_devs[0]["members"])
     assert empty in {e["id"] for e in rooms["Sala"]["entities"]}  # the dock's entities are listed in the vacuum's room
     assert "Outros" in rooms and all(d["id"] != empty for d in rooms["Outros"]["devices"])  # an unrelated "_dock" device stays apart
+
+
+async def test_ipma_warnings(hass: HomeAssistant, hass_ws_client, aioclient_mock) -> None:
+    """All IPMA warnings of an area (the integration only exposes the first one)."""
+    from custom_components.pine3_view.websocket import IPMA_WARNINGS_URL
+
+    aioclient_mock.get(IPMA_WARNINGS_URL, json=[
+        {"text": "Chuva forte", "awarenessTypeName": "Precipitação", "idAreaAviso": "LSB", "startTime": "2026-11-09T12:00:00", "awarenessLevelID": "yellow", "endTime": "2026-11-09T18:00:00"},
+        {"text": "", "awarenessTypeName": "Vento", "idAreaAviso": "LSB", "startTime": "2026-11-09T09:00:00", "awarenessLevelID": "green", "endTime": "2026-11-10T00:00:00"},
+        {"text": "Ondas de 5 m", "awarenessTypeName": "Agitação Marítima", "idAreaAviso": "LSB", "startTime": "2026-11-09T15:00:00", "awarenessLevelID": "orange", "endTime": "2026-11-10T06:00:00"},
+        {"text": "x", "awarenessTypeName": "Neve", "idAreaAviso": "GDA", "startTime": "2026-11-09T00:00:00", "awarenessLevelID": "red", "endTime": "2026-11-10T00:00:00"},
+    ])
+    await async_setup_api(hass)
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "pine3_view/ipma_warnings", "area": "LSB"})
+    msg = await ws.receive_json()
+    assert msg["success"]
+    types = [w["awarenessTypeName"] for w in msg["result"]["warnings"]]
+    assert types == ["Precipitação", "Agitação Marítima"]  # this area only, no green
+    await ws.send_json({"id": 2, "type": "pine3_view/ipma_warnings", "area": "GDA"})
+    assert [w["awarenessLevelID"] for w in (await ws.receive_json())["result"]["warnings"]] == ["red"]
+    assert aioclient_mock.call_count == 1  # cached
