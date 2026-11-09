@@ -100,6 +100,8 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
 .vac-st b{display:block;font-family:var(--display);font-size:24px;font-weight:400}
 .vac-st small{display:block;color:var(--muted);font-size:14px;margin-top:3px}
 .vac-st .vac-err{color:#ff9f0a}
+.vac-rt .pill{height:42px}
+.vac-rt .pill ha-icon{--mdc-icon-size:18px}
 .vac-btns{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
 .vac-b{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px;border-radius:18px;background:rgba(255,255,255,.08);font-size:14px;font-weight:600;text-align:center}
 .vac-b ha-icon{--mdc-icon-size:24px}
@@ -190,6 +192,33 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
 .sheet{width:min(400px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;border-radius:34px;padding:24px;background:var(--glass-strong);border:1px solid var(--line)}
 .ov.enter .sheet{animation:pop .22s cubic-bezier(.2,.9,.3,1.2)}
 .sheet .hd{display:flex;align-items:center;gap:12px}
+.sh-only{display:none}.sheet.cols .sh-only{display:block}
+.sheet{position:relative}
+.sh-x{all:unset;cursor:pointer;flex:none;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;color:var(--muted);background:rgba(255,255,255,.08);margin-left:4px}
+.sh-x:hover{color:#fff;background:rgba(255,255,255,.16)}.sh-x ha-icon{--mdc-icon-size:22px}
+/* landscape screens: wider sheets, in two columns when there is a main control and more */
+@media (min-width:900px) and (min-aspect-ratio:4/3){
+  .ov .sheet{width:min(460px,calc(100vw - 48px))}
+  .ov .sheet.wide{width:min(640px,calc(100vw - 48px))}
+  .ov .sheet.cols{width:min(1120px,calc(100vw - 64px));max-height:calc(100vh - 40px);display:grid;grid-template-columns:minmax(330px,.85fr) minmax(0,1.15fr);grid-template-rows:auto minmax(0,1fr);column-gap:28px;overflow:hidden}
+  .sheet.cols>.hd{grid-column:1/-1;padding-bottom:6px}
+  .sh-main,.sh-side{min-height:0;overflow:auto;scrollbar-width:thin;padding:0 4px 4px}
+  .sheet.cols .sh-side>.sub:first-child,.sheet.cols .sh-side>.wx-alert:first-child,.sheet.cols .sh-side>.vac-folds:first-child{margin-top:12px}
+  .sheet.cols .ring{margin-top:18px}
+  .sheet.cols .vslider{height:260px}
+  .sheet.cols .row.presets{flex-wrap:wrap;overflow:visible}
+  .sheet.cols .sh-side>.sub:first-child{margin-top:12px}
+  .sheet.cols .sh-side>.row:first-of-type{justify-content:flex-start}
+  .sheet.cols .sh-side .vac-map{margin-top:12px;max-height:300px}
+  .ov .sheet.cols-sm{width:min(860px,calc(100vw - 64px))}
+  .sheet.cols .sh-side .swatches{justify-content:flex-start;flex-wrap:wrap}
+  .sheet.cols .sh-side .attrs{margin-top:12px}
+  .sheet.cols .sh-side>.row{justify-content:flex-start}
+  .sheet.cols .sh-main>.vslider:first-child{margin-top:18px}
+  .sheet.wide1 .dv-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .sheet.wide1 .dv-tgrid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+  .sheet.wide1 .row.presets{flex-wrap:wrap;overflow:visible}
+}
 .sheet .hd .ic{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:var(--acc,rgba(255,255,255,.15));color:var(--ink)}
 .sheet .hd .nm{font-size:20px;font-weight:500;flex:1}
 .sheet .hd .st{font-size:14px;color:var(--muted)}
