@@ -1343,12 +1343,23 @@ class Pine3ViewPanel extends HTMLElement {
     const sel = (this._meta?.[id]?.members || []).find((e) => dom(e) === "select" && (this._s(e)?.attributes.options || []).some((o) => names.includes(o)));
     return maps.find((m) => m.name === this._s(sel)?.state) || maps[0];
   }
+  /**
+   * The robot's routines (Roborock creates one button per routine of its app: no category and no
+   * translated name, unlike its own buttons such as empty dustbin or the consumable resets).
+   */
+  _vacRoutines(id) {
+    const reg = this._hass.entities || {};
+    return (this._meta?.[id]?.members || []).filter((e) => dom(e) === "button" && this._s(e) && this._s(e).state !== "unavailable"
+      && !reg[e]?.entity_category && !reg[e]?.translation_key && !/reset|consumable|empty_dustbin|dock_error/.test(e));
+  }
+
   /** The robot's other entities, sorted: what you use when cleaning up front; maintenance, settings and diagnostics folded away. */
   _vacuumSections(id) {
     const cat = (e) => this._hass.entities?.[e]?.entity_category || null;
     const shown = new Set(["battery", "status", "cleaning_area", "cleaning_time", "clean_percent", "cleaning_progress", "vacuum_error", "dock_error"]
       .map((x) => this._vacMember(id, "sensor", x)).filter(Boolean));
-    const mem = (this._meta?.[id]?.members || []).filter((e) => this._s(e) && this._s(e).state !== "unavailable" && dom(e) !== "image" && !shown.has(e));
+    const routines = new Set(this._vacRoutines(id));
+    const mem = (this._meta?.[id]?.members || []).filter((e) => this._s(e) && this._s(e).state !== "unavailable" && dom(e) !== "image" && !shown.has(e) && !routines.has(e));
     const isReading = (e) => ["sensor", "binary_sensor"].includes(dom(e));
     const maint = mem.filter((e) => (isReading(e) && /_(time_)?left$|_remaining$|consumable/.test(e)) || (dom(e) === "button" && /reset/.test(e)));
     const main = mem.filter((e) => !maint.includes(e) && !isReading(e) && (dom(e) === "select" || !cat(e)));
@@ -1403,6 +1414,10 @@ class Pine3ViewPanel extends HTMLElement {
         ${level != null && Number.isFinite(level) ? `<div class="vac-bat"><ha-icon icon="mdi:battery${level >= 95 ? "" : "-" + Math.max(10, Math.round(level / 10) * 10)}"></ha-icon><b>${Math.round(level)}%</b></div>` : ""}
         <div class="vac-st"><b>${esc(fmt(status || id))}</b>${now ? `<small>${esc(now)}</small>` : ""}${errOn ? `<small class="vac-err">${esc(fmt(err))}</small>` : ""}</div>
       </div>
+      ${(() => {
+        const rs = this._vacRoutines(id);
+        return rs.length ? `<div class="sub">${t("Rotinas")}</div><div class="row presets vac-rt">${rs.map((e) => `<button class="pill ${this._fired === e ? "act" : ""}" data-vroutine="${esc(e)}"><ha-icon icon="${this._s(e).attributes.icon || "mdi:play-circle-outline"}"></ha-icon>${esc(this._memberName(id, e))}</button>`).join("")}</div>` : "";
+      })()}
       <div class="vac-btns">
         ${s.state === "cleaning" ? btn("pause", "pause", t("Pausar"), true) : btn("start", "play", s.state === "paused" ? t("Retomar") : t("Iniciar"))}
         ${btn("return_to_base", "home-import-outline", t("Voltar à base"), s.state === "returning")}
@@ -1667,6 +1682,12 @@ class Pine3ViewPanel extends HTMLElement {
     on("[data-more]", () => { this._modal = null; this._render(); this._moreInfo(id); });
     on("[data-svc]", (el) => { const [d, s] = el.dataset.svc.split("."); this._call(d, s, { entity_id: id }); });
     on("[data-vsec]", (el) => { const k = el.dataset.vsec; this._vacOpen[k] = !this._vacOpen[k]; this._render(); });
+    on("[data-vroutine]", (el) => {
+      const e = el.dataset.vroutine;
+      this._call("button", "press", { entity_id: e });
+      this._fired = e; this._render();
+      setTimeout(() => { this._fired = null; this._render(); }, 1200);
+    });
     on("[data-vfan]", (el) => this._call("vacuum", "set_fan_speed", { entity_id: id, fan_speed: el.dataset.vfan }));
     on("[data-vroom]", (el) => {
       const sid = Number(el.dataset.vroom), pick = (this._vacPick[id] ||= []);

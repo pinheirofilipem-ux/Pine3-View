@@ -100,6 +100,8 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
 .vac-st b{display:block;font-family:var(--display);font-size:24px;font-weight:400}
 .vac-st small{display:block;color:var(--muted);font-size:14px;margin-top:3px}
 .vac-st .vac-err{color:#ff9f0a}
+.vac-rt .pill{height:42px}
+.vac-rt .pill ha-icon{--mdc-icon-size:18px}
 .vac-btns{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
 .vac-b{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px;border-radius:18px;background:rgba(255,255,255,.08);font-size:14px;font-weight:600;text-align:center}
 .vac-b ha-icon{--mdc-icon-size:24px}

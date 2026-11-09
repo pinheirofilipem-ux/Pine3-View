@@ -120,7 +120,7 @@ export const EN = {
   "Câmara": "Camera", "Fechadura": "Lock", "Aspirador": "Vacuum", "Outro": "Other",
   // full screen & kiosk
   "Ecrã inteiro": "Full screen", "Sair do ecrã inteiro": "Exit full screen", "Este dispositivo": "This device",
-  "Voltar à base": "Back to dock", "Começa": "Starts", "Termina": "Ends", "a partir de {t}": "from {t}", "até {t}": "until {t}", "Aviso amarelo": "Yellow warning", "Aviso laranja": "Orange warning", "Aviso vermelho": "Red warning",
+  "Voltar à base": "Back to dock", "Rotinas": "Routines", "Começa": "Starts", "Termina": "Ends", "a partir de {t}": "from {t}", "até {t}": "until {t}", "Aviso amarelo": "Yellow warning", "Aviso laranja": "Orange warning", "Aviso vermelho": "Red warning",
   "Índice UV": "UV index", "Risco de incêndio": "Fire risk", "Sem avisos do IPMA": "No IPMA warnings",
   "Linho": "Linen", "Névoa": "Mist", "Pêssego": "Peach", "Menta": "Mint", "Lavanda": "Lavender", "Céu": "Sky",
   "O ambiente por trás dos cartões. Os fundos claros põem todo o painel em modo claro.": "The backdrop behind the cards. Light backgrounds switch the whole panel to light mode.",
