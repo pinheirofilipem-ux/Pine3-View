@@ -74,6 +74,7 @@ export function drawHouse(host, stage, M, view) {
   const cs = getComputedStyle(host);
   const amber = rgbOf(ctx, cs.getPropertyValue("--amber").trim(), "#f6b83f");
   const pr = camera(M, view, cw, ch);
+  const W = host.classList.contains("light") ? "40,30,46" : "255,255,255"; // floors and walls: white on dark themes, ink on light ones
   const flat = M.mode === "plan";
   const path = (pts) => { ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.closePath(); };
   const quad = ([x, y, w, h], z) => [pr(x, y, z), pr(x + w, y, z), pr(x + w, y + h, z), pr(x, y + h, z)];
@@ -89,8 +90,8 @@ export function drawHouse(host, stage, M, view) {
     const z = F.z;
     // floor slab
     ctx.beginPath(); path(quad(F.slab, z - 2));
-    ctx.fillStyle = "rgba(255,255,255,.07)"; ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,.14)"; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = `rgba(${W},.07)`; ctx.fill();
+    ctx.strokeStyle = `rgba(${W},.14)`; ctx.lineWidth = 1; ctx.stroke();
 
     // room floors, with the glow of their lights
     for (const R of F.rooms) {
@@ -99,7 +100,7 @@ export function drawHouse(host, stage, M, view) {
       R.qs = qs;
       rooms.push({ id: R.id, qs });
       ctx.beginPath(); qs.forEach(path);
-      ctx.fillStyle = "rgba(255,255,255,.10)"; ctx.fill();
+      ctx.fillStyle = `rgba(${W},.10)`; ctx.fill();
       if (R.lit) {
         ctx.save(); ctx.clip();
         plane(R.cx, R.cy, z);
@@ -111,7 +112,7 @@ export function drawHouse(host, stage, M, view) {
       }
       if (!R.shape) {
         ctx.beginPath(); qs.forEach(path);
-        ctx.strokeStyle = R.lit ? rgba(lc, 0.75) : "rgba(255,255,255,.16)"; ctx.lineWidth = 1; ctx.stroke();
+        ctx.strokeStyle = R.lit ? rgba(lc, 0.75) : `rgba(${W},.16)`; ctx.lineWidth = 1; ctx.stroke();
       }
     }
 
@@ -141,9 +142,9 @@ export function drawHouse(host, stage, M, view) {
       for (const { R, q } of ws) {
         const lc = R.glow?.rgb || amber, k = R.glow?.k ?? 0.7;
         ctx.beginPath(); path(q);
-        ctx.fillStyle = "rgba(255,255,255,.10)"; ctx.fill();
+        ctx.fillStyle = `rgba(${W},.10)`; ctx.fill();
         if (R.lit) { ctx.fillStyle = rgba(lc, 0.24 * k); ctx.fill(); }
-        ctx.strokeStyle = R.lit ? rgba(lc, 0.5) : "rgba(255,255,255,.22)"; ctx.lineWidth = 1;
+        ctx.strokeStyle = R.lit ? rgba(lc, 0.5) : `rgba(${W},.22)`; ctx.lineWidth = 1;
         if (R.open) ctx.setLineDash([4, 3]);
         ctx.stroke(); ctx.setLineDash([]);
       }
@@ -154,7 +155,7 @@ export function drawHouse(host, stage, M, view) {
         const lc = R.glow?.rgb || amber;
         ctx.beginPath();
         for (const e of R.edges) { const a = pr(e[0], e[1], z), b = pr(e[2], e[3], z); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); }
-        ctx.strokeStyle = R.lit ? rgba(lc, 0.8) : "rgba(255,255,255,.4)"; ctx.lineWidth = 2.5;
+        ctx.strokeStyle = R.lit ? rgba(lc, 0.8) : `rgba(${W},.4)`; ctx.lineWidth = 2.5;
         if (R.open) ctx.setLineDash([6, 4]);
         ctx.stroke(); ctx.setLineDash([]);
       }
@@ -164,8 +165,8 @@ export function drawHouse(host, stage, M, view) {
     for (const R of F.rooms) for (const L of R.lights) {
       const lc = L.glow?.rgb || amber, k = L.glow?.k ?? 1;
       const lz = flat ? z : z + (L.kind === "ceiling" ? wall - 2 : 3);
-      const fill = L.on ? `rgb(${lc.map((v) => Math.round(v * 0.35 + 255 * 0.65)).join(",")})` : "rgba(255,255,255,.35)";
-      const stroke = L.on ? rgba(lc, 1) : "rgba(255,255,255,.6)";
+      const fill = L.on ? `rgb(${lc.map((v) => Math.round(v * 0.35 + 255 * 0.65)).join(",")})` : `rgba(${W},.35)`;
+      const stroke = L.on ? rgba(lc, 1) : `rgba(${W},.6)`;
       if (L.kind === "strip") {
         const a = (L.rot * Math.PI) / 180, h = L.len / 2;
         const A = pr(L.x - Math.cos(a) * h, L.y - Math.sin(a) * h, lz), B = pr(L.x + Math.cos(a) * h, L.y + Math.sin(a) * h, lz);

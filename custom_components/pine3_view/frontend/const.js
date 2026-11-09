@@ -87,7 +87,15 @@ export const THEMES = {
   aurora: "radial-gradient(90% 70% at 0% 0%, #1f8a7a 0%, transparent 55%), radial-gradient(80% 70% at 100% 30%, #6a3fa0 0%, transparent 60%), linear-gradient(180deg, #0e1e2a, #120c22)",
   areia: "radial-gradient(100% 80% at 20% 0%, #a0724a 0%, transparent 55%), radial-gradient(80% 70% at 100% 100%, #5a4a7a 0%, transparent 60%), linear-gradient(160deg, #3a2a20, #1a1420)",
   oceano: "radial-gradient(100% 80% at 90% 0%, #1e6fa8 0%, transparent 55%), radial-gradient(80% 70% at 0% 100%, #0f8a8a 0%, transparent 60%), linear-gradient(170deg, #0a1f33, #06121c)",
+  // light themes (the whole panel switches to dark text on light glass)
+  linho: "radial-gradient(90% 70% at 15% 0%, #fffaf1 0%, transparent 60%), radial-gradient(80% 70% at 100% 100%, #e8d9c4 0%, transparent 60%), linear-gradient(160deg, #f6efe4, #e9dfd0)",
+  nevoa: "radial-gradient(90% 70% at 85% 0%, #ffffff 0%, transparent 60%), radial-gradient(80% 70% at 0% 100%, #cfdbe8 0%, transparent 60%), linear-gradient(170deg, #eef2f7, #dfe6ef)",
+  pessego: "radial-gradient(90% 70% at 10% 0%, #fff3ec 0%, transparent 60%), radial-gradient(80% 70% at 100% 90%, #f4cdbf 0%, transparent 60%), linear-gradient(160deg, #fbe9e1, #f1dcd6)",
+  menta: "radial-gradient(90% 70% at 90% 0%, #f6fffb 0%, transparent 60%), radial-gradient(80% 70% at 0% 100%, #c6e5d8 0%, transparent 60%), linear-gradient(170deg, #e9f5f0, #d9ebe3)",
+  lavanda: "radial-gradient(90% 70% at 20% 0%, #fbf8ff 0%, transparent 60%), radial-gradient(80% 70% at 100% 100%, #d6cdee 0%, transparent 60%), linear-gradient(160deg, #f0ecf8, #e2dcf0)",
+  ceu: "radial-gradient(90% 70% at 80% 0%, #ffffff 0%, transparent 60%), radial-gradient(80% 70% at 0% 100%, #bcd8f0 0%, transparent 60%), linear-gradient(170deg, #e7f1fa, #d4e5f4)",
 };
+export const LIGHT_THEMES = new Set(["linho", "nevoa", "pessego", "menta", "lavanda", "ceu"]);
 export const CARD_COLORS = ["#f5efe1", "#efe3c8", "#e6dcc2", "#d6e2e8", "#c3d3da", "#d9d3e3", "#e6d3d6", "#cfe0cc", "#bccfc3", "#cbb9a8", "#bcc6d3", "#d8ccb4", "#cdc6d8", "#b9d3cd"];
 export const ACCENTS = ["#f6b83f", "#f5a524", "#ff9f43", "#ff7a59", "#ff6b81", "#f472b6", "#a78bfa", "#7c8cff", "#4aa8ff", "#2dd4bf", "#4ade80", "#a3e635"];
 export const DOCK_ITEMS = [
@@ -102,10 +110,10 @@ export const DEFAULTS = {
   theme: "ameixa", card_color: "#f5efe1", accent_color: "#f6b83f", clock_24h: true,
   show_weather: true, show_people: true, show_status: true, show_scenes: true, show_summary: true,
   dock: ["home", "rooms", "house", "scenes"], hidden: [], hidden_rooms: [], room_order: [],
-  language: "pt", layout: "grid", home_layout: "top", weather_entity: "", screensaver: 0, animations: true,
+  language: "pt", layout: "grid", home_layout: "top", appearance: "fixed", theme_day: "linho", theme_night: "ameixa", weather_entity: "", screensaver: 0, animations: true,
   big_rooms: [], big_devices: [], device_order: {}, house_size: {}, house_layout: {}, shown: [], placements: {}, wall_height: 30,
 };
-export const THEME_NAMES = { ameixa: "Ameixa", pinheiro: "Pinheiro", noite: "Noite", aurora: "Aurora", areia: "Areia", oceano: "Oceano" };
+export const THEME_NAMES = { ameixa: "Ameixa", pinheiro: "Pinheiro", noite: "Noite", aurora: "Aurora", areia: "Areia", oceano: "Oceano", linho: "Linho", nevoa: "Névoa", pessego: "Pêssego", menta: "Menta", lavanda: "Lavanda", ceu: "Céu" };
 
 
 
