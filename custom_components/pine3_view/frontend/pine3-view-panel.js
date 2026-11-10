@@ -2,7 +2,7 @@
 // Organises the home as Areas -> Devices -> Entities, built server-side by discovery.py.
 
 import {
-  SHOWN, TOGGLE, DETAIL, SECTIONS, DOMAIN_ICON, DEVICE_CLASS_ICON, ACCENT, STATE_PT, WEATHER_PT, WEATHER_ICON,
+  SHOWN, TOGGLE, DETAIL, SECTIONS, SECTION_ICON, DOMAIN_ICON, DEVICE_CLASS_ICON, ACCENT, STATE_PT, WEATHER_PT, WEATHER_ICON,
   BIN_PT, NAME_ICON, THEMES, LIGHT_THEMES, VIVID_THEMES, CARD_COLORS, ACCENTS, DOCK_ITEMS, DEFAULTS, THEME_NAMES, esc, dom, store, loadFonts,
 } from "./const.js";
 import { css } from "./styles.js";
@@ -1287,7 +1287,8 @@ class Pine3ViewPanel extends HTMLElement {
 
   _deviceSection(id, only = null) {
     const mem = (only || this._meta?.[id]?.members || []).filter((e) => this._s(e) && this._s(e).state !== "unavailable" && dom(e) !== "image"
-      && !(dom(e) === "button" && this._s(e).attributes.device_class === "identify")); // "Identify" only makes the device blink
+      && !(dom(e) === "button" && this._s(e).attributes.device_class === "identify") // "Identify" only makes the device blink
+      && !/power[_ ]?on[_ ]?(behaviou?r|state)|startup[_ ]?on[_ ]?off/i.test(`${e} ${this._s(e).attributes.friendly_name || ""}`.replace(/-/g, "_"))); // set once, not day to day
     if (!mem.length) return "";
     const readings = mem.filter((e) => ["sensor", "binary_sensor"].includes(dom(e)));
     const isToggle = (e) => ["switch", "input_boolean", "light", "fan"].includes(dom(e));
@@ -1455,19 +1456,29 @@ class Pine3ViewPanel extends HTMLElement {
 
   _roomView(room) {
     const c = this._roomClimate(room);
+    const devs = room.ents.filter((i) => dom(i) !== "scene");
+    // categories: one grid ordered by kind (lights first, sensors last) and filter chips on top, like a home app
+    const cat = (i) => SECTIONS.findIndex(([, domains]) => domains.includes(dom(i)));
+    const cats = SECTIONS.map(([title], k) => [k, title, devs.filter((i) => cat(i) === k)]).filter(([, , l]) => l.length);
+    if (this._roomCatFor !== room.id) { this._roomCat = null; this._roomCatFor = room.id; }
+    const sel = this._edit ? null : this._roomCat;
+    const shown = devs.map((i, n) => [i, n]).sort((x, y) => ((cat(x[0]) + 99) % 99) - ((cat(y[0]) + 99) % 99) || x[1] - y[1]).map(([i]) => i)
+      .filter((i) => sel == null || cat(i) === sel);
+    const lights = devs.filter((i) => dom(i) === "light"), lit = lights.filter((i) => this._isOn(i));
+    const others = this._activeOthers(devs);
+    const status = lit.length ? tp(lit.length, "{n} luz acesa", "{n} luzes acesas") : others.length ? tp(others.length, "{n} dispositivo ligado", "{n} dispositivos ligados") : t("Tudo desligado");
     const sub = [c.temp, c.hum].filter(Boolean).join(" · ");
-    // each category takes only the columns it needs, so small ones sit side by side (see _packSections)
-    const bigs = this._cfg().big_devices || [];
-    const sections = SECTIONS.map(([title, domains]) => {
-      const ents = room.ents.filter((i) => domains.includes(dom(i)));
-      const cells = ents.reduce((a, i) => a + (bigs.includes(i) ? 2 : 1), 0);
-      return ents.length ? `<section class="sec" data-cells="${cells}"><h2 title="${t(title)}">${t(title)}</h2><div class="tiles" data-sortable="dev:${esc(room.id)}">${ents.map((i) => this._tile(i)).join("")}</div></section>` : "";
-    }).join("");
     const hiddenHere = this._edit && this._model ? this._model.rooms.find((r) => r.id === room.id)?.devices.filter((d) => this._edit.hidden.includes(d.id)).length : 0;
     const scenes = room.ents.filter((i) => dom(i) === "scene");
-    const sc = scenes.length && !this._edit ? `<h2>${t("Cenas")}</h2><div class="scenes">${scenes.map((i) => `<div class="scene glass ${this._fired === i ? "fired" : ""} ${this._sceneOn(i) ? "on" : ""}" data-scene="${i}" title="${this._sceneOn(i) ? t("Toca para desligar") : ""}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon>${esc(this._name(i))}</div>`).join("")}</div>` : "";
-    return `<div class="hero"><div><div class="eyebrow">${tp(room.count, "{n} dispositivo", "{n} dispositivos")}</div><div class="t" style="margin-top:8px">${esc(this._roomName(room))}</div>${sub ? `<div class="s">${sub}</div>` : ""}${this._hint()}</div>
-      <div class="right">${this._editBtn()}${this._gear()}</div></div>${sc}<div class="tiles secs">${sections}</div>
+    const chips = (cats.length > 1 && !this._edit ? `<button class="pill rcat ${sel == null ? "solid" : ""}" data-rcat="">${t("Tudo")} <small>${devs.length}</small></button>${cats.map(([k, title, l]) => `<button class="pill rcat ${sel === k ? "solid" : ""}" data-rcat="${k}"><ha-icon icon="${SECTION_ICON[title] || "mdi:shape-outline"}"></ha-icon>${t(title)} <small>${l.length}</small></button>`).join("")}` : "")
+      + (scenes.length && !this._edit ? `${cats.length > 1 ? `<span class="rsep"></span>` : ""}${scenes.map((i) => `<div class="scene glass ${this._fired === i ? "fired" : ""} ${this._sceneOn(i) ? "on" : ""}" data-scene="${i}" title="${this._sceneOn(i) ? t("Toca para desligar") : ""}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon>${esc(this._name(i))}</div>`).join("")}` : "");
+    return `<div class="rhead">
+        <div class="rtitle"><div class="eyebrow">${tp(room.count, "{n} dispositivo", "{n} dispositivos")}${sub ? ` · ${esc(sub)}` : ""}</div><div class="t">${esc(this._roomName(room))}</div>${this._hint()}</div>
+        ${this._edit ? "" : `<div class="rstat"><div class="status">${status}</div>${others.length && lit.length ? `<div class="sdet">${esc(this._othersLine(others))}</div>` : ""}</div>`}
+        <div class="right">${lights.length && !this._edit ? `<button class="pill" data-rlights="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender")}</button><button class="pill solid" data-rlights="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar")}</button>` : ""}${this._editBtn()}${this._gear()}</div>
+      </div>
+      ${chips ? `<div class="rchips">${chips}</div>` : ""}
+      <div class="tiles rgrid" data-sortable="dev:${esc(room.id)}">${shown.map((i) => this._tile(i)).join("")}</div>
       ${hiddenHere ? `<div class="tiles" style="margin-top:18px"><div class="tile add" data-edrestore="devices"><ha-icon icon="mdi:plus"></ha-icon><span>${tp(hiddenHere, "Mostrar {n} escondido", "Mostrar {n} escondidos")}</span></div></div>` : ""}`;
   }
 
@@ -1589,8 +1600,8 @@ class Pine3ViewPanel extends HTMLElement {
     } else if (d === "camera") {
       content = `<img src="/api/camera_proxy/${esc(id)}?token=${esc(a.access_token || "")}&t=${Date.now()}" style="width:100%;border-radius:18px;margin-top:18px;background:#000">`;
     } else {
-      const skip = new Set(["friendly_name", "icon", "entity_picture", "supported_features", "attribution"]);
-      const rows = Object.entries(a).filter(([k, v]) => !skip.has(k) && typeof v !== "object").slice(0, 8);
+      const skip = new Set(["friendly_name", "icon", "entity_picture", "supported_features", "attribution", "color_mode", "supported_color_modes", "device_class"]);
+      const rows = ["light", "switch", "input_boolean"].includes(d) ? [] : Object.entries(a).filter(([k, v]) => !skip.has(k) && typeof v !== "object" && v != null).slice(0, 8);
       content = `${d === "sensor" ? `<div style="font-size:48px;font-weight:300;text-align:center;margin:24px 0 6px">${esc(this._sensorVal(id))}</div>` : ""}
         <!--side-->${rows.length ? `<div class="attrs">${rows.map(([k, v]) => `<span>${esc(k.replace(/_/g, " "))}</span><b>${esc(v)}</b>`).join("")}</div>` : ""}`;
     }
@@ -1645,6 +1656,11 @@ class Pine3ViewPanel extends HTMLElement {
         if (lights.length) this._call("light", el.dataset.all === "on" ? "turn_on" : "turn_off", { entity_id: lights });
       });
       on("[data-pw]", (el, ev) => { ev.stopPropagation(); this._call("homeassistant", "toggle", { entity_id: el.dataset.pw }); });
+      on("[data-rcat]", (el) => { const v = el.dataset.rcat; this._roomCat = v === "" || Number(v) === this._roomCat ? null : Number(v); this._render(); });
+      on("[data-rlights]", (el) => {
+        const r = this._rooms().find((x) => x.id === this._room), ls = (r?.ents || []).filter((i) => dom(i) === "light");
+        if (ls.length) this._call("light", el.dataset.rlights === "on" ? "turn_on" : "turn_off", { entity_id: ls });
+      });
       on("[data-open]", (el) => this._openModal(el.dataset.open));
       // climate cards: power and ± target, without opening the card
       on("[data-cpw]", (el, ev) => {

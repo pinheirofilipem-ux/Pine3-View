@@ -18,6 +18,10 @@ export const SECTIONS = [
   ["Sensores", ["sensor", "binary_sensor"]],
 ];
 
+export const SECTION_ICON = {
+  "Luzes": "mdi:lightbulb-outline", "Clima": "mdi:thermometer", "Cortinas e estores": "mdi:window-shutter", "Multimédia": "mdi:television",
+  "Segurança": "mdi:shield-outline", "Tomadas e interruptores": "mdi:power-socket-eu", "Ações": "mdi:gesture-tap-button", "Sensores": "mdi:gauge",
+};
 export const DOMAIN_ICON = {
   light: "mdi:lightbulb", switch: "mdi:power-socket-eu", fan: "mdi:fan", cover: "mdi:window-shutter",
   lock: "mdi:lock", climate: "mdi:thermostat", media_player: "mdi:speaker", sensor: "mdi:gauge",
