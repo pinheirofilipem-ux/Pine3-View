@@ -112,6 +112,12 @@ def _is_identify(hass: HomeAssistant, entry: er.RegistryEntry) -> bool:
     return dc == "identify"
 
 
+def _is_power_on_behavior(entry: er.RegistryEntry) -> bool:
+    """The "Power-on behavior" select of bulbs and plugs (Zigbee2MQTT, ZHA, Hue...): set once, not used day to day."""
+    key = f"{entry.entity_id} {entry.translation_key or ''} {entry.original_name or ''}".lower().replace("-", "_").replace(" ", "_")
+    return entry.entity_id.split(".")[0] in ("select", "switch") and ("power_on_behavior" in key or "power_on_state" in key or "startup_on_off" in key)
+
+
 def kind_of(hass: HomeAssistant, entity_id: str, entry: er.RegistryEntry | None) -> str:
     domain = entity_id.split(".")[0]
     dc = _sensor_class(hass, entity_id, entry)
@@ -271,8 +277,8 @@ def build_home(hass: HomeAssistant, settings: dict[str, Any]) -> dict[str, Any]:
             continue
         if entry.entity_id.split(".")[0] not in MEMBER_DOMAINS or hass.states.get(entry.entity_id) is None:
             continue
-        if _is_identify(hass, entry):
-            continue  # "Identify" (HomeKit and others) only makes the device blink or beep
+        if _is_identify(hass, entry) or _is_power_on_behavior(entry):
+            continue  # "Identify" only makes the device blink; "Power-on behavior" is a one-time setup choice
         by_device.setdefault(alias.get(entry.device_id, entry.device_id), []).append(entry.entity_id)
     for room in rooms.values():
         for dev in room["devices"]:

@@ -392,6 +392,7 @@ async def test_identify_buttons_hidden(hass: HomeAssistant) -> None:
     mp = entity("media_player", "tv", "on", {"device_class": "tv"})
     ident = entity("button", "tv_identify", "unknown", {"device_class": "identify"}, entity_category=EntityCategory.DIAGNOSTIC)
     mute = entity("switch", "tv_mute", "off")
+    pob = entity("select", "tv_power_on_behavior", "previous", {"options": ["on", "off", "previous"]}, entity_category=EntityCategory.CONFIG, original_name="Power-on behavior")
     rooms = {r["name"]: r for r in build_home(hass, {"hidden": [], "hidden_rooms": [], "room_order": []})["rooms"]}
     dev = next(d for d in rooms["Sala"]["devices"] if d["id"] == mp)
-    assert mute in dev["members"] and ident not in dev["members"]
+    assert mute in dev["members"] and ident not in dev["members"] and pob not in dev["members"]

@@ -475,8 +475,34 @@ a.pill{color:inherit;text-decoration:none}
 }
 @media (min-width:721px) and (max-height:920px){.secs>.sec>h2{margin-top:14px;letter-spacing:.14em}.secs>.sec>.tiles{margin-top:8px}}
 /* a room on a wide screen: the back button sits beside the title instead of on a row of its own */
-@media (min-width:721px){.roomv>header{position:absolute;padding:0;margin-top:32px}.roomv>header .iconbtn{width:46px;height:46px}.roomv>.hero{padding-left:62px}}
-@media (min-width:721px) and (max-height:920px){.roomv>header{margin-top:16px}}
+/* a room: the home screen's look; header with status and lights, category chips, one grid of cards */
+.rhead{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:32px;padding-top:26px}
+.rtitle .t{font-family:var(--display);font-size:clamp(40px,4.4vw,60px);font-weight:400;letter-spacing:-.02em;line-height:1.02;margin-top:6px}
+.rstat{min-width:0;border-left:1px solid var(--line);padding-left:28px}
+.rstat .status{font-size:clamp(22px,2.3vw,30px);margin-top:0}
+.rhead .right{display:flex;align-items:center;gap:10px;flex-wrap:nowrap}
+.rchips{display:flex;gap:10px;align-items:center;overflow-x:auto;scrollbar-width:none;margin-top:18px;padding-bottom:2px}
+.rchips::-webkit-scrollbar{display:none}
+.rchips .pill{flex:none;height:42px;font-size:15px}.rchips .pill small{opacity:.6;font-weight:600;margin-left:2px}
+.rchips .scene{flex:none;height:42px;font-size:15px;padding:0 18px 0 14px}
+.rsep{flex:none;width:1px;height:26px;background:var(--line);margin:0 4px}
+.tiles.rgrid{grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;margin-top:16px;grid-auto-rows:1fr}
+.rgrid .tile{border-radius:var(--r);padding:18px;min-height:clamp(130px,calc((100vh - var(--dock-space,108px) - 236px) / 3),210px)}
+.rgrid .tile .ic{width:46px;height:46px}
+.rgrid .tile .nm{font-size:19px;margin-top:auto;padding-top:10px}
+.rgrid .tile .tx{margin-top:auto}
+@media (min-width:721px){.roomv>header{position:absolute;padding:0;margin-top:44px}.roomv>header .iconbtn{width:46px;height:46px}.roomv>.rhead{padding-left:62px}}
+@media (min-width:721px) and (max-height:920px){
+  .roomv>header{margin-top:26px}.rhead{padding-top:16px;gap:24px}.rtitle .t{font-size:44px}.rchips{margin-top:12px}.tiles.rgrid{gap:12px;margin-top:12px}
+  .rgrid .tile{padding:14px 16px;min-height:clamp(118px,calc((100vh - var(--dock-space,100px) - 206px) / 3),200px)}
+  .rgrid .tile .ic{width:40px;height:40px}.rgrid .tile .pw{width:44px;height:44px}.rgrid .tile .nm{font-size:17px}
+  .rhead .pill{height:42px}
+}
+@media (max-width:720px){
+  .rhead{grid-template-columns:1fr auto;gap:12px;padding-top:12px}.rstat{grid-column:1/-1;grid-row:2;border:0;padding:0}
+  .rhead .right .pill{display:none}.tiles.rgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .rgrid .tile{min-height:150px}
+}
 /* the Home screen on a landscape tablet: clock, status, scenes and two rows of cards on one screen */
 @media (min-width:721px) and (max-height:920px){
   .top{padding-top:14px}.clock{font-size:52px;margin-top:4px}.wpill{height:48px}.wpill b{font-size:22px}.av,.top .iconbtn{width:46px;height:46px}
