@@ -13,21 +13,25 @@ próprio desenhas. Código original, feito de raiz.
 
 ## Capturas de ecrã
 
-| Início | Casa 3D |
+| Início (Relógio grande) | Início (Duas colunas, fundo vivo Âmbar) |
 |---|---|
-| ![Início com relógio, tempo, estado da casa, cenas e divisões](docs/screenshots/home.jpg) | ![Casa 3D com dois pisos, uma sala em L e dispositivos no sítio](docs/screenshots/house-3d.jpg) |
-| **Divisão** | **Previsão do tempo** |
-| ![Vista de uma divisão com os dispositivos agrupados por tipo](docs/screenshots/room.jpg) | ![Previsão das próximas horas e dos próximos dias](docs/screenshots/forecast.jpg) |
+| ![Início com relógio grande, estado da casa, cartão do tempo com aviso do IPMA, cenas, divisões e cartões de resumo](docs/screenshots/home.jpg) | ![Início em duas colunas: relógio, o que está ligado e o tempo à esquerda, cenas e cartões à direita, no fundo Âmbar](docs/screenshots/home-columns-vivid.jpg) |
+| **Início (fundo claro)** | **Divisão** |
+| ![Início no fundo claro Linho](docs/screenshots/home-light.jpg) | ![Uma divisão com o estado, acender/apagar luzes, filtros por categoria e uma grelha de cartões](docs/screenshots/room.jpg) |
+| **Previsão do tempo e avisos do IPMA** | **Ecrã Clima** |
+| ![Previsão com avisos do IPMA, UV e risco de incêndio à esquerda e horas e dias à direita](docs/screenshots/forecast.jpg) | ![Todos os ares condicionados com controlos rápidos e a temperatura de cada divisão](docs/screenshots/climate.jpg) |
+| **Cartão do ar condicionado** | **Cartão do aspirador robô** |
+| ![Cartão de clima em duas colunas: anel da temperatura e modos](docs/screenshots/climate-card.jpg) | ![Cartão do aspirador com rotinas, botões, potência, divisões a limpar e controlos](docs/screenshots/vacuum.jpg) |
+| **Casa 3D** | **Casa 3D, rés-do-chão** |
+| ![Casa 3D com dois pisos, uma sala em L, luzes coloridas e dispositivos no sítio](docs/screenshots/house-3d.jpg) | ![Casa 3D só com o rés-do-chão](docs/screenshots/house-3d-ground-floor.jpg) |
 | **Planta: formas livres** | **Planta: dispositivos** |
-| ![Editor da planta a pintar quadrículas para uma sala em L](docs/screenshots/plan-shapes.jpg) | ![Editor da planta a pôr dispositivos e escolher o tipo](docs/screenshots/plan-devices.jpg) |
-| **Casa 3D, rés-do-chão** | **Modo de edição** |
-| ![Casa 3D só com o rés-do-chão](docs/screenshots/house-3d-ground-floor.jpg) | ![Modo de edição com cartões para esconder e duplicar](docs/screenshots/edit-mode.jpg) |
-| **Definições: aparência** | **Definições: entidades** |
-| ![Cores dos cartões, cor de destaque, fundo, idioma e disposição](docs/screenshots/settings-appearance.jpg) | ![Escolher que entidades aparecem](docs/screenshots/settings-entities.jpg) |
-| **Este dispositivo (ecrã inteiro)** | **Lista, em inglês** |
-| ![Opções por dispositivo: esconder a barra lateral, manter o ecrã ligado, ecrã inteiro](docs/screenshots/settings-device.jpg) | ![Disposição em lista com o painel em inglês](docs/screenshots/list-english.jpg) |
-| **Ecrã de descanso** | |
-| ![Relógio grande do ecrã de descanso](docs/screenshots/screensaver.jpg) | |
+| ![Editor da planta a pintar quadrículas para uma sala em L](docs/screenshots/plan-shapes.jpg) | ![Editor da planta a pôr dispositivos](docs/screenshots/plan-devices.jpg) |
+| **Modo de edição** | **Definições: aparência** |
+| ![Modo de edição com cartões para esconder, duplicar e reordenar](docs/screenshots/edit-mode.jpg) | ![Fundos vivos, escuros e claros, fixos ou automáticos de dia e de noite](docs/screenshots/settings-appearance.jpg) |
+| **Definições: entidades** | **Este dispositivo** |
+| ![Escolher que entidades aparecem](docs/screenshots/settings-entities.jpg) | ![Opções por dispositivo: vista da Casa 3D, efeitos leves, animações, barra lateral, ecrã ligado, ecrã inteiro](docs/screenshots/settings-device.jpg) |
+| **Lista, em inglês** | **Ecrã de descanso** |
+| ![Uma divisão em lista com o painel em inglês](docs/screenshots/list-english.jpg) | ![Relógio grande do ecrã de descanso](docs/screenshots/screensaver.jpg) |
 
 No telemóvel:
 
@@ -35,7 +39,7 @@ No telemóvel:
 |---|---|---|
 | ![Início no telemóvel](docs/screenshots/phone-home.jpg) | ![Folha de detalhe com luminosidade e cores](docs/screenshots/phone-light.jpg) | ![Casa 3D no telemóvel](docs/screenshots/phone-3d.jpg) |
 
-*Capturas feitas com uma casa de exemplo.*
+*Capturas feitas com uma casa de exemplo, num ecrã do tamanho de um tablet deitado; a maioria mostra o painel em português (o inglês está a um toque nas Definições).*
 
 ## Instalar com HACS
 1. No Home Assistant abre **HACS** → menu **⋮** → **Repositórios personalizados**.

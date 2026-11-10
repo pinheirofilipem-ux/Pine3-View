@@ -13,21 +13,25 @@ your house that you can draw yourself. Original code, built from scratch.
 
 ## Screenshots
 
-| Home | 3D Home |
+| Home (Big clock) | Home (Two columns, vivid Amber background) |
 |---|---|
-| ![Home screen with clock, weather, home status, scenes and rooms](docs/screenshots/home.jpg) | ![3D Home with two floors, an L-shaped living room and devices in place](docs/screenshots/house-3d.jpg) |
-| **Room** | **Weather forecast** |
-| ![A room with its devices grouped by type](docs/screenshots/room.jpg) | ![Forecast for the next hours and days](docs/screenshots/forecast.jpg) |
+| ![Home screen with a big clock, home status, weather card with an IPMA warning, scenes, rooms and summary cards](docs/screenshots/home.jpg) | ![Two-column home: clock, what is on and weather on the left, scenes and cards on the right, on the Amber background](docs/screenshots/home-columns-vivid.jpg) |
+| **Home (light background)** | **Room** |
+| ![Home screen on the light Linen background](docs/screenshots/home-light.jpg) | ![A room with its status, lights on/off, category chips and one grid of cards](docs/screenshots/room.jpg) |
+| **Weather forecast and IPMA warnings** | **Climate screen** |
+| ![Forecast with IPMA warnings, UV and fire risk on the left and hours and days on the right](docs/screenshots/forecast.jpg) | ![Every air conditioner with quick controls and the temperature of each room](docs/screenshots/climate.jpg) |
+| **Air conditioner card** | **Robot vacuum card** |
+| ![Climate card in two columns: target ring and modes](docs/screenshots/climate-card.jpg) | ![Vacuum card with routines, buttons, suction, rooms to clean and controls](docs/screenshots/vacuum.jpg) |
+| **3D Home** | **3D Home, ground floor** |
+| ![3D Home with two floors, an L-shaped living room, coloured lights and devices in place](docs/screenshots/house-3d.jpg) | ![3D Home showing only the ground floor](docs/screenshots/house-3d-ground-floor.jpg) |
 | **Floor plan: free shapes** | **Floor plan: devices** |
-| ![Floor-plan editor painting cells for an L-shaped room](docs/screenshots/plan-shapes.jpg) | ![Floor-plan editor placing devices and choosing their type](docs/screenshots/plan-devices.jpg) |
-| **3D Home, ground floor** | **Edit mode** |
-| ![3D Home showing only the ground floor](docs/screenshots/house-3d-ground-floor.jpg) | ![Edit mode with cards to hide and resize](docs/screenshots/edit-mode.jpg) |
-| **Settings: appearance** | **Settings: entities** |
-| ![Card colour, highlight colour, background, language and layout](docs/screenshots/settings-appearance.jpg) | ![Choosing which entities are shown](docs/screenshots/settings-entities.jpg) |
-| **This device (full screen)** | **List layout, in English** |
-| ![Per-device options: hide the sidebar, keep the screen on, full screen](docs/screenshots/settings-device.jpg) | ![List layout with the panel in English](docs/screenshots/list-english.jpg) |
-| **Screensaver** | |
-| ![Large screensaver clock](docs/screenshots/screensaver.jpg) | |
+| ![Floor-plan editor painting cells for an L-shaped room](docs/screenshots/plan-shapes.jpg) | ![Floor-plan editor placing devices](docs/screenshots/plan-devices.jpg) |
+| **Edit mode** | **Settings: appearance** |
+| ![Edit mode with cards to hide, resize and reorder](docs/screenshots/edit-mode.jpg) | ![Vivid, dark and light backgrounds, fixed or automatic by day and night](docs/screenshots/settings-appearance.jpg) |
+| **Settings: entities** | **This device** |
+| ![Choosing which entities are shown](docs/screenshots/settings-entities.jpg) | ![Per-device options: 3D Home view, light effects, animations, sidebar, screen on, full screen](docs/screenshots/settings-device.jpg) |
+| **List layout, in English** | **Screensaver** |
+| ![A room in the list layout with the panel in English](docs/screenshots/list-english.jpg) | ![Large screensaver clock](docs/screenshots/screensaver.jpg) |
 
 On a phone:
 
@@ -35,7 +39,7 @@ On a phone:
 |---|---|---|
 | ![Home screen on a phone](docs/screenshots/phone-home.jpg) | ![Detail sheet with brightness and colours](docs/screenshots/phone-light.jpg) | ![3D Home on a phone](docs/screenshots/phone-3d.jpg) |
 
-*Screenshots taken with a sample home; most show the Portuguese interface (English is one tap away in Settings).*
+*Screenshots taken with a sample home on a landscape tablet-sized screen; most show the Portuguese interface (English is one tap away in Settings).*
 
 ## Install with HACS
 1. In Home Assistant open **HACS** → **⋮** menu → **Custom repositories**.

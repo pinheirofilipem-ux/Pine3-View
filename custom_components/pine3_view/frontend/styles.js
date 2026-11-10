@@ -498,6 +498,10 @@ a.pill{color:inherit;text-decoration:none}
   .rgrid .tile .ic{width:40px;height:40px}.rgrid .tile .pw{width:44px;height:44px}.rgrid .tile .nm{font-size:17px}
   .rhead .pill{height:42px}
 }
+/* list layout: the room's cards as rows */
+.as-list .tiles.rgrid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));grid-auto-rows:auto;gap:10px}
+.as-list .rgrid .tile{min-height:0;border-radius:20px;padding:12px 16px}
+.as-list .rgrid .tile .nm{margin-top:0;padding-top:0}.as-list .rgrid .tile .tx{margin-top:0}
 @media (max-width:720px){
   .rhead{grid-template-columns:1fr auto;gap:12px;padding-top:12px}.rstat{grid-column:1/-1;grid-row:2;border:0;padding:0}
   .rhead .right .pill{display:none}.tiles.rgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
@@ -565,6 +569,7 @@ a.pill{color:inherit;text-decoration:none}
 .wxc.tall .wx-alert{padding:6px 10px}.wxc.tall{gap:10px}.wxc.tall .wx-hrs{padding:8px 0}
 .lv-yellow{--lv:#ffcc00}.lv-orange{--lv:#ff9500}.lv-red{--lv:#ff3b30}
 .wxc.wide.has-alert{flex-wrap:wrap;row-gap:10px}.wxc.wide .wx-alert{flex-basis:100%}
+.wx-alert{min-width:0;max-width:100%}.wxc.wide .wx-alert{order:5}
 .wx-al{--mdc-icon-size:18px;color:var(--lv);margin-left:2px}
 .wx-ok{display:flex;align-items:center;gap:8px;margin-top:14px;color:var(--muted);font-size:14px}.wx-ok ha-icon{--mdc-icon-size:18px;color:#30d158}
 .wx-chips{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
