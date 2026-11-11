@@ -3,13 +3,15 @@ export const css = `
 *,*::before,*::after{box-sizing:border-box}
 :host{display:block;position:relative;min-height:100vh;color:#fff;font-family:"Pine3 Figtree",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;
   --display:"Pine3 Outfit","Pine3 Figtree",sans-serif;
-  --glass:rgba(255,255,255,.09);--glass-hi:rgba(255,255,255,.14);--glass-strong:rgba(38,26,40,.82);--line:rgba(255,255,255,.12);--muted:rgba(255,255,255,.66);
+  --glass:rgba(255,255,255,.09);--glass-hi:rgba(255,255,255,.14);--glass-strong:rgba(30,24,36,.72);--line:rgba(255,255,255,.12);--muted:rgba(255,255,255,.66);
   --cream:#f5efe1;--ink:#2a221f;--ink-soft:rgba(42,34,31,.6);--amber:#f6b83f;--r:28px;
-  --ring-bg:#202329;--ring-dim:rgba(255,255,255,.12);--ring-off:rgba(255,255,255,.2);--ring-idle:rgba(255,255,255,.4)}
+  --ring-bg:#202329;--ring-dim:rgba(255,255,255,.12);--ring-off:rgba(255,255,255,.2);--ring-idle:rgba(255,255,255,.4);
+  --sheen:linear-gradient(145deg,rgba(255,255,255,.10),rgba(255,255,255,.025) 45%,rgba(255,255,255,0) 70%);
+  --edge:inset 0 1px 0 rgba(255,255,255,.16),inset 0 0 0 1px rgba(255,255,255,.02);--lift:0 18px 44px -22px rgba(0,0,0,.55)}
 .bg{position:fixed;inset:0;z-index:0;transition:background .6s}
 .bg::after{content:"";position:absolute;inset:0;background:radial-gradient(transparent 45%,rgba(0,0,0,.28))}
 .wrap{position:relative;z-index:1;max-width:1500px;margin:0 auto;padding:0 40px calc(var(--dock-space,108px) + 14px)}
-.glass{background:var(--glass);backdrop-filter:blur(30px) saturate(150%);-webkit-backdrop-filter:blur(30px) saturate(150%);border:1px solid var(--line)}
+.glass{background:var(--sheen),var(--glass);backdrop-filter:blur(26px) saturate(170%);-webkit-backdrop-filter:blur(26px) saturate(170%);border:1px solid var(--line);box-shadow:var(--edge),var(--lift)}
 .hero .t,h2,.rc .nm,.clock,.status,.tile .nm,.tile.sensor .val,.ring .tgt,.sheet .hd .nm,.wpill b,.big-num,.media .ttl{font-family:var(--display)}
 header{display:flex;align-items:center;gap:10px;padding:22px 0 0}
 header .sp{flex:1}
@@ -146,7 +148,7 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
 .tile.sensor .val{font-size:34px;font-weight:300;letter-spacing:-.02em;margin-top:6px}
 .tile.na{opacity:.45}
 .tile .ex{font-size:13px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dock{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:5;display:flex;gap:6px;padding:7px;border-radius:999px;background:rgba(60,40,62,.55);backdrop-filter:blur(30px) saturate(150%);-webkit-backdrop-filter:blur(30px) saturate(150%);border:1px solid var(--line)}
+.dock{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:5;display:flex;gap:6px;padding:7px;border-radius:999px;background:var(--sheen),rgba(26,22,30,.5);backdrop-filter:blur(26px) saturate(170%);-webkit-backdrop-filter:blur(26px) saturate(170%);border:1px solid var(--line);box-shadow:var(--edge),0 16px 40px -18px rgba(0,0,0,.6)}
 .dock button{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;height:50px;padding:0 24px;border-radius:999px;font-size:18px;font-weight:500;color:var(--muted);transition:background .2s,color .2s}
 .dock[hidden]{display:none}
 .dock{width:max-content;max-width:calc(100vw - 24px)}
@@ -158,9 +160,9 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
 .dock.compact button:not(.act) span,.dock.icons button span{display:none}
 .dock.icons button{padding:0 15px}
 /* light effects (this device): no frosted-glass blur, the costliest thing for weak tablets */
-:host(.lite){--glass:rgba(255,255,255,.12)}
+:host(.lite){--glass:rgba(255,255,255,.12);--glass-strong:rgba(34,26,40,.94);--lift:0 0 0 transparent}
 :host(.lite) *,:host(.lite) *::before,:host(.lite) *::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
-:host(.lite) .dock{background:rgba(48,32,52,.94)}
+:host(.lite) .dock{background:rgba(34,28,38,.94)}
 :host(.lite) .ov{background:rgba(10,4,12,.72)}
 .dock button{position:relative;z-index:1;transition:color .35s}
 .dock button.act{color:var(--ink)}
@@ -184,12 +186,12 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
 @media (prefers-reduced-motion:reduce){.wrap.vin,.dock .blob.go::before{animation:none}.dock .blob{transition:none}}
 .dock ha-icon{--mdc-icon-size:22px}
 .empty{color:var(--muted);padding:40px 4px}
-.ov{position:fixed;inset:0;z-index:10;background:rgba(10,4,12,.45);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);display:grid;place-items:center}
+.ov{position:fixed;inset:0;z-index:10;background:radial-gradient(120% 90% at 50% 40%,rgba(10,6,14,.32),rgba(6,3,8,.62));backdrop-filter:blur(14px) saturate(120%);-webkit-backdrop-filter:blur(14px) saturate(120%);display:grid;place-items:center}
 .ov.enter{animation:fade .18s}
 @keyframes fade{from{opacity:0}}
 @keyframes up{from{transform:translateY(40px);opacity:0}}
 @keyframes pop{from{transform:scale(.94);opacity:0}}
-.sheet{width:min(400px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;border-radius:34px;padding:24px;background:var(--glass-strong);border:1px solid var(--line)}
+.sheet{width:min(400px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;border-radius:34px;padding:24px;background:var(--sheen),var(--glass-strong);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:1px solid rgba(255,255,255,.14);box-shadow:var(--edge),0 40px 90px -30px rgba(0,0,0,.7)}
 .ov.enter .sheet{animation:pop .22s cubic-bezier(.2,.9,.3,1.2)}
 .sheet .hd{display:flex;align-items:center;gap:12px}
 .sh-only{display:none}.sheet.cols .sh-only{display:block}

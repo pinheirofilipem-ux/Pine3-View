@@ -36,11 +36,12 @@ export function toLight(css) {
 
 // what a mechanical conversion can't know
 const LIGHT_FIXES = `
-:host{--ring-bg:#fff}
+:host{--ring-bg:#fff;--sheen:linear-gradient(145deg,rgba(255,255,255,.55),rgba(255,255,255,.12) 50%,rgba(255,255,255,0) 75%);--edge:inset 0 1px 0 rgba(255,255,255,.9);--lift:0 16px 40px -24px rgba(60,40,50,.35)}
 .rc.on,.tile.on{box-shadow:0 14px 34px -18px rgba(60,40,50,.45),inset 0 0 0 2px color-mix(in srgb,var(--amber) 55%,transparent)}
 .rc.media.pic,.rc.media.pic .eyebrow,.rc.media.pic .ttl,.rc.media.pic .art{color:#fff}
 .rc.media.pic .art{opacity:.8}
 .bg::after{background:none}
+.ov{background:rgba(236,230,226,.42)}
 /* small surfaces on the near-white sheets and panels: a faint ink instead of white on white */
 .sheet .sh-x,.sheet .more button,.sheet .round,.sheet .mini,.sheet .vac-b:not(.act),.sheet .vac-sec,.sheet .dv-r,.sheet .dv-c,.sheet .dv-t:not(.on),.sheet .dv-sel,.sheet .fh,
 .sheet .vslider,.sheet .hslider,.sheet .pill:not(.act):not(.solid),.sheet .seg .pill:not(.solid){background:rgba(33,24,38,.06)}

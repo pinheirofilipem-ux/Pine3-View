@@ -91,6 +91,13 @@ export const THEMES = {
   aurora: "radial-gradient(90% 70% at 0% 0%, #1f8a7a 0%, transparent 55%), radial-gradient(80% 70% at 100% 30%, #6a3fa0 0%, transparent 60%), linear-gradient(180deg, #0e1e2a, #120c22)",
   areia: "radial-gradient(100% 80% at 20% 0%, #a0724a 0%, transparent 55%), radial-gradient(80% 70% at 100% 100%, #5a4a7a 0%, transparent 60%), linear-gradient(160deg, #3a2a20, #1a1420)",
   oceano: "radial-gradient(100% 80% at 90% 0%, #1e6fa8 0%, transparent 55%), radial-gradient(80% 70% at 0% 100%, #0f8a8a 0%, transparent 60%), linear-gradient(170deg, #0a1f33, #06121c)",
+  // ambient themes: a deep, near-black base with large soft glows of colour (low alpha), so the glass reads clearly
+  nebulosa: "radial-gradient(60% 55% at 18% 20%, rgba(150,108,214,.34) 0%, transparent 70%), radial-gradient(55% 50% at 84% 28%, rgba(84,130,206,.26) 0%, transparent 70%), radial-gradient(60% 55% at 58% 98%, rgba(122,72,166,.24) 0%, transparent 70%), linear-gradient(155deg, #1a1530, #111827 55%, #0a0f18)",
+  floresta: "radial-gradient(60% 55% at 16% 22%, rgba(86,168,124,.28) 0%, transparent 70%), radial-gradient(55% 50% at 86% 72%, rgba(58,140,152,.22) 0%, transparent 70%), radial-gradient(50% 45% at 70% 8%, rgba(140,170,96,.14) 0%, transparent 70%), linear-gradient(155deg, #18241e, #0f1613 55%, #080c0a)",
+  ardosia: "radial-gradient(60% 55% at 22% 14%, rgba(136,148,182,.22) 0%, transparent 70%), radial-gradient(55% 50% at 86% 86%, rgba(104,124,158,.18) 0%, transparent 70%), linear-gradient(155deg, #1c1e26, #13151b 55%, #0b0c10)",
+  vinho: "radial-gradient(60% 55% at 18% 18%, rgba(196,92,134,.30) 0%, transparent 70%), radial-gradient(55% 50% at 86% 62%, rgba(124,62,146,.26) 0%, transparent 70%), radial-gradient(50% 45% at 40% 100%, rgba(150,60,90,.18) 0%, transparent 70%), linear-gradient(155deg, #2a1424, #1a0e1a 55%, #100810)",
+  meia_noite: "radial-gradient(60% 55% at 82% 14%, rgba(64,124,226,.30) 0%, transparent 70%), radial-gradient(55% 50% at 14% 86%, rgba(42,170,204,.20) 0%, transparent 70%), radial-gradient(45% 40% at 40% 30%, rgba(110,90,200,.14) 0%, transparent 70%), linear-gradient(155deg, #0f1630, #0b1122 55%, #060912)",
+  brasa: "radial-gradient(60% 55% at 18% 14%, rgba(232,142,62,.28) 0%, transparent 70%), radial-gradient(55% 50% at 86% 76%, rgba(204,74,62,.22) 0%, transparent 70%), radial-gradient(45% 40% at 60% 40%, rgba(240,190,110,.08) 0%, transparent 70%), linear-gradient(155deg, #261a14, #18110e 55%, #0e0a08)",
   // vivid themes (saturated gradients, white text), in the spirit of a home app's wallpapers
   ambar: "radial-gradient(90% 75% at 15% 5%, #ffc24a 0%, transparent 60%), radial-gradient(80% 70% at 95% 30%, #ff7a2f 0%, transparent 60%), radial-gradient(90% 80% at 50% 110%, #b8360f 0%, transparent 65%), linear-gradient(160deg, #f0901f, #a33a12)",
   coral: "radial-gradient(90% 75% at 10% 0%, #ff9a7a 0%, transparent 60%), radial-gradient(80% 70% at 100% 40%, #ff4f6d 0%, transparent 60%), radial-gradient(90% 80% at 40% 110%, #9c1f4a 0%, transparent 65%), linear-gradient(160deg, #f0625a, #8f1f45)",
@@ -109,6 +116,7 @@ export const THEMES = {
   ceu: "radial-gradient(90% 70% at 80% 0%, #ffffff 0%, transparent 60%), radial-gradient(80% 70% at 0% 100%, #bcd8f0 0%, transparent 60%), linear-gradient(170deg, #e7f1fa, #d4e5f4)",
 };
 export const LIGHT_THEMES = new Set(["linho", "nevoa", "pessego", "menta", "lavanda", "ceu"]);
+export const AMBIENT_THEMES = new Set(["nebulosa", "floresta", "ardosia", "vinho", "meia_noite", "brasa"]);
 export const VIVID_THEMES = new Set(["ambar", "coral", "lima", "azul", "violeta", "magenta", "turquesa", "por_do_sol"]);
 export const CARD_COLORS = ["#f5efe1", "#efe3c8", "#e6dcc2", "#d6e2e8", "#c3d3da", "#d9d3e3", "#e6d3d6", "#cfe0cc", "#bccfc3", "#cbb9a8", "#bcc6d3", "#d8ccb4", "#cdc6d8", "#b9d3cd"];
 export const ACCENTS = ["#f6b83f", "#f5a524", "#ff9f43", "#ff7a59", "#ff6b81", "#f472b6", "#a78bfa", "#7c8cff", "#4aa8ff", "#2dd4bf", "#4ade80", "#a3e635"];
@@ -127,7 +135,7 @@ export const DEFAULTS = {
   language: "pt", layout: "grid", home_layout: "top", appearance: "fixed", theme_day: "linho", theme_night: "ameixa", weather_entity: "", screensaver: 0, animations: true,
   big_rooms: [], big_devices: [], device_order: {}, house_size: {}, house_layout: {}, shown: [], placements: {}, wall_height: 30,
 };
-export const THEME_NAMES = { ameixa: "Ameixa", pinheiro: "Pinheiro", noite: "Noite", aurora: "Aurora", areia: "Areia", oceano: "Oceano", linho: "Linho", nevoa: "Névoa", pessego: "Pêssego", menta: "Menta", lavanda: "Lavanda", ceu: "Céu", ambar: "Âmbar", coral: "Coral", lima: "Lima", azul: "Azul", violeta: "Violeta", magenta: "Magenta", turquesa: "Turquesa", por_do_sol: "Pôr do sol" };
+export const THEME_NAMES = { ameixa: "Ameixa", pinheiro: "Pinheiro", noite: "Noite", aurora: "Aurora", areia: "Areia", oceano: "Oceano", linho: "Linho", nevoa: "Névoa", pessego: "Pêssego", menta: "Menta", lavanda: "Lavanda", ceu: "Céu", ambar: "Âmbar", coral: "Coral", lima: "Lima", azul: "Azul", violeta: "Violeta", magenta: "Magenta", turquesa: "Turquesa", por_do_sol: "Pôr do sol", nebulosa: "Nebulosa", floresta: "Floresta", ardosia: "Ardósia", vinho: "Vinho", meia_noite: "Meia-noite", brasa: "Brasa" };
 
 
 
