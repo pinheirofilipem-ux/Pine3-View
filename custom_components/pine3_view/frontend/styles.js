@@ -611,8 +611,8 @@ a.pill{color:inherit;text-decoration:none}
   .hcols{grid-template-columns:1fr;gap:18px}.hleft{position:static}.hcols .hgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 /* home: sidebar layout (a full-height glass sidebar, the cards beside it) */
-.hside{display:grid;grid-template-columns:clamp(270px,24vw,330px) minmax(0,1fr);gap:26px;align-items:start;padding-top:20px;margin-bottom:calc(20px - var(--dock-space,108px) - 14px)}
-.sb{position:sticky;top:20px;height:calc(100vh - 40px);border-radius:32px;padding:22px 20px 16px;display:flex;flex-direction:column;gap:14px;min-width:0;overflow:hidden}
+.hside{display:grid;grid-template-columns:clamp(270px,24vw,330px) minmax(0,1fr);gap:26px;align-items:start;padding-top:20px}
+.sb{position:sticky;top:20px;height:calc(100vh - var(--dock-space,108px) - 34px);border-radius:32px;padding:22px 20px 16px;display:flex;flex-direction:column;gap:14px;min-width:0;overflow:hidden}
 .sb .tdate{font-size:14px}.sb .clock{font-size:clamp(64px,6.4vw,88px);line-height:.92;margin-top:-6px}
 .sb .wxc{background:rgba(255,255,255,.06);backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none;margin-top:0;padding:12px 14px;border-radius:22px;gap:8px}
 .sb .wxc .wx-hrs{padding:6px 0}.sb .wxc .wx-hrs>div{min-width:0}
@@ -635,7 +635,7 @@ a.pill{color:inherit;text-decoration:none}
 .hside .hgrid .media .ctl{gap:12px;margin-top:6px}.hside .hgrid .media .ctl .pp{width:38px;height:38px}
 @media (min-width:721px) and (max-height:760px){
   .sb{padding:16px 16px 12px;gap:9px}.sb .clock{font-size:clamp(52px,5vw,66px)}.sb .wxc{padding:10px 12px}.sb .wxc .wx-hrs{padding:4px 0}
-  .sb .wxc.has-alert~.sbst .sdet,.sb .wxc.has-alert .wx-hrs .pp{display:none}.sblist .scene{height:38px}.sblist{margin-top:6px}
+  .sb .wxc.has-alert~.sbst .sdet,.sb .wxc.has-alert .wx-hrs{display:none}.sblist .scene{height:38px}.sblist{margin-top:6px}
   .hside .hgrid{gap:10px}.hside .hgrid .rc{padding:12px 14px}.hside .ri{width:38px;height:38px}.hside .pw{width:44px;height:44px}
 }
 @media (max-width:1000px) and (min-width:721px){.hside .hgrid{grid-template-columns:repeat(3,minmax(0,1fr))}}

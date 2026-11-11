@@ -323,18 +323,8 @@ class Pine3ViewPanel extends HTMLElement {
   _fitDock(active = this._blobAt) {
     const nav = this._dockEl;
     if (!nav || nav.hidden) return;
-    let avail = Math.min(window.innerWidth, this.clientWidth || window.innerWidth) - 24;
-    // sidebar home layout: the dock centres on the cards beside the sidebar, never over it
-    const sb = this.shadowRoot?.querySelector(".hside .sb");
-    let left = "";
-    if (sb && getComputedStyle(sb).position === "sticky") {
-      const l = Math.ceil(sb.getBoundingClientRect().right) + 16, r = window.innerWidth - 16;
-      avail = r - l;
-      left = `${Math.round((l + r) / 2)}px`;
-    }
-    nav.style.left = left;
-    nav.style.maxWidth = left ? `${avail}px` : "";
-    const sig = `${nav._key}|${active}|${avail}|${left}`;
+    const avail = Math.min(window.innerWidth, this.clientWidth || window.innerWidth) - 24;
+    const sig = `${nav._key}|${active}|${avail}`;
     if (nav._fit === sig) return;
     nav._fit = sig;
     nav.classList.remove("compact", "icons");
