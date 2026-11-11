@@ -3,7 +3,7 @@
 
 import {
   SHOWN, TOGGLE, DETAIL, SECTIONS, SECTION_ICON, DOMAIN_ICON, DEVICE_CLASS_ICON, ACCENT, STATE_PT, WEATHER_PT, WEATHER_ICON,
-  BIN_PT, NAME_ICON, THEMES, LIGHT_THEMES, VIVID_THEMES, CARD_COLORS, ACCENTS, DOCK_ITEMS, DEFAULTS, THEME_NAMES, esc, dom, store, loadFonts,
+  BIN_PT, NAME_ICON, THEMES, LIGHT_THEMES, VIVID_THEMES, AMBIENT_THEMES, CARD_COLORS, ACCENTS, DOCK_ITEMS, DEFAULTS, THEME_NAMES, esc, dom, store, loadFonts,
 } from "./const.js";
 import { css } from "./styles.js";
 import { t, tp, num, locale, setLang, lang } from "./i18n.js";
@@ -21,6 +21,17 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const SAVER_STEPS = [0, 1, 5, 10, 30];
 const EDIT_HINT = "Arrasta para mover. Toca em − para esconder e nas setas para duplicar o tamanho.";
+
+/** A colour for a temperature, cold blue to hot orange (the forecast's range bars). */
+function tempColor(v) {
+  const stops = [[0, [90, 200, 250]], [10, [100, 210, 255]], [16, [130, 214, 190]], [20, [246, 201, 74]], [26, [255, 159, 67]], [33, [255, 94, 58]]];
+  if (v <= stops[0][0]) return `rgb(${stops[0][1]})`;
+  for (let k = 1; k < stops.length; k++) {
+    const [t1, c1] = stops[k], [t0, c0] = stops[k - 1];
+    if (v <= t1) { const f = (v - t0) / (t1 - t0); return `rgb(${c0.map((c, n) => Math.round(c + (c1[n] - c) * f))})`; }
+  }
+  return `rgb(${stops[stops.length - 1][1]})`;
+}
 
 class Pine3ViewPanel extends HTMLElement {
   constructor() {
@@ -532,26 +543,49 @@ class Pine3ViewPanel extends HTMLElement {
     const w = this._wx(), fc = this._fc;
     const src = w?.source.kind === "entity" ? this._s(w.source.id)?.attributes.friendly_name || w.source.id : "Open-Meteo";
     const icon = (c) => WEATHER_ICON[c] || "mdi:weather-cloudy";
-    const hour = (f) => `<div class="fh"><small>${f.time.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" })}</small><ha-icon icon="${icon(f.cond)}"></ha-icon><b>${num(Math.round(f.temp))}°</b>${f.precip != null ? `<small class="pp">${Math.round(f.precip)}%</small>` : ""}</div>`;
-    const day = (f, k) => `<div class="fd"><span>${k === 0 ? t("Hoje") : cap(f.time.toLocaleDateString(locale(), { weekday: "long" }))}</span><ha-icon icon="${icon(f.cond)}"></ha-icon>
-      <small class="pp">${f.precip != null ? Math.round(f.precip) + "%" : ""}</small><b>${num(Math.round(f.temp))}°</b><small>${f.low != null ? num(Math.round(f.low)) + "°" : ""}</small></div>`;
-    const sub = [w?.humidity != null ? t("Humidade {n}%", { n: Math.round(w.humidity) }) : null, w?.wind != null ? `${t("Vento")} ${Math.round(w.wind)} ${esc(w.windUnit)}` : null, esc(src)].filter(Boolean).join(" · ");
-    const side = (() => {
-        const als = this._ipmaAlerts(), ip = this._ipma();
-        const uv = ip.uv && this._s(ip.uv), fire = ip.fire && this._s(ip.fire);
-        const chips = [uv && uv.state !== "unknown" ? `<span><ha-icon icon="mdi:sun-wireless-outline"></ha-icon>${t("Índice UV")} <b>${esc(uv.state)}</b></span>` : "",
-          fire && fire.state !== "unknown" ? `<span><ha-icon icon="mdi:fire"></ha-icon>${t("Risco de incêndio")} <b>${esc(this._fmtState(ip.fire))}</b></span>` : ""].join("");
-        return `${als.length ? als.map((w) => this._alertBanner(w, true)).join("") : ip.alert ? `<div class="wx-ok"><ha-icon icon="mdi:check-circle-outline"></ha-icon>${t("Sem avisos do IPMA")}</div>` : ""}${chips ? `<div class="wx-chips">${chips}</div>` : ""}`;
-      })();
+    const deg = (v) => (v == null ? "–" : `${num(Math.round(v))}°`);
+    const hm = (d) => d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+    const daily = fc?.daily || [], hourly = fc?.hourly || [];
+    const today = daily[0] && new Date(daily[0].time).toDateString() === new Date().toDateString() ? daily[0] : null;
+    // now: big temperature, condition, today's high / low, then chips (rain, sunrise, sunset, humidity, wind)
+    const sun = this._s("sun.sun")?.attributes || {}, at = (v) => (v ? new Date(v) : null);
+    const rise = at(sun.next_rising), set = at(sun.next_setting);
+    const chip = (ic, txt) => `<span><ha-icon icon="${ic}"></ha-icon>${txt}</span>`;
+    const chips = [today?.precip != null ? chip("mdi:water-outline", `${t("Chuva")} <b>${Math.round(today.precip)}%</b>`) : "",
+      rise ? chip("mdi:weather-sunset-up", `${t("Nascer")} <b>${hm(rise)}</b>`) : "", set ? chip("mdi:weather-sunset-down", `${t("Pôr")} <b>${hm(set)}</b>`) : "",
+      w?.humidity != null ? chip("mdi:water-percent", `${t("Humidade")} <b>${Math.round(w.humidity)}%</b>`) : "",
+      w?.wind != null ? chip("mdi:weather-windy", `${t("Vento")} <b>${Math.round(w.wind)} ${esc(w.windUnit)}</b>`) : ""].join("");
+    const now = w ? `<div class="fnow"><ha-icon icon="${icon(w.cond)}"></ha-icon><b>${num(Math.round(w.temp))}°</b><div><span>${esc(this._wxLabel(w.cond))}</span>
+        ${today ? `<small>${t("Máx.")} ${deg(today.temp)} · ${t("Mín.")} ${deg(today.low)}</small>` : ""}</div></div>` : "";
+    // warnings (most severe first), "no warnings", UV and fire risk
+    const als = this._ipmaAlerts(), ip = this._ipma();
+    const uv = ip.uv && this._s(ip.uv), fire = ip.fire && this._s(ip.fire);
+    const extra = [uv && uv.state !== "unknown" ? chip("mdi:sun-wireless-outline", `${t("Índice UV")} <b>${esc(uv.state)}</b>`) : "",
+      fire && fire.state !== "unknown" ? chip("mdi:fire", `${t("Risco de incêndio")} <b>${esc(this._fmtState(ip.fire))}</b>`) : ""].join("");
+    const warn = als.length ? `<div class="sub">${t("Avisos")} <span class="badge">${als.length}</span></div>${als.map((x) => this._alertBanner(x, true)).join("")}`
+      : ip.alert ? `<div class="wx-ok"><ha-icon icon="mdi:check-circle-outline"></ha-icon>${t("Sem avisos do IPMA")}</div>` : "";
+    const left = `${now}${chips ? `<div class="wx-chips">${chips}</div>` : ""}${warn}${extra ? `<div class="wx-chips">${extra}</div>` : ""}
+      <div class="fsrc">${t("Fonte")}: ${esc(src)}</div>`;
+    // next hours as small cards, next days with a temperature range bar on the week's scale
+    const hour = (f, k) => `<div class="fh"><small>${k === 0 && f.time - Date.now() < 3600e3 ? t("Agora") : hm(f.time)}</small><ha-icon icon="${icon(f.cond)}"></ha-icon><b>${deg(f.temp)}</b><small class="pp">${f.precip != null ? `${Math.round(f.precip)}%` : ""}</small></div>`;
+    const lows = daily.map((d) => d.low ?? d.temp).filter((v) => v != null), highs = daily.map((d) => d.temp).filter((v) => v != null);
+    const L = Math.min(...lows), H = Math.max(...highs), span = H - L || 1;
+    const pos = (v) => Math.max(0, Math.min(100, ((v - L) / span) * 100));
+    const day = (f, k) => {
+      const lo = f.low ?? f.temp, hi = f.temp;
+      const dot = k === 0 && today && w?.temp != null ? `<i class="fdot" style="left:${pos(w.temp)}%"></i>` : "";
+      return `<div class="fd"><span>${k === 0 && today ? t("Hoje") : cap(f.time.toLocaleDateString(locale(), { weekday: "short" }).replace(".", "").slice(0, 3))}</span><ha-icon icon="${icon(f.cond)}"></ha-icon>
+        <small class="pp">${f.precip != null ? Math.round(f.precip) + "%" : ""}</small><small>${deg(lo)}</small>
+        <div class="frng"><i style="left:${pos(lo)}%;width:${Math.max(4, pos(hi) - pos(lo))}%;background:linear-gradient(90deg,${tempColor(lo)},${tempColor(hi)})"></i>${dot}</div><b>${deg(hi)}</b></div>`;
+    };
     const main = !fc ? `<div class="empty" style="text-align:center">${t("A carregar a previsão…")}</div>` : `
-        ${fc.hourly.length ? `<div class="sub">${t("Próximas horas")}</div><div class="fhs">${fc.hourly.map(hour).join("")}</div>` : ""}
-        ${fc.daily.length ? `<div class="sub">${t("Próximos dias")}</div><div class="fds">${fc.daily.map(day).join("")}</div>` : ""}
-        ${!fc.hourly.length && !fc.daily.length ? `<div class="empty">${t("Sem previsão disponível.")}</div>` : ""}`;
-    // wide screens: warnings / UV / fire risk on the left, the forecast on the right
-    return `<div class="ov ${this._ovEnter("_wx")}" data-close><div class="sheet wide ${side ? "cols" : ""}">
-      <div class="hd"><div class="ic" style="background:var(--amber);color:var(--ink)"><ha-icon icon="${w ? icon(w.cond) : "mdi:weather-partly-cloudy"}"></ha-icon></div>
-        <div style="flex:1;min-width:0"><div class="nm">${w ? `${num(Math.round(w.temp))}° · ${esc(this._wxLabel(w.cond))}` : t("Tempo")}</div><div class="st">${sub}</div></div><button class="sh-x" data-closex title="${t("Fechar")}" aria-label="${t("Fechar")}"><ha-icon icon="mdi:close"></ha-icon></button></div>
-      ${side ? `<div class="sh-main">${side}</div><div class="sh-side">${main}</div>` : `<div class="sh-main">${main}</div>`}
+        ${hourly.length ? `<div class="sub">${t("Próximas horas")}</div><div class="fhs">${hourly.map(hour).join("")}</div>` : ""}
+        ${daily.length ? `<div class="sub">${t("Próximos dias")}</div><div class="fds">${daily.map(day).join("")}</div>` : ""}
+        ${!hourly.length && !daily.length ? `<div class="empty">${t("Sem previsão disponível.")}</div>` : ""}`;
+    // wide screens: now, warnings, UV and fire risk on the left, the forecast on the right
+    return `<div class="ov ${this._ovEnter("_wx")}" data-close><div class="sheet wide cols fcst">
+      <div class="hd"><div style="flex:1;min-width:0"><div class="nm">${t("Previsão do tempo")}</div></div><button class="sh-x" data-closex title="${t("Fechar")}" aria-label="${t("Fechar")}"><ha-icon icon="mdi:close"></ha-icon></button></div>
+      <div class="sh-main">${left}</div><div class="sh-side">${main}</div>
     </div></div>`;
   }
 
@@ -620,15 +654,15 @@ class Pine3ViewPanel extends HTMLElement {
         </div>
         ${(() => {
           // themes: dark and light; automatic = one for the day and one for the night, by sunrise and sunset
-          const keys = Object.keys(THEMES), dark = keys.filter((k) => !LIGHT_THEMES.has(k) && !VIVID_THEMES.has(k)), vivid = keys.filter((k) => VIVID_THEMES.has(k)), lightK = keys.filter((k) => LIGHT_THEMES.has(k));
+          const keys = Object.keys(THEMES), dark = keys.filter((k) => !LIGHT_THEMES.has(k) && !VIVID_THEMES.has(k) && !AMBIENT_THEMES.has(k)), amb = keys.filter((k) => AMBIENT_THEMES.has(k)), vivid = keys.filter((k) => VIVID_THEMES.has(k)), lightK = keys.filter((k) => LIGHT_THEMES.has(k));
           const grid = (attr, cur, list) => `<div class="bgs">${list.map((k) => `<div class="bgc ${k === cur ? "act" : ""}" data-${attr}="${k}"><div style="background:${THEMES[k]}"></div><span>${t(THEME_NAMES[k])}</span></div>`).join("")}</div>`;
           const auto = d.appearance === "auto";
           const sun = this._s("sun.sun");
           return `<div class="panel glass"><h3 style="margin-top:0">${t("Fundo")}</h3><p>${t("O ambiente por trás dos cartões. Os fundos claros põem todo o painel em modo claro.")}</p>
             <div class="opts">${this._choice("appearance", auto ? "auto" : "fixed", [["fixed", t("Fixo")], ["auto", t("Automático")]], t("Modo"),
               auto ? (sun ? t("Usa o fundo de dia entre o nascer e o pôr do sol (sun.sun) e o de noite no resto do tempo.") : t("Sem a entidade sun.sun: usa o fundo de dia das 7h às 19h.")) : t("Um fundo sempre igual, ou um para o dia e outro para a noite, ao nascer e ao pôr do sol."))}</div>
-            ${auto ? `<h3>${t("De dia")}</h3>${grid("themeday", d.theme_day || "linho", [...lightK, ...vivid, ...dark])}<h3>${t("À noite")}</h3>${grid("themenight", d.theme_night || "ameixa", [...dark, ...vivid, ...lightK])}`
-              : `<h3>${t("Vivos")}</h3>${grid("theme", d.theme, vivid)}<h3>${t("Escuros")}</h3>${grid("theme", d.theme, dark)}<h3>${t("Claros")}</h3>${grid("theme", d.theme, lightK)}`}</div>`;
+            ${auto ? `<h3>${t("De dia")}</h3>${grid("themeday", d.theme_day || "linho", [...lightK, ...vivid, ...amb, ...dark])}<h3>${t("À noite")}</h3>${grid("themenight", d.theme_night || "ameixa", [...amb, ...dark, ...vivid, ...lightK])}`
+              : `<h3>${t("Ambiente")}</h3>${grid("theme", d.theme, amb)}<h3>${t("Vivos")}</h3>${grid("theme", d.theme, vivid)}<h3>${t("Escuros")}</h3>${grid("theme", d.theme, dark)}<h3>${t("Claros")}</h3>${grid("theme", d.theme, lightK)}`}</div>`;
         })()}`;
     } else if (sec === "home") {
       const wxs = this._weather.entities(this._hass);
@@ -637,7 +671,7 @@ class Pine3ViewPanel extends HTMLElement {
         ${this._choice("weather_entity", d.weather_entity, [["", t("Automático")], ...wxs.map((i) => [i, esc(this._s(i).attributes.friendly_name || i)]), ["open-meteo", "Open-Meteo"]],
           t("Fonte do tempo"), t("Automático usa a primeira entidade de tempo do Home Assistant ou, se não houver, a Open-Meteo para a localização da casa."))}
         ${this._toggle("show_people", d.show_people, t("Pessoas"), t("Quem está em casa."))}
-        ${this._choice("home_layout", d.home_layout || "top", [["top", t("Relógio grande")], ["columns", t("Duas colunas")], ["classic", t("Clássica")]], t("Disposição do início"), t("Relógio grande com o estado da casa ao lado; ou duas colunas, com o relógio, o tempo e o que está ligado à esquerda e os cartões à direita; ou a disposição original."))}
+        ${this._choice("home_layout", d.home_layout || "top", [["top", t("Relógio grande")], ["columns", t("Duas colunas")], ["sidebar", t("Barra lateral")], ["classic", t("Clássica")]], t("Disposição do início"), t("Relógio grande com o estado da casa ao lado; duas colunas, com o relógio, o tempo e o que está ligado à esquerda e os cartões à direita; uma barra lateral de vidro com o relógio, o tempo, o estado e as cenas, e os cartões ao lado; ou a disposição original."))}
         ${this._toggle("show_status", d.show_status, t("Estado da casa"), t("Luzes acesas, outros aparelhos ligados e botões Acender/Apagar luzes."))}
         ${this._toggle("show_scenes", d.show_scenes, t("Cenas"), t("Faixa de cenas no início."))}
         ${this._toggle("show_summary", d.show_summary, t("Cartões de resumo"), t("Clima, Segurança e A tocar."))}
@@ -1127,7 +1161,7 @@ class Pine3ViewPanel extends HTMLElement {
     if (secIds.length) {
       const bad = secIds.filter((i) => (dom(i) === "lock" ? this._s(i).state === "unlocked" : this._s(i).state === "on"));
       cards.push(`<div data-key="@security" class="rc glass" data-nav="security">
-        <div class="row1"><div class="ri" style="${bad.length ? "background:#ff9f0a;color:#2a1500" : ""}"><ha-icon icon="mdi:shield-${bad.length ? "alert-outline" : "check-outline"}"></ha-icon></div><div class="eyebrow" style="margin:14px 0 0 0;flex:1;padding-left:14px">${t("Segurança")}</div></div>
+        <div class="row1"><div class="ri" style="${bad.length ? "background:#ff9f0a;color:#2a1500" : "background:#30d158;color:#06210f"}"><ha-icon icon="mdi:shield-${bad.length ? "alert-outline" : "check-outline"}"></ha-icon></div><div class="eyebrow" style="margin:14px 0 0 0;flex:1;padding-left:14px">${t("Segurança")}</div></div>
         <div class="foot"><div class="big-txt">${bad.length ? tp(bad.length, "{n} item aberto", "{n} itens abertos") : t("Tudo seguro")}</div><div class="meta">${tp(secIds.length, "{n} item monitorizado", "{n} itens monitorizados")}</div></div></div>`);
     }
     // robot vacuums: status, battery and (while cleaning) progress; a tap opens its card, never starts it
@@ -1179,6 +1213,22 @@ class Pine3ViewPanel extends HTMLElement {
         </div>
       </div>`;
     }
+    if (layout === "sidebar") {
+      // a full-height glass sidebar (clock, weather, home status, scenes, people) and the cards beside it
+      const sc = this._edit || !scenes.length || !cfg.show_scenes ? "" : `<div class="sbsc"><div class="eyebrow">${t("Cenas")} <span class="badge">${scenes.length}</span></div>
+        <div class="sblist">${scenes.map((i) => `<div class="scene ${this._fired === i ? "fired" : ""} ${this._sceneOn(i) ? "on" : ""}" data-scene="${i}" title="${this._sceneOn(i) ? t("Toca para desligar") : ""}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon><span>${esc(this._name(i))}</span></div>`).join("")}</div></div>`;
+      const offBtn = lights.length ? `<div class="actions">${lightsOn.length ? `<button class="pill solid" data-all="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar luzes")}</button>` : `<button class="pill" data-all="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender luzes")}</button>`}</div>` : "";
+      return `<div class="hside ${this._edit ? "editing" : ""}">
+        <aside class="sb glass">
+          <div class="eyebrow tdate">${esc(this._dateText())}</div><div class="clock">${this._clockText()}</div>${this._hint()}
+          ${cfg.show_weather ? this._wxCard("tall side") : ""}
+          ${showStatus ? `<div class="sbst"><div class="status">${lightsOn.length ? tp(lightsOn.length, "{n} luz acesa", "{n} luzes acesas") : status}</div>${others.length ? `<div class="sdet">${esc(this._othersLine(others))}</div>` : ""}${offBtn}</div>` : ""}
+          ${sc}<span class="sp"></span>
+          <div class="sbft">${this._peopleHtml}<span class="sp"></span>${this._editBtn()}${this._gear()}</div>
+        </aside>
+        <div class="hmain">${grid}</div>
+      </div>`;
+    }
     if (layout === "top") {
       // a big clock with the home status beside it, then scenes and cards
       return `<div class="top t1">
@@ -1220,25 +1270,50 @@ class Pine3ViewPanel extends HTMLElement {
     if (w && Date.now() - w.t < 15000 && a.temperature !== w.v) return w.v;
     return a.temperature;
   }
+  /**
+   * Climate card with direct control (climate screen and room view): a ring with the target, the current
+   * temperature, a few modes (cool / heat / off) and − / +. A tap elsewhere opens the full card.
+   */
   _climateCard(id, r) {
     const s = this._s(id), a = s.attributes, on = this._isOn(id);
     const act = on && a.hvac_action && !["off", "idle"].includes(a.hvac_action) ? a.hvac_action : null;
     const tgt = this._climateTarget(id), range = tgt == null && a.target_temp_low != null && a.target_temp_high != null;
-    const set = !on ? "" : tgt != null
-      ? `<div class="clset"><button class="round" data-ctemp="${esc(id)}" data-d="-1" title="${t("Baixar")}">−</button><b>${num(tgt)}°</b><button class="round" data-ctemp="${esc(id)}" data-d="1" title="${t("Subir")}">+</button></div>`
-      : range ? `<div class="clset"><b>${num(a.target_temp_low)}–${num(a.target_temp_high)}°</b></div>` : "";
-    return `<div class="tile clc ${on ? "on" : "glass"} ${s.state === "unavailable" ? "na" : ""}" data-open="${esc(id)}" style="--acc:${this._accent(id)}">
-      <div class="row1"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div><div class="pw" data-cpw="${esc(id)}"><ha-icon icon="mdi:power"></ha-icon></div></div>
-      <div class="tx"><div class="nm">${esc(this._name(id))}</div><div class="st">${esc([r.name, this._st(act || s.state)].join(" · "))}</div></div>
-      <div class="clrow"><div class="clcur"><b>${a.current_temperature != null ? `${num(a.current_temperature)}°` : "–"}</b><small>${t("Atual")}${a.current_humidity != null ? ` · ${Math.round(a.current_humidity)}%` : ""}</small></div>${set}</div>
+    const all = a.hvac_modes || [], short = { cool: t("Frio"), heat: t("Calor"), heat_cool: t("Auto"), auto: t("Auto"), dry: t("Seco"), fan_only: t("Ventilar"), off: t("Desligar") };
+    let modes = ["cool", "heat"].filter((m) => all.includes(m));
+    if (modes.length < 2) modes = [...modes, ...all.filter((m) => m !== "off" && !modes.includes(m))].slice(0, 2);
+    if (all.includes("off")) modes.push("off");
+    if (s.state !== "off" && all.includes(s.state) && !modes.includes(s.state)) modes.splice(modes.length - (all.includes("off") ? 1 : 0), 0, s.state);
+    const mode = { heating: "heat", preheating: "heat", cooling: "cool", drying: "dry", fan: "fan_only" }[act] || s.state;
+    const col = !on ? "var(--clx-off)" : { cool: "#4aa8ff", dry: "#64d2ff", fan_only: "#a8b0bd", heat: "#ff9f43", heat_cool: "#4ade80", auto: "#4ade80" }[mode] || "#ff9f43";
+    const lo = a.min_temp ?? 7, hi = a.max_temp ?? 35, val = range ? a.target_temp_high : tgt ?? a.current_temperature;
+    const frac = on && val != null ? Math.max(0.04, Math.min(1, (val - lo) / (hi - lo || 1))) : 0;
+    const C = 2 * Math.PI * 44, arc = C * 0.75;
+    const big = on && tgt != null ? num(tgt) : range && on ? `${num(a.target_temp_low)}–${num(a.target_temp_high)}` : a.current_temperature != null ? num(Math.round(a.current_temperature)) : "–";
+    const cur = a.current_temperature != null ? `${num(a.current_temperature)}°` : "";
+    const sub = [r && this._view !== "room" ? r.name : "", on && tgt != null ? cur : "", this._st(act || s.state)].filter(Boolean).join(" · ");
+    const na = s.state === "unavailable";
+    return `<div class="tile clx big ${on ? "on" : "glass"} ${na ? "na" : ""}" data-open="${esc(id)}" data-key="${esc(id)}">
+      ${this._meta?.[id] ? this._editChrome("dev", id) : ""}
+      <div class="clx-ring"><svg viewBox="0 0 100 100"><circle class="trk" cx="50" cy="50" r="44" stroke-dasharray="${arc.toFixed(1)} ${C.toFixed(1)}"/>
+        <circle cx="50" cy="50" r="44" style="stroke:${col}" stroke-dasharray="${(arc * frac).toFixed(1)} ${C.toFixed(1)}"/></svg>
+        <div class="clx-t ${range && on ? "rng" : String(big).length > 3 ? "long" : ""}"><b>${big}</b><sup>°</sup>${!on && cur ? `<small>${t("Atual")}</small>` : ""}</div></div>
+      <div class="clx-r"><div class="nm">${esc(this._name(id))}</div><div class="st">${esc(sub)}</div>
+        ${!na && modes.length > 1 ? `<div class="clx-seg">${modes.map((m) => `<button class="${m === s.state ? "act" : ""}" data-chvac="${esc(id)}" data-m="${m}">${short[m] || this._st(m)}</button>`).join("")}</div>` : ""}
+        ${on && tgt != null ? `<div class="clx-pm"><button data-ctemp="${esc(id)}" data-d="-1" title="${t("Baixar")}">−</button><button data-ctemp="${esc(id)}" data-d="1" title="${t("Subir")}">+</button></div>` : ""}
+      </div>
     </div>`;
   }
 
   _securityView(rooms) {
     const all = rooms.flatMap((r) => r.ents);
     const ids = all.filter((i) => dom(i) === "lock" || dom(i) === "camera" || (dom(i) === "binary_sensor" && ["door", "window", "garage_door", "opening", "motion", "smoke", "moisture", "gas"].includes(this._s(i).attributes.device_class)));
-    return `<div class="hero"><div><div class="eyebrow">${t("Segurança")}</div><div class="t" style="margin-top:8px">${t("Portas, janelas e fechaduras")}</div></div><div class="right">${this._gear()}</div></div>
-      ${ids.length ? `<div class="tiles">${ids.map((i) => this._tile(i)).join("")}</div>` : `<div class="empty">${t("Nada para monitorizar.")}</div>`}`;
+    const watch = ids.filter((i) => ["lock", "binary_sensor"].includes(dom(i)) && this._s(i).state !== "unavailable");
+    const isBad = (i) => (dom(i) === "lock" ? this._s(i).state !== "locked" : this._s(i).state === "on");
+    const bad = watch.filter(isBad).length;
+    const chip = watch.length ? `<div class="secst ${bad ? "bad" : "ok"}"><ha-icon icon="mdi:shield-${bad ? "alert-outline" : "check-outline"}"></ha-icon>${bad ? tp(bad, "{n} item aberto", "{n} itens abertos") : t("Tudo seguro")}</div>` : "";
+    const tile = (i) => (watch.includes(i) && !isBad(i) ? this._tile(i).replace('class="tile ', 'class="tile secok ') : this._tile(i));
+    return `<div class="hero"><div><div class="eyebrow">${t("Segurança")}</div><div class="t" style="margin-top:8px">${t("Portas, janelas e fechaduras")}</div></div><div class="right">${chip}${this._gear()}</div></div>
+      ${ids.length ? `<div class="tiles">${ids.map(tile).join("")}</div>` : `<div class="empty">${t("Nada para monitorizar.")}</div>`}`;
   }
 
   _tile(id) {
@@ -1478,7 +1553,7 @@ class Pine3ViewPanel extends HTMLElement {
         <div class="right">${lights.length && !this._edit ? `<button class="pill" data-rlights="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender")}</button><button class="pill solid" data-rlights="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar")}</button>` : ""}${this._editBtn()}${this._gear()}</div>
       </div>
       ${chips ? `<div class="rchips">${chips}</div>` : ""}
-      <div class="tiles rgrid" data-sortable="dev:${esc(room.id)}">${shown.map((i) => this._tile(i)).join("")}</div>
+      <div class="tiles rgrid" data-sortable="dev:${esc(room.id)}">${shown.map((i) => (dom(i) === "climate" && this._s(i) ? this._climateCard(i, room) : this._tile(i))).join("")}</div>
       ${hiddenHere ? `<div class="tiles" style="margin-top:18px"><div class="tile add" data-edrestore="devices"><ha-icon icon="mdi:plus"></ha-icon><span>${tp(hiddenHere, "Mostrar {n} escondido", "Mostrar {n} escondidos")}</span></div></div>` : ""}`;
   }
 
@@ -1667,6 +1742,11 @@ class Pine3ViewPanel extends HTMLElement {
         ev.stopPropagation();
         const id = el.dataset.cpw;
         this._call("climate", this._isOn(id) ? "turn_off" : "turn_on", { entity_id: id });
+      });
+      on("[data-chvac]", (el, ev) => {
+        ev.stopPropagation();
+        const id = el.dataset.chvac, m = el.dataset.m;
+        if (this._s(id)?.state !== m) this._call("climate", "set_hvac_mode", { entity_id: id, hvac_mode: m });
       });
       on("[data-ctemp]", (el, ev) => {
         ev.stopPropagation();
