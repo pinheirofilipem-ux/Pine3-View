@@ -253,6 +253,7 @@ class Pine3ViewPanel extends HTMLElement {
   _accent(id) {
     const s = this._s(id);
     if (dom(id) === "light" && s?.attributes.rgb_color) return `rgb(${s.attributes.rgb_color.join(",")})`;
+    if (dom(id) === "lock" && s && !["locked", "unavailable", "unknown"].includes(s.state)) return "#ff9f0a"; // unlocked / open / jammed
     return ACCENT[dom(id)] || "#5ac8fa";
   }
   _st(state) { return STATE_PT[state] ? t(STATE_PT[state]) : state; }
@@ -671,7 +672,7 @@ class Pine3ViewPanel extends HTMLElement {
         ${this._choice("weather_entity", d.weather_entity, [["", t("Automático")], ...wxs.map((i) => [i, esc(this._s(i).attributes.friendly_name || i)]), ["open-meteo", "Open-Meteo"]],
           t("Fonte do tempo"), t("Automático usa a primeira entidade de tempo do Home Assistant ou, se não houver, a Open-Meteo para a localização da casa."))}
         ${this._toggle("show_people", d.show_people, t("Pessoas"), t("Quem está em casa."))}
-        ${this._choice("home_layout", d.home_layout || "top", [["top", t("Relógio grande")], ["columns", t("Duas colunas")], ["sidebar", t("Barra lateral")], ["classic", t("Clássica")]], t("Disposição do início"), t("Relógio grande com o estado da casa ao lado; duas colunas, com o relógio, o tempo e o que está ligado à esquerda e os cartões à direita; uma barra lateral de vidro com o relógio, o tempo, o estado e as cenas, e os cartões ao lado; ou a disposição original."))}
+        ${this._choice("home_layout", d.home_layout || "top", [["top", t("Relógio grande")], ["columns", t("Duas colunas")], ["sidebar", t("Barra lateral")], ["classic", t("Clássica")]], t("Disposição do início"), t("Relógio grande com o estado da casa ao lado; duas colunas, com o relógio, o tempo e o que está ligado à esquerda e os cartões à direita; uma barra lateral de vidro com o relógio, o tempo e o estado, e as cenas e os cartões ao lado; ou a disposição original."))}
         ${this._toggle("show_status", d.show_status, t("Estado da casa"), t("Luzes acesas, outros aparelhos ligados e botões Acender/Apagar luzes."))}
         ${this._toggle("show_scenes", d.show_scenes, t("Cenas"), t("Faixa de cenas no início."))}
         ${this._toggle("show_summary", d.show_summary, t("Cartões de resumo"), t("Clima, Segurança e A tocar."))}
@@ -1215,18 +1216,17 @@ class Pine3ViewPanel extends HTMLElement {
     }
     if (layout === "sidebar") {
       // a full-height glass sidebar (clock, weather, home status, scenes, people) and the cards beside it
-      const sc = this._edit || !scenes.length || !cfg.show_scenes ? "" : `<div class="sbsc"><div class="eyebrow">${t("Cenas")} <span class="badge">${scenes.length}</span></div>
-        <div class="sblist">${scenes.map((i) => `<div class="scene ${this._fired === i ? "fired" : ""} ${this._sceneOn(i) ? "on" : ""}" data-scene="${i}" title="${this._sceneOn(i) ? t("Toca para desligar") : ""}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon><span>${esc(this._name(i))}</span></div>`).join("")}</div></div>`;
+      const sc = this._edit ? "" : scenesHtml;
       const offBtn = lights.length ? `<div class="actions">${lightsOn.length ? `<button class="pill solid" data-all="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar luzes")}</button>` : `<button class="pill" data-all="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender luzes")}</button>`}</div>` : "";
-      return `<div class="hside ${this._edit ? "editing" : ""}">
+      return `<div class="hside ${this._edit ? "editing" : ""} ${sc ? "has-sc" : ""}">
         <aside class="sb glass">
           <div class="eyebrow tdate">${esc(this._dateText())}</div><div class="clock">${this._clockText()}</div>${this._hint()}
           ${cfg.show_weather ? this._wxCard("tall side") : ""}
           ${showStatus ? `<div class="sbst"><div class="status">${lightsOn.length ? tp(lightsOn.length, "{n} luz acesa", "{n} luzes acesas") : status}</div>${others.length ? `<div class="sdet">${esc(this._othersLine(others))}</div>` : ""}${offBtn}</div>` : ""}
-          ${sc}<span class="sp"></span>
+          <span class="sp"></span>
           <div class="sbft">${this._peopleHtml}<span class="sp"></span>${this._editBtn()}${this._gear()}</div>
         </aside>
-        <div class="hmain">${grid}</div>
+        <div class="hmain">${sc}${grid}</div>
       </div>`;
     }
     if (layout === "top") {
