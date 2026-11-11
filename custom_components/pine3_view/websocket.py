@@ -154,7 +154,7 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         vol.Optional("dock"): [vol.In(DOCK_ITEMS)],
         vol.Optional("language"): vol.In(["pt", "en"]),
         vol.Optional("layout"): vol.In(["grid", "list"]),
-        vol.Optional("home_layout"): vol.In(["classic", "top", "columns"]),
+        vol.Optional("home_layout"): vol.In(["classic", "top", "columns", "sidebar"]),
         vol.Optional("weather_entity"): vol.Any("", "open-meteo", vol.Match(r"^weather\.[a-z0-9_]+$")),
         vol.Optional("screensaver"): vol.All(int, vol.Range(min=0, max=240)),
         vol.Optional("big_rooms"): [str],

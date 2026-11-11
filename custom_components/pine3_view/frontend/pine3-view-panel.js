@@ -637,7 +637,7 @@ class Pine3ViewPanel extends HTMLElement {
         ${this._choice("weather_entity", d.weather_entity, [["", t("Automático")], ...wxs.map((i) => [i, esc(this._s(i).attributes.friendly_name || i)]), ["open-meteo", "Open-Meteo"]],
           t("Fonte do tempo"), t("Automático usa a primeira entidade de tempo do Home Assistant ou, se não houver, a Open-Meteo para a localização da casa."))}
         ${this._toggle("show_people", d.show_people, t("Pessoas"), t("Quem está em casa."))}
-        ${this._choice("home_layout", d.home_layout || "top", [["top", t("Relógio grande")], ["columns", t("Duas colunas")], ["classic", t("Clássica")]], t("Disposição do início"), t("Relógio grande com o estado da casa ao lado; ou duas colunas, com o relógio, o tempo e o que está ligado à esquerda e os cartões à direita; ou a disposição original."))}
+        ${this._choice("home_layout", d.home_layout || "top", [["top", t("Relógio grande")], ["columns", t("Duas colunas")], ["sidebar", t("Barra lateral")], ["classic", t("Clássica")]], t("Disposição do início"), t("Relógio grande com o estado da casa ao lado; duas colunas, com o relógio, o tempo e o que está ligado à esquerda e os cartões à direita; uma barra lateral de vidro com o relógio, o tempo, o estado e as cenas, e os cartões ao lado; ou a disposição original."))}
         ${this._toggle("show_status", d.show_status, t("Estado da casa"), t("Luzes acesas, outros aparelhos ligados e botões Acender/Apagar luzes."))}
         ${this._toggle("show_scenes", d.show_scenes, t("Cenas"), t("Faixa de cenas no início."))}
         ${this._toggle("show_summary", d.show_summary, t("Cartões de resumo"), t("Clima, Segurança e A tocar."))}
@@ -1127,7 +1127,7 @@ class Pine3ViewPanel extends HTMLElement {
     if (secIds.length) {
       const bad = secIds.filter((i) => (dom(i) === "lock" ? this._s(i).state === "unlocked" : this._s(i).state === "on"));
       cards.push(`<div data-key="@security" class="rc glass" data-nav="security">
-        <div class="row1"><div class="ri" style="${bad.length ? "background:#ff9f0a;color:#2a1500" : ""}"><ha-icon icon="mdi:shield-${bad.length ? "alert-outline" : "check-outline"}"></ha-icon></div><div class="eyebrow" style="margin:14px 0 0 0;flex:1;padding-left:14px">${t("Segurança")}</div></div>
+        <div class="row1"><div class="ri" style="${bad.length ? "background:#ff9f0a;color:#2a1500" : "background:#30d158;color:#06210f"}"><ha-icon icon="mdi:shield-${bad.length ? "alert-outline" : "check-outline"}"></ha-icon></div><div class="eyebrow" style="margin:14px 0 0 0;flex:1;padding-left:14px">${t("Segurança")}</div></div>
         <div class="foot"><div class="big-txt">${bad.length ? tp(bad.length, "{n} item aberto", "{n} itens abertos") : t("Tudo seguro")}</div><div class="meta">${tp(secIds.length, "{n} item monitorizado", "{n} itens monitorizados")}</div></div></div>`);
     }
     // robot vacuums: status, battery and (while cleaning) progress; a tap opens its card, never starts it
@@ -1177,6 +1177,22 @@ class Pine3ViewPanel extends HTMLElement {
           ${this._edit ? "" : scenesHtml}
           ${grid}
         </div>
+      </div>`;
+    }
+    if (layout === "sidebar") {
+      // a full-height glass sidebar (clock, weather, home status, scenes, people) and the cards beside it
+      const sc = this._edit || !scenes.length || !cfg.show_scenes ? "" : `<div class="sbsc"><div class="eyebrow">${t("Cenas")} <span class="badge">${scenes.length}</span></div>
+        <div class="sblist">${scenes.map((i) => `<div class="scene ${this._fired === i ? "fired" : ""} ${this._sceneOn(i) ? "on" : ""}" data-scene="${i}" title="${this._sceneOn(i) ? t("Toca para desligar") : ""}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon><span>${esc(this._name(i))}</span></div>`).join("")}</div></div>`;
+      const offBtn = lights.length ? `<div class="actions">${lightsOn.length ? `<button class="pill solid" data-all="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar luzes")}</button>` : `<button class="pill" data-all="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender luzes")}</button>`}</div>` : "";
+      return `<div class="hside ${this._edit ? "editing" : ""}">
+        <aside class="sb glass">
+          <div class="eyebrow tdate">${esc(this._dateText())}</div><div class="clock">${this._clockText()}</div>${this._hint()}
+          ${cfg.show_weather ? this._wxCard("tall side") : ""}
+          ${showStatus ? `<div class="sbst"><div class="status">${lightsOn.length ? tp(lightsOn.length, "{n} luz acesa", "{n} luzes acesas") : status}</div>${others.length ? `<div class="sdet">${esc(this._othersLine(others))}</div>` : ""}${offBtn}</div>` : ""}
+          ${sc}<span class="sp"></span>
+          <div class="sbft">${this._peopleHtml}<span class="sp"></span>${this._editBtn()}${this._gear()}</div>
+        </aside>
+        <div class="hmain">${grid}</div>
       </div>`;
     }
     if (layout === "top") {
@@ -1237,8 +1253,13 @@ class Pine3ViewPanel extends HTMLElement {
   _securityView(rooms) {
     const all = rooms.flatMap((r) => r.ents);
     const ids = all.filter((i) => dom(i) === "lock" || dom(i) === "camera" || (dom(i) === "binary_sensor" && ["door", "window", "garage_door", "opening", "motion", "smoke", "moisture", "gas"].includes(this._s(i).attributes.device_class)));
-    return `<div class="hero"><div><div class="eyebrow">${t("Segurança")}</div><div class="t" style="margin-top:8px">${t("Portas, janelas e fechaduras")}</div></div><div class="right">${this._gear()}</div></div>
-      ${ids.length ? `<div class="tiles">${ids.map((i) => this._tile(i)).join("")}</div>` : `<div class="empty">${t("Nada para monitorizar.")}</div>`}`;
+    const watch = ids.filter((i) => ["lock", "binary_sensor"].includes(dom(i)) && this._s(i).state !== "unavailable");
+    const isBad = (i) => (dom(i) === "lock" ? this._s(i).state !== "locked" : this._s(i).state === "on");
+    const bad = watch.filter(isBad).length;
+    const chip = watch.length ? `<div class="secst ${bad ? "bad" : "ok"}"><ha-icon icon="mdi:shield-${bad ? "alert-outline" : "check-outline"}"></ha-icon>${bad ? tp(bad, "{n} item aberto", "{n} itens abertos") : t("Tudo seguro")}</div>` : "";
+    const tile = (i) => (watch.includes(i) && !isBad(i) ? this._tile(i).replace('class="tile ', 'class="tile secok ') : this._tile(i));
+    return `<div class="hero"><div><div class="eyebrow">${t("Segurança")}</div><div class="t" style="margin-top:8px">${t("Portas, janelas e fechaduras")}</div></div><div class="right">${chip}${this._gear()}</div></div>
+      ${ids.length ? `<div class="tiles">${ids.map(tile).join("")}</div>` : `<div class="empty">${t("Nada para monitorizar.")}</div>`}`;
   }
 
   _tile(id) {
