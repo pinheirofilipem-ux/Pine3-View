@@ -481,7 +481,7 @@ a.pill{color:inherit;text-decoration:none}
 .rhead{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:32px;padding-top:26px}
 .rtitle .t{font-family:var(--display);font-size:clamp(40px,4.4vw,60px);font-weight:400;letter-spacing:-.02em;line-height:1.02;margin-top:6px}
 .rstat{min-width:0;border-left:1px solid var(--line);padding-left:28px}
-.rstat .status{font-size:clamp(22px,2.3vw,30px);margin-top:0}
+.rstat .status{font-size:clamp(22px,2.3vw,30px);margin-top:0}.rstat .onchips{margin-top:6px}.rstat .oc{height:26px;font-size:12px}
 .rhead .right{display:flex;align-items:center;gap:10px;flex-wrap:nowrap}
 .rchips{display:flex;gap:10px;align-items:center;overflow-x:auto;scrollbar-width:none;margin-top:18px;padding-bottom:2px}
 .rchips::-webkit-scrollbar{display:none}
@@ -611,7 +611,7 @@ a.pill{color:inherit;text-decoration:none}
   .hcols{grid-template-columns:1fr;gap:18px}.hleft{position:static}.hcols .hgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 /* home: sidebar layout (a full-height glass sidebar, the cards beside it) */
-.hside{display:grid;grid-template-columns:clamp(270px,24vw,330px) minmax(0,1fr);gap:26px;align-items:start;padding-top:20px}
+.hside{display:grid;grid-template-columns:clamp(290px,29vw,380px) minmax(0,1fr);gap:26px;align-items:start;padding-top:20px}
 .sb{position:sticky;top:20px;height:calc(100vh - var(--dock-space,108px) - 34px);border-radius:32px;padding:22px 20px 16px;display:flex;flex-direction:column;gap:14px;min-width:0;overflow:hidden}
 .sb .tdate{font-size:14px}.sb .clock{font-size:clamp(64px,6.4vw,88px);line-height:.92;margin-top:-6px}
 .sb .wxc{background:rgba(255,255,255,.06);backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none;margin-top:0;padding:12px 14px;border-radius:22px;gap:8px}
@@ -686,4 +686,66 @@ a.pill{color:inherit;text-decoration:none}
 .frng i{position:absolute;top:0;bottom:0;border-radius:999px}
 .frng .fdot{width:10px;height:10px;top:-2px;margin-left:-5px;background:#fff;border:2px solid rgba(0,0,0,.35);box-sizing:border-box}
 .fcst .fd b{text-align:left}
+/* home: the date row (with the people when shown), what is on as chips, rows with a "+N" and the small menus */
+.drow{display:flex;align-items:center;gap:12px;min-width:0}
+.drow .people{flex:none}.drow .av{width:30px;height:30px;font-size:13px;margin-left:-8px;border-width:1.5px}.drow .av:first-child{margin-left:0}.drow .av i{width:9px;height:9px;border-width:1.5px}
+.onchips{position:relative;display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;min-width:0}
+.oc{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;gap:6px;height:30px;max-width:100%;padding:0 11px 0 8px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.06);font-size:13px;color:rgba(255,255,255,.88);white-space:nowrap}
+.oc span{overflow:hidden;text-overflow:ellipsis}
+.oc ha-icon{--mdc-icon-size:16px;color:var(--amber);flex:none}
+.oc.fitmore{padding:0 11px;color:var(--muted);font-weight:600}
+.oc:active,.scene.fitmore:active{transform:scale(.96)}
+[data-fit]>[hidden]{display:none!important}
+.scenes[data-fit]{position:relative;flex-wrap:wrap;overflow:visible}
+.scene.fitmore{padding:0 20px;font-weight:700;justify-content:center}
+.hgrid.fill>.rc{min-height:var(--rch)!important}
+.cmore{all:unset;box-sizing:border-box;position:fixed;top:12px;right:6px;z-index:6;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;cursor:pointer;color:rgba(255,255,255,.62);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+.cmore[hidden]{display:none}.cmore ha-icon{--mdc-icon-size:18px}.cmore:active{background:rgba(255,255,255,.16)}
+.pmenu{position:fixed;z-index:12;min-width:220px;max-width:min(340px,calc(100vw - 20px));max-height:calc(100vh - 20px);overflow:auto;padding:8px;border-radius:22px;background:var(--sheen),var(--glass-strong);backdrop-filter:blur(30px) saturate(170%);-webkit-backdrop-filter:blur(30px) saturate(170%);border:1px solid rgba(255,255,255,.14);box-shadow:var(--edge),0 20px 50px -20px rgba(0,0,0,.7);animation:pop .16s}
+.pm-h{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:8px 12px 4px}
+.pm-i{display:flex;align-items:center;gap:6px}
+.pm-b{all:unset;box-sizing:border-box;cursor:pointer;flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:14px;font-size:15px;font-weight:500}
+.pm-b:active{background:rgba(255,255,255,.1)}
+.pm-b ha-icon{--mdc-icon-size:20px;color:var(--pmc,var(--muted));flex:none}
+.pm-b span{min-width:0;overflow:hidden;text-overflow:ellipsis}.pm-b small{display:block;font-size:12px;font-weight:400;color:var(--muted);margin-top:1px}
+.pm-pw{all:unset;box-sizing:border-box;cursor:pointer;flex:none;width:34px;height:34px;margin-right:4px;border-radius:50%;display:grid;place-items:center;background:var(--cream);color:var(--ink)}.pm-pw ha-icon{--mdc-icon-size:18px}
+/* the next days in the weather card, with a range bar */
+.wx-days{display:flex;flex-direction:column;gap:5px;min-width:0}
+.wx-days>div{display:grid;grid-template-columns:58px 20px 34px 26px minmax(24px,1fr) 30px;align-items:center;gap:6px;font-size:13px}
+.wx-days span{color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;overflow:hidden}
+.wx-days ha-icon{--mdc-icon-size:18px}
+.wx-days small{color:var(--muted);text-align:right}.wx-days .pp{justify-content:flex-end}
+.wx-days b{font-weight:600;text-align:right}
+.wx-days .frng{display:block;height:5px}
+.wxc.tall .wx-hrs{border-bottom:0;padding-bottom:0}
+.wxc.tall .wx-days{padding-top:10px;border-top:1px solid var(--line)}
+/* big clock home: a larger weather card, as tall as the status and scenes beside it */
+.top.t1{grid-template-columns:auto minmax(0,1fr) minmax(0,540px);align-items:start}
+.t1 .tside{align-self:stretch}
+.wxc.big{flex:1;display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"now days" "hrs hrs" "al al";align-content:space-between;gap:10px 20px;padding:16px 18px;border-radius:26px}
+.wxc.big .wx-now{grid-area:now}.wxc.big .wx-now>ha-icon{--mdc-icon-size:48px}.wxc.big .wx-t b{font-size:48px}
+.wxc.big .wx-days{grid-area:days;justify-content:center;gap:8px;padding-left:18px;border-left:1px solid var(--line)}
+.wxc.big .wx-days>div{grid-template-columns:62px 20px 26px minmax(24px,1fr) 30px}
+.wxc.big .wx-hrs{grid-area:hrs;flex-direction:row;padding:10px 2px 0;border-top:1px solid var(--line)}
+.wxc.big .wx-hrs>div{flex-direction:row;align-items:center;gap:6px;min-width:0}
+.wxc.big .wx-hrs b{font-size:15px}
+.wxc.big .wx-alert{grid-area:al}
+.t1 .tsc .hsc{margin-top:16px}
+/* classic home: the status on the clock's row */
+.top.tcl{display:flex;align-items:flex-end;gap:28px;padding-top:22px}
+.tcl .clst{flex:1;min-width:0;border-left:1px solid var(--line);padding-left:28px}
+.tcl .right{align-self:flex-start}
+.tcl~.hsc{margin-top:18px}
+.hside .sbst .status{font-size:24px}
+@media (min-width:721px) and (max-height:760px){
+  .wxc.big{padding:12px 16px;gap:8px 18px}.wxc.big .wx-t b{font-size:42px}.wxc.big .wx-days{gap:6px}
+  .wx-days{gap:3px}.wxc.tall .wx-days{padding-top:8px}.hcols .wxc.tall{margin-top:14px}.hcols .hstat{margin-top:12px}
+}
+@media (max-width:720px){
+  .top.t1{grid-template-columns:1fr}.wxc.big{grid-template-columns:1fr;grid-template-areas:"now" "days" "hrs" "al"}.wxc.big .wx-days{border:0;padding:0}
+  .top.tcl{flex-wrap:wrap;gap:12px}.tcl .clst{flex-basis:100%;order:3;border:0;padding:0}
+  .cmore{position:absolute;top:14px;right:12px}
+  .wrap>.top:first-child,.wrap>.hcols:first-child,.wrap>.hside:first-child{margin-top:36px}
+  .wxc.big .wx-hrs>div{flex-direction:column;gap:2px}
+}
 `;
