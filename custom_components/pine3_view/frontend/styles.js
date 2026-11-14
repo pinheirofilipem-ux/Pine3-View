@@ -710,9 +710,9 @@ a.pill{color:inherit;text-decoration:none}
 .pm-b span{min-width:0;overflow:hidden;text-overflow:ellipsis}.pm-b small{display:block;font-size:12px;font-weight:400;color:var(--muted);margin-top:1px}
 .pm-pw{all:unset;box-sizing:border-box;cursor:pointer;flex:none;width:34px;height:34px;margin-right:4px;border-radius:50%;display:grid;place-items:center;background:var(--cream);color:var(--ink)}.pm-pw ha-icon{--mdc-icon-size:18px}
 /* the next days in the weather card, with a range bar */
-.wx-days{display:flex;flex-direction:column;gap:5px;min-width:0}
-.wx-days>div{display:grid;grid-template-columns:58px 20px 34px 26px minmax(24px,1fr) 30px;align-items:center;gap:6px;font-size:13px}
-.wx-days span{color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;overflow:hidden}
+.wx-days{display:grid;grid-template-columns:auto 20px auto auto minmax(24px,1fr) auto;align-items:center;gap:5px 8px;min-width:0;font-size:13px}
+.wx-days>div{display:contents}.wx-days>div[hidden]{display:none}
+.wx-days span{color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
 .wx-days ha-icon{--mdc-icon-size:18px}
 .wx-days small{color:var(--muted);text-align:right}.wx-days .pp{justify-content:flex-end}
 .wx-days b{font-weight:600;text-align:right}
@@ -724,8 +724,8 @@ a.pill{color:inherit;text-decoration:none}
 .t1 .tside{align-self:stretch}
 .wxc.big{flex:1;display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"now days" "hrs hrs" "al al";align-content:space-between;gap:10px 20px;padding:16px 18px;border-radius:26px}
 .wxc.big .wx-now{grid-area:now}.wxc.big .wx-now>ha-icon{--mdc-icon-size:48px}.wxc.big .wx-t b{font-size:48px}
-.wxc.big .wx-days{grid-area:days;justify-content:center;gap:8px;padding-left:18px;border-left:1px solid var(--line)}
-.wxc.big .wx-days>div{grid-template-columns:62px 20px 26px minmax(24px,1fr) 30px}
+.wxc.big .wx-days{grid-area:days;align-content:center;gap:8px 8px;padding-left:18px;border-left:1px solid var(--line)}
+.wxc.big .wx-days{grid-template-columns:auto 20px auto minmax(24px,1fr) auto}
 .wxc.big .wx-hrs{grid-area:hrs;flex-direction:row;padding:10px 2px 0;border-top:1px solid var(--line)}
 .wxc.big .wx-hrs>div{flex-direction:row;align-items:center;gap:6px;min-width:0}
 .wxc.big .wx-hrs b{font-size:15px}
@@ -738,8 +738,8 @@ a.pill{color:inherit;text-decoration:none}
 .tcl~.hsc{margin-top:18px}
 .hside .sbst .status{font-size:24px}
 @media (min-width:721px) and (max-height:760px){
-  .wxc.big{padding:12px 16px;gap:8px 18px}.wxc.big .wx-t b{font-size:42px}.wxc.big .wx-days{gap:6px}
-  .wx-days{gap:3px}.wxc.tall .wx-days{padding-top:8px}.hcols .wxc.tall{margin-top:14px}.hcols .hstat{margin-top:12px}
+  .wxc.big{padding:12px 16px;gap:8px 18px}.wxc.big .wx-t b{font-size:42px}.wxc.big .wx-days{gap:6px 8px}
+  .wx-days{row-gap:3px}.wxc.tall .wx-days{padding-top:8px}.hcols .wxc.tall{margin-top:14px}.hcols .hstat{margin-top:12px}
 }
 @media (max-width:720px){
   .top.t1{grid-template-columns:1fr}.wxc.big{grid-template-columns:1fr;grid-template-areas:"now" "days" "hrs" "al"}.wxc.big .wx-days{border:0;padding:0}

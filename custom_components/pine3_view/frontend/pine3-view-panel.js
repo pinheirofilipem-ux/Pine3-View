@@ -62,7 +62,7 @@ class Pine3ViewPanel extends HTMLElement {
     const kiosk = /[?&#]kiosk\b/.test(location.search + location.hash);
     if (kiosk || store.get("hide_sidebar", false)) this._dockSidebar(true);
     this._applyWakeLock();
-    this._onResize = () => { this._fit3d?.(); this._fitDock(); this._dockSpace(); this._placeBlob(false); this._packSections(); this._fitRows(); this._fillHome(); };
+    this._onResize = () => { this._fit3d?.(); this._fitDock(); this._dockSpace(); this._placeBlob(false); this._packSections(); this._fitRows(); this._fitDays(); this._fillHome(); };
     window.addEventListener("resize", this._onResize);
     if (this._hass) this._connect();
   }
@@ -541,7 +541,7 @@ class Pine3ViewPanel extends HTMLElement {
     const hours = hrs.length ? `<div class="wx-hrs">${hrs.map((f) => `<div><small>${hh(f.time)}</small><ha-icon icon="${icon(f.cond)}"></ha-icon><b>${deg(f.temp)}</b>${rain(f.precip)}</div>`).join("")}</div>`
       : fc ? "" : `<div class="wx-hrs wx-wait">${t("A carregar a previsão…")}</div>`;
     // the next days (3, or 5 in the sidebar), each with a range bar on the scale of the days shown
-    const days = daily.slice(today ? 1 : 0).slice(0, side ? 5 : 3);
+    const days = daily.slice(today ? 1 : 0).slice(0, big ? 3 : 7); // tall cards show as many as fit (see _fitDays)
     const lo = (d) => d.low ?? d.temp, L = Math.min(...days.map(lo)), H = Math.max(...days.map((d) => d.temp)), span = H - L || 1;
     const pos = (v) => Math.max(0, Math.min(100, ((v - L) / span) * 100));
     const dname = (d, k) => (k === 0 && today ? t("Amanhã") : cap(d.time.toLocaleDateString(locale(), { weekday: "short" }).replace(".", "").slice(0, 3)));
@@ -1041,6 +1041,22 @@ class Pine3ViewPanel extends HTMLElement {
       }
     });
   }
+  /** Tall weather cards: as many next days as fit above the dock (or inside the sidebar), at least three. */
+  _fitDays() {
+    this.shadowRoot?.querySelectorAll(".wxc.tall .wx-days").forEach((box) => {
+      const rows = [...box.children];
+      rows.forEach((r) => { r.hidden = false; });
+      const card = box.closest(".wxc"), sb = card.closest(".sb");
+      if (!card.offsetParent || window.innerWidth <= 720) { rows.slice(5).forEach((r) => { r.hidden = true; }); return; }
+      const nav = this._dockEl;
+      let limit = nav && !nav.hidden ? nav.getBoundingClientRect().top - 16 : window.innerHeight - 16;
+      if (sb) {
+        const st = sb.querySelector(".sbst");
+        limit = sb.getBoundingClientRect().bottom - 18 - (st ? st.offsetHeight + 12 : 0);
+      }
+      for (let n = rows.length - 1; n >= 3 && card.getBoundingClientRect().bottom > limit; n--) rows[n].hidden = true;
+    });
+  }
   /** Home on a wide screen: the cards grow to fill the space down to the dock (no needless empty band, no scroll). */
   _fillHome() {
     const g = this.shadowRoot?.querySelector(".hgrid");
@@ -1107,7 +1123,7 @@ class Pine3ViewPanel extends HTMLElement {
       this._app = root.getElementById("app");
       this._dockEl = root.querySelector(".dock");
       new ResizeObserver(() => this._placeBlob(false)).observe(this._dockEl); // fonts loading, window size…
-      document.fonts?.ready?.then(() => { if (this._dockEl) { this._dockEl._fit = null; this._fitDock(); this._placeBlob(false); this._fitRows(); this._fillHome(); } });
+      document.fonts?.ready?.then(() => { if (this._dockEl) { this._dockEl._fit = null; this._fitDock(); this._placeBlob(false); this._fitRows(); this._fitDays(); this._fillHome(); } });
     }
     // appearance: a fixed theme, or the day / night one by the sun; light themes get the light stylesheet
     const themeKey = currentTheme(cfg, this._hass, this._theme);
@@ -1128,6 +1144,7 @@ class Pine3ViewPanel extends HTMLElement {
     this._moreEl.title = t("Menu");
     this._packSections();
     this._fitRows();
+    this._fitDays();
     this._fillHome();
     if (this._view === "settings") this._bindSettings();
     else this._bind(rooms);
