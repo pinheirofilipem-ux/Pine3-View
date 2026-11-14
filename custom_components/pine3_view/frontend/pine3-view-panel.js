@@ -62,7 +62,7 @@ class Pine3ViewPanel extends HTMLElement {
     const kiosk = /[?&#]kiosk\b/.test(location.search + location.hash);
     if (kiosk || store.get("hide_sidebar", false)) this._dockSidebar(true);
     this._applyWakeLock();
-    this._onResize = () => { this._fit3d?.(); this._fitDock(); this._dockSpace(); this._placeBlob(false); this._packSections(); };
+    this._onResize = () => { this._fit3d?.(); this._fitDock(); this._dockSpace(); this._placeBlob(false); this._packSections(); this._fitRows(); this._fillHome(); };
     window.addEventListener("resize", this._onResize);
     if (this._hass) this._connect();
   }
@@ -505,7 +505,7 @@ class Pine3ViewPanel extends HTMLElement {
   _alertBanner(al, full = false, more = 0) {
     const lv = { yellow: t("Aviso amarelo"), orange: t("Aviso laranja"), red: t("Aviso vermelho") }[al.level];
     const period = full ? [al.start && !isNaN(al.start) ? `${t("Começa")} ${this._alertFmt(al.start)}` : "", al.end && !isNaN(al.end) ? `${t("Termina")} ${this._alertFmt(al.end)}` : ""].filter(Boolean).join(" · ") : this._alertWhen(al);
-    return `<div class="wx-alert lv-${al.level} ${full ? "full" : ""}"><ha-icon icon="mdi:alert"></ha-icon><div class="wx-at"><b>${esc(lv)}${al.type ? ` · ${esc(al.type)}` : ""}</b>${period ? `<small>${esc(period)}</small>` : ""}${full && al.text ? `<p>${esc(al.text)}</p>` : ""}</div>${more ? `<span class="wx-more">+${more}</span>` : ""}</div>`;
+    return `<div class="wx-alert lv-${al.level} ${full ? "full" : ""}"><ha-icon icon="mdi:alert"></ha-icon><div class="wx-at"><b>${esc(lv)}${al.type ? ` · ${esc(al.type)}` : ""}</b>${period ? `<small>${esc(period)}</small>` : ""}${full && al.text ? `<p>${esc(al.text)}</p>` : ""}</div>${more ? `<span class="wx-more" data-alertmore>+${more}</span>` : ""}</div>`;
   }
 
   /** The forecast for the home weather card, refreshed every 15 minutes (loads in the background, then redraws). */
@@ -526,22 +526,29 @@ class Pine3ViewPanel extends HTMLElement {
    */
   _wxCard(kind) {
     const w = this._wx(), fc = this._homeForecast();
+    const big = kind === "big", side = kind.includes("side");
     const icon = (c) => WEATHER_ICON[c] || "mdi:weather-cloudy";
     const deg = (v) => (v == null ? "–" : `${num(Math.round(v))}°`);
     const rain = (p) => (p != null && p >= 10 ? `<small class="pp"><ha-icon icon="mdi:water-outline"></ha-icon>${Math.round(p)}%</small>` : "");
     const daily = fc?.daily || [];
     const isToday = (d) => d && new Date(d.time).toDateString() === new Date().toDateString();
-    const today = isToday(daily[0]) ? daily[0] : null, tom = today ? daily[1] : daily[0];
-    const hrs = (fc?.hourly || []).filter((f) => f.time >= Date.now() - 30 * 60e3).slice(0, kind === "wide" ? 4 : 5);
+    const today = isToday(daily[0]) ? daily[0] : null;
+    const hrs = (fc?.hourly || []).filter((f) => f.time >= Date.now() - 30 * 60e3).slice(0, big ? 4 : 5);
     const hh = (d) => d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
     const now = w ? `<div class="wx-now"><ha-icon icon="${icon(w.cond)}"></ha-icon><div class="wx-t"><b>${deg(w.temp)}</b><span>${esc(this._wxLabel(w.cond))}</span>
         ${today ? `<small>${t("Máx.")} ${deg(today.temp)} · ${t("Mín.")} ${deg(today.low)}</small>` : ""}</div></div>`
       : `<div class="wx-now"><ha-icon icon="mdi:weather-cloudy-clock"></ha-icon><div class="wx-t"><span>${t("A carregar o tempo…")}</span></div></div>`;
     const hours = hrs.length ? `<div class="wx-hrs">${hrs.map((f) => `<div><small>${hh(f.time)}</small><ha-icon icon="${icon(f.cond)}"></ha-icon><b>${deg(f.temp)}</b>${rain(f.precip)}</div>`).join("")}</div>`
       : fc ? "" : `<div class="wx-hrs wx-wait">${t("A carregar a previsão…")}</div>`;
-    const next = tom ? `<div class="wx-tom"><small>${t("Amanhã")}</small><div class="wx-tl"><ha-icon icon="${icon(tom.cond)}"></ha-icon><b>${deg(tom.temp)}</b><span>${deg(tom.low)}</span></div>${rain(tom.precip)}</div>` : "";
+    // the next days (3, or 5 in the sidebar), each with a range bar on the scale of the days shown
+    const days = daily.slice(today ? 1 : 0).slice(0, side ? 5 : 3);
+    const lo = (d) => d.low ?? d.temp, L = Math.min(...days.map(lo)), H = Math.max(...days.map((d) => d.temp)), span = H - L || 1;
+    const pos = (v) => Math.max(0, Math.min(100, ((v - L) / span) * 100));
+    const dname = (d, k) => (k === 0 && today ? t("Amanhã") : cap(d.time.toLocaleDateString(locale(), { weekday: "short" }).replace(".", "").slice(0, 3)));
+    const next = days.length ? `<div class="wx-days">${days.map((d, k) => `<div><span>${esc(dname(d, k))}</span><ha-icon icon="${icon(d.cond)}"></ha-icon>${big ? "" : `<small class="pp">${d.precip != null && d.precip >= 10 ? `${Math.round(d.precip)}%` : ""}</small>`}<small>${deg(lo(d))}</small>
+        <i class="frng"><i style="left:${pos(lo(d))}%;width:${Math.max(4, pos(d.temp) - pos(lo(d)))}%;background:linear-gradient(90deg,${tempColor(lo(d))},${tempColor(d.temp)})"></i></i><b>${deg(d.temp)}</b></div>`).join("")}</div>` : "";
     const als = this._ipmaAlerts(), al = als[0];
-    return `<div class="wxc ${kind} glass ${al ? "has-alert" : ""}" data-wx title="${t("Previsão")}">${now}${hours}${next}${al ? this._alertBanner(al, false, als.length - 1) : ""}</div>`;
+    return `<div class="wxc ${kind} glass ${al ? "has-alert" : ""}" data-wx title="${t("Previsão")}">${now}${big ? next + hours : hours + next}${al ? this._alertBanner(al, false, als.length - 1) : ""}</div>`;
   }
 
   _forecastSheet() {
@@ -675,7 +682,7 @@ class Pine3ViewPanel extends HTMLElement {
         ${this._toggle("show_weather", d.show_weather, t("Meteorologia"), t("Pílula com a temperatura e o estado do tempo. Toca nela para ver a previsão."))}
         ${this._choice("weather_entity", d.weather_entity, [["", t("Automático")], ...wxs.map((i) => [i, esc(this._s(i).attributes.friendly_name || i)]), ["open-meteo", "Open-Meteo"]],
           t("Fonte do tempo"), t("Automático usa a primeira entidade de tempo do Home Assistant ou, se não houver, a Open-Meteo para a localização da casa."))}
-        ${this._toggle("show_people", d.show_people, t("Pessoas"), t("Quem está em casa."))}
+        ${this._toggle("home_people", !!d.home_people, t("Pessoas"), t("Quem está em casa, ao lado da data."))}
         ${this._choice("home_layout", d.home_layout || "top", [["top", t("Relógio grande")], ["columns", t("Duas colunas")], ["sidebar", t("Barra lateral")], ["classic", t("Clássica")]], t("Disposição do início"), t("Relógio grande com o estado da casa ao lado; duas colunas, com o relógio, o tempo e o que está ligado à esquerda e os cartões à direita; uma barra lateral de vidro com o relógio, o tempo e o estado, e as cenas e os cartões ao lado; ou a disposição original."))}
         ${this._toggle("show_status", d.show_status, t("Estado da casa"), t("Luzes acesas, outros aparelhos ligados e botões Acender/Apagar luzes."))}
         ${this._toggle("show_scenes", d.show_scenes, t("Cenas"), t("Faixa de cenas no início."))}
@@ -695,7 +702,7 @@ class Pine3ViewPanel extends HTMLElement {
             + this._localChoice("anim", an, [["auto", t("Como no painel")], ["on", t("Ligadas")], ["off", t("Desligadas")]],
               t("Animações neste dispositivo"), t("Sobrepõe a opção Animações da Aparência só neste dispositivo."));
         })()}
-        ${this._fsSupported() ? `<div class="opt"><div><b>${t("Ecrã inteiro")}</b><small>${t("Esconde as barras do browser. Também há um botão no topo do painel.")}</small></div><button class="pill" data-fs><ha-icon icon="mdi:fullscreen"></ha-icon>${document.fullscreenElement ? t("Sair do ecrã inteiro") : t("Ecrã inteiro")}</button></div>` : ""}
+        ${this._fsSupported() ? `<div class="opt"><div><b>${t("Ecrã inteiro")}</b><small>${t("Esconde as barras do browser.")}</small></div><button class="pill" data-fs><ha-icon icon="mdi:fullscreen"></ha-icon>${document.fullscreenElement ? t("Sair do ecrã inteiro") : t("Ecrã inteiro")}</button></div>` : ""}
       </div></div>
       <div class="panel glass"><div class="opts">
         ${this._choice("screensaver", d.screensaver, SAVER_STEPS.map((m) => [m, m ? t("{n} min", { n: m }) : t("Desligado")]), t("Ecrã de descanso"), t("Relógio grande e escurecido depois de algum tempo sem toques. Ideal para tablets na parede."))}
@@ -848,10 +855,7 @@ class Pine3ViewPanel extends HTMLElement {
   }
 
   // ---------- edit mode ----------
-  _editBtn() {
-    if (this._edit) return "";
-    return `<div class="iconbtn" data-editstart title="${t("Editar")}"><ha-icon icon="mdi:pencil-outline"></ha-icon></div>`;
-  }
+  _editBtn() { return ""; } // editing starts from the "⋮" menu
   _startEdit() {
     const c = this._saved();
     const rooms = this._rooms();
@@ -954,6 +958,106 @@ class Pine3ViewPanel extends HTMLElement {
     });
   }
 
+
+  // ---------- small menus ("⋮" and the "+N" ones) ----------
+  /** A small glass menu under (or above) `anchor`; `items` are [icon, label, action, extra?] rows. */
+  _popMenu(anchor, title, items) {
+    this._closePop();
+    const m = document.createElement("div");
+    m.className = "pmenu";
+    m.innerHTML = `${title ? `<div class="pm-h">${esc(title)}</div>` : ""}${items.map(([icon, label, , sub, color, power], k) => `<div class="pm-i">
+        <button class="pm-b" data-pmk="${k}" ${color ? `style="--pmc:${color}"` : ""}><ha-icon icon="${icon}"></ha-icon><span>${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ""}</span></button>
+        ${power ? `<button class="pm-pw" data-pmp="${k}" title="${t("Desligar")}"><ha-icon icon="mdi:power"></ha-icon></button>` : ""}</div>`).join("")}`;
+    this.shadowRoot.appendChild(m);
+    const b = anchor.getBoundingClientRect(), w = m.offsetWidth, h = m.offsetHeight;
+    const left = Math.max(10, Math.min(window.innerWidth - w - 10, b.left + w > window.innerWidth - 10 ? b.right - w : b.left));
+    let top = b.bottom + 8;
+    if (top + h > window.innerHeight - 10) top = Math.max(10, b.top - h - 8);
+    m.style.left = `${left}px`;
+    m.style.top = `${top}px`;
+    m.addEventListener("click", (ev) => {
+      const pk = ev.target.closest("[data-pmp]"), bk = ev.target.closest("[data-pmk]");
+      if (pk) { items[+pk.dataset.pmp][5](); this._closePop(); }
+      else if (bk) { this._closePop(); items[+bk.dataset.pmk][2](); }
+    });
+    this._pop = m;
+    this._popAnchor = anchor;
+    this._popOut = (ev) => { const path = ev.composedPath(); if (!path.includes(m) && !path.includes(anchor)) this._closePop(); };
+    setTimeout(() => window.addEventListener("pointerdown", this._popOut, true));
+  }
+  _closePop() {
+    if (!this._pop) return;
+    this._pop.remove();
+    this._pop = null;
+    window.removeEventListener("pointerdown", this._popOut, true);
+  }
+  /** The "⋮" menu: edit this screen (where there is something to edit) and settings. */
+  _mainMenu() {
+    if (this._pop && this._popAnchor === this._moreEl) return this._closePop();
+    const items = [];
+    if (["home", "rooms", "room"].includes(this._view)) items.push(["mdi:pencil-outline", t("Editar ecrã"), () => this._startEdit()]);
+    items.push(["mdi:cog-outline", t("Definições"), () => this._openSettings()]);
+    this._popMenu(this._moreEl, "", items);
+  }
+  /** "+N" of a row that didn't fit: the hidden scenes, or the hidden devices that are on (with a power button). */
+  _moreMenu(el) {
+    const box = el.parentElement, ids = [...box.children].filter((x) => x.hidden && x.dataset.id).map((x) => x.dataset.id);
+    if (box.dataset.kind === "scenes") {
+      this._popMenu(el, t("Mais cenas"), ids.map((i) => [this._s(i)?.attributes.icon || "mdi:creation-outline", this._name(i), () => this._sceneTap(i)]));
+    } else {
+      const roomOf = (i) => this._rooms().find((r) => r.ents.includes(i))?.name || "";
+      this._popMenu(el, t("Também ligados"), ids.map((i) => [this._icon(i), this._name(i), () => this._openModal(i), roomOf(i), "var(--amber)", () => this._turnOff(i)]));
+    }
+  }
+  /** "+N" of a weather warning: every IPMA warning; a tap opens the forecast. */
+  _alertsMenu(el) {
+    const col = { red: "#ff453a", orange: "#ff9f0a", yellow: "#ffd60a" };
+    const lv = { yellow: t("Aviso amarelo"), orange: t("Aviso laranja"), red: t("Aviso vermelho") };
+    this._popMenu(el, t("Avisos do IPMA"), this._ipmaAlerts().map((al) => ["mdi:alert", `${lv[al.level]}${al.type ? ` · ${al.type}` : ""}`, () => this._openForecast(), this._alertWhen(al), col[al.level]]));
+  }
+  /** Turn a device off from a menu: AC and thermostats off, a vacuum back to its dock, anything else off. */
+  _turnOff(id) {
+    const d = dom(id);
+    if (d === "vacuum") return this._call("vacuum", "return_to_base", { entity_id: id });
+    if (["climate", "fan", "media_player", "switch", "input_boolean", "light"].includes(d)) return this._call(d, "turn_off", { entity_id: id });
+    return this._call("homeassistant", "turn_off", { entity_id: id });
+  }
+
+  /** Rows that show only what fits in `data-fit` lines and gather the rest in their "+N". */
+  _fitRows() {
+    this.shadowRoot?.querySelectorAll("[data-fit]").forEach((c) => {
+      const lines = +c.dataset.fit, more = c.querySelector(".fitmore");
+      const items = [...c.children].filter((x) => x !== more);
+      items.forEach((x) => { x.hidden = false; });
+      if (more) more.hidden = true;
+      if (!items.length || !more || !c.offsetParent) return;
+      const rowH = items[0].offsetHeight, gap = parseFloat(getComputedStyle(c).rowGap) || 6;
+      const limit = items[0].offsetTop + lines * (rowH + gap) - gap / 2;
+      const fits = () => [...c.children].every((x) => x.hidden || x.offsetTop + x.offsetHeight <= limit);
+      for (let n = 1; !fits() && n <= items.length; n++) {
+        items[items.length - n].hidden = true;
+        more.hidden = false;
+        more.textContent = `+${n}`;
+      }
+    });
+  }
+  /** Home on a wide screen: the cards grow to fill the space down to the dock (no needless empty band, no scroll). */
+  _fillHome() {
+    const g = this.shadowRoot?.querySelector(".hgrid");
+    if (!g) return;
+    g.classList.remove("fill");
+    if (this._view !== "home" || window.innerWidth <= 720) return;
+    const cards = [...g.children].filter((x) => x.offsetParent);
+    if (!cards.length) return;
+    const rows = new Set(cards.map((x) => x.offsetTop)).size;
+    const nav = this._dockEl, bottom = nav && !nav.hidden ? nav.getBoundingClientRect().top - 16 : window.innerHeight - 16;
+    const gap = parseFloat(getComputedStyle(g).rowGap) || 14;
+    const h = Math.floor((bottom - g.getBoundingClientRect().top - (rows - 1) * gap) / rows);
+    if (h < 110) return; // too little room: keep the normal height and scroll
+    g.style.setProperty("--rch", `${Math.min(h, 280)}px`);
+    g.classList.add("fill");
+  }
+
   // ---------- render ----------
   _render() {
     if (!this._hass) return;
@@ -996,12 +1100,14 @@ class Pine3ViewPanel extends HTMLElement {
     this.classList.toggle("lite", this._liteFx());
     if (!this._app) {
       // the dock lives outside the redrawn part, so it doesn't flicker or replay its animation on every update
-      root.innerHTML = `<style></style><div id="app"></div><nav class="dock" hidden><i class="blob"></i></nav>`;
+      root.innerHTML = `<style></style><div id="app"></div><nav class="dock" hidden><i class="blob"></i></nav><button class="cmore" hidden><ha-icon icon="mdi:dots-vertical"></ha-icon></button>`;
+      this._moreEl = root.querySelector(".cmore");
+      this._moreEl.addEventListener("click", () => this._mainMenu());
       this._styleEl = root.querySelector("style");
       this._app = root.getElementById("app");
       this._dockEl = root.querySelector(".dock");
       new ResizeObserver(() => this._placeBlob(false)).observe(this._dockEl); // fonts loading, window size…
-      document.fonts?.ready?.then(() => { if (this._dockEl) { this._dockEl._fit = null; this._fitDock(); this._placeBlob(false); } });
+      document.fonts?.ready?.then(() => { if (this._dockEl) { this._dockEl._fit = null; this._fitDock(); this._placeBlob(false); this._fitRows(); this._fillHome(); } });
     }
     // appearance: a fixed theme, or the day / night one by the sun; light themes get the light stylesheet
     const themeKey = currentTheme(cfg, this._hass, this._theme);
@@ -1012,12 +1118,17 @@ class Pine3ViewPanel extends HTMLElement {
       this._styleEl.textContent = light ? (this._lightCss ||= toLight(all)) : all;
       this._styleLight = light;
     }
+    if (this._viewKey !== viewKey) this._closePop();
     this._viewKey = viewKey;
     this._app.innerHTML = `<div class="bg" style="background:${THEMES[themeKey] || THEMES.ameixa}"></div>
       <div class="wrap ${vin} ${this._view === "room" ? "roomv" : ""} ${cfg.layout === "list" ? "as-list" : ""} ${this._edit ? "editing" : ""}">${header}${body}</div>${editBar}${this._saver ? this._saverView(rooms) : this._modalView()}`;
     for (const [sel, pos] of scrolls) root.querySelectorAll(sel).forEach((e, k) => { if (pos[k]) { e.scrollTop = pos[k][0]; e.scrollLeft = pos[k][1]; } });
     this._updateDock(cfg);
+    this._moreEl.hidden = this._view === "settings" || !!this._edit;
+    this._moreEl.title = t("Menu");
     this._packSections();
+    this._fitRows();
+    this._fillHome();
     if (this._view === "settings") this._bindSettings();
     else this._bind(rooms);
     if (refocus) {
@@ -1026,10 +1137,7 @@ class Pine3ViewPanel extends HTMLElement {
     }
   }
 
-  _gear() {
-    const fs = this._fsSupported() ? `<div class="iconbtn" data-fs title="${document.fullscreenElement ? t("Sair do ecrã inteiro") : t("Ecrã inteiro")}"><ha-icon icon="mdi:${document.fullscreenElement ? "fullscreen-exit" : "fullscreen"}"></ha-icon></div>` : "";
-    return `${fs}<div class="iconbtn" data-act="settings" title="${t("Definições")}"><ha-icon icon="mdi:cog-outline"></ha-icon></div>`;
-  }
+  _gear() { return ""; } // settings open from the "⋮" menu
   _hint() { return this._edit ? `<div class="edhint">${t(EDIT_HINT)}</div>` : ""; }
 
   _saverView(rooms) {
@@ -1043,34 +1151,33 @@ class Pine3ViewPanel extends HTMLElement {
     </div></div>`;
   }
 
-  _topBar() {
-    const h = this._hass, cfg = this._cfg();
+  /** The people at home, next to the date (Settings → Home → People, off by default). */
+  _people() {
+    if (!this._cfg().home_people) return "";
+    const h = this._hass;
     const persons = (this._model?.persons || Object.keys(h.states).filter((i) => dom(i) === "person")).map((i) => this._s(i)).filter(Boolean).slice(0, 4);
     const tint = ["#f3a96b", "#f6cf6a", "#c9d3dc", "#b9e0c3"];
-    const people = persons.length ? `<div class="people">${persons.map((p, k) => {
+    return persons.length ? `<div class="people">${persons.map((p, k) => {
       const pic = p.attributes.entity_picture;
       const ini = (p.attributes.friendly_name || "?").trim()[0].toUpperCase();
       return `<div class="av ${p.state === "home" ? "home" : ""}" title="${esc(p.attributes.friendly_name)}" style="background-color:${tint[k % 4]};${pic ? `background-image:url('${esc(pic)}')` : ""}">${pic ? "" : esc(ini)}<i></i></div>`;
     }).join("")}</div>` : "";
-    this._peopleHtml = cfg.show_people ? people : "";
-    return `<div class="top">
-      <div><div class="eyebrow">${esc(this._dateText())}</div><div class="clock">${this._clockText()}</div>${this._hint()}</div>
-      <div class="right">
-        ${cfg.show_weather ? this._wxPill() : ""}
-        ${cfg.show_people ? people : ""}${this._editBtn()}${this._gear()}
-      </div></div>`;
+  }
+  /** The date, with the people beside it when they are shown. */
+  _dateRow() {
+    return `<div class="drow"><div class="eyebrow tdate">${esc(this._dateText())}</div>${this._people()}</div>`;
+  }
+  /** What else is on, as chips with an icon (a tap opens the device); what doesn't fit in `lines` rows goes in a "+N" menu. */
+  _onChips(others, lines) {
+    if (!others.length) return "";
+    return `<div class="onchips" data-fit="${lines}" data-kind="on">${others.map((i) => `<button class="oc" data-open="${esc(i)}" data-id="${esc(i)}" title="${esc(this._name(i))}"><ha-icon icon="${this._icon(i)}"></ha-icon><span>${esc(this._name(i))}</span></button>`).join("")}<button class="oc fitmore" hidden></button></div>`;
   }
 
   /** What else is on besides lights (plugs, switches, fans/purifiers, TVs and speakers, AC, a cleaning vacuum). */
   _activeOthers(all) {
     return all.filter((i) => ["switch", "input_boolean", "fan", "media_player", "climate", "vacuum"].includes(dom(i)) && this._isOn(i));
   }
-  /** One line for the status: the names of the first few, then "+N". */
-  _othersLine(others) {
-    if (!others.length) return "";
-    const names = others.slice(0, 3).map((i) => this._name(i));
-    return `${tp(others.length, "Também ligado:", "Também ligados:")} ${names.join(", ")}${others.length > 3 ? ` +${others.length - 3}` : ""}`;
-  }
+
 
   /**
    * The home grid: rooms and the summary cards (Climate, Security, Vacuum, Now playing) in one order,
@@ -1145,7 +1252,7 @@ class Pine3ViewPanel extends HTMLElement {
 
     const scenes = (this._model ? this._model.scenes.filter((i) => this._s(i)) : Object.keys(h.states).filter((i) => dom(i) === "scene" && !h.entities?.[i]?.hidden)).slice(0, 12);
     const scenesHtml = scenes.length && cfg.show_scenes ? `<div class="sect hsc"><div class="eyebrow">${t("Cenas")} <span class="badge">${scenes.length}</span></div>
-      <div class="scenes">${scenes.map((i) => `<div class="scene glass ${this._fired === i ? "fired" : ""} ${this._sceneOn(i) ? "on" : ""}" data-scene="${i}" title="${this._sceneOn(i) ? t("Toca para desligar") : ""}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon>${esc(this._name(i))}</div>`).join("")}</div></div>` : "";
+      <div class="scenes" data-fit="1" data-kind="scenes">${scenes.map((i) => `<div class="scene glass ${this._fired === i ? "fired" : ""} ${this._sceneOn(i) ? "on" : ""}" data-scene="${i}" data-id="${i}" title="${this._sceneOn(i) ? t("Toca para desligar") : ""}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon>${esc(this._name(i))}</div>`).join("")}<div class="scene glass fitmore" hidden></div></div></div>` : "";
 
     // Summary cards
     const cards = [];
@@ -1193,60 +1300,53 @@ class Pine3ViewPanel extends HTMLElement {
     }
 
     const others = this._activeOthers(all);
-    const lightBtns = lights.length ? `<div class="actions"><button class="pill" data-all="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender luzes")}</button><button class="pill solid" data-all="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar luzes")}</button></div>` : "";
     const grid = rooms.length || this._edit ? `<div class="grid hgrid" data-sortable="rooms">${this._homeItems(rooms, cfg.show_summary ? cards : []).join("")}${this._restoreCard(this._hiddenRooms.length)}</div>`
       : `<div class="empty">${t("Ainda não há divisões com dispositivos. Atribui áreas aos teus dispositivos no Home Assistant.")}</div>`;
     const showStatus = cfg.show_status && !this._edit;
     const layout = cfg.home_layout || "top";
-    const topBar = this._topBar(); // also prepares the people avatars
-    const right = `${cfg.show_weather ? this._wxPill() : ""}${this._peopleHtml}${this._editBtn()}${this._gear()}`;
+    const sc = this._edit ? "" : scenesHtml;
+    const lit = lightsOn.length ? tp(lightsOn.length, "{n} luz acesa", "{n} luzes acesas") : others.length ? tp(others.length, "{n} dispositivo ligado", "{n} dispositivos ligados") : status;
+    const stat = (cls, lines, eyebrow = true) => (showStatus ? `<div class="${cls}">${eyebrow ? `<div class="eyebrow">${t("Estado da casa")}</div>` : ""}<div class="status">${lit}</div>${this._onChips(others, lines)}</div>` : "");
 
     if (layout === "columns") {
-      // 1/3: date, a big clock, weather, people and what is on · 2/3: actions, scenes and the cards (3 rows of 4)
-      const list = [...lightsOn.length ? [[`mdi:lightbulb-on`, tp(lightsOn.length, "{n} luz acesa", "{n} luzes acesas")]] : [], ...others.map((i) => [this._icon(i), this._name(i)])];
+      // 1/3: date, a big clock, what is on and the weather · 2/3: scenes and the cards
       return `<div class="hcols ${this._edit ? "editing" : ""}">
         <aside class="hleft">
-          <div class="eyebrow tdate">${esc(this._dateText())}</div><div class="clock">${this._clockText()}</div>${this._hint()}
-          ${showStatus ? `<div class="hstat"><div class="eyebrow">${t("Estado da casa")}</div><div class="status">${list.length ? (lightsOn.length ? tp(lightsOn.length, "{n} luz acesa", "{n} luzes acesas") : tp(others.length, "{n} dispositivo ligado", "{n} dispositivos ligados")) : status}</div>
-            ${(() => { const max = this._ipmaAlert() && cfg.show_weather ? 4 : 6; return list.length ? `<ul class="hon">${list.slice(lightsOn.length ? 1 : 0, max).map(([icon, n]) => `<li><ha-icon icon="${icon}"></ha-icon>${esc(n)}</li>`).join("")}${list.length > max ? `<li class="hmore">+${list.length - max}</li>` : ""}</ul>` : ""; })()}</div>` : ""}
+          ${this._dateRow()}<div class="clock">${this._clockText()}</div>${this._hint()}
+          ${stat("hstat", 2)}
           ${cfg.show_weather ? this._wxCard("tall") : ""}
         </aside>
-        <div class="hmain">
-          <div class="hbar">${showStatus ? lightBtns : ""}<span class="sp"></span>${this._peopleHtml}${this._editBtn()}${this._gear()}</div>
-          ${this._edit ? "" : scenesHtml}
-          ${grid}
-        </div>
+        <div class="hmain">${sc}${grid}</div>
       </div>`;
     }
     if (layout === "sidebar") {
-      // a full-height glass sidebar (clock, weather, home status, scenes, people) and the cards beside it
-      const sc = this._edit ? "" : scenesHtml;
-      const offBtn = lights.length ? `<div class="actions">${lightsOn.length ? `<button class="pill solid" data-all="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar luzes")}</button>` : `<button class="pill" data-all="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender luzes")}</button>`}</div>` : "";
+      // a full-height glass sidebar (clock, weather, home status) and the scenes and cards beside it
       return `<div class="hside ${this._edit ? "editing" : ""} ${sc ? "has-sc" : ""}">
         <aside class="sb glass">
-          <div class="eyebrow tdate">${esc(this._dateText())}</div><div class="clock">${this._clockText()}</div>${this._hint()}
+          ${this._dateRow()}<div class="clock">${this._clockText()}</div>${this._hint()}
           ${cfg.show_weather ? this._wxCard("tall side") : ""}
-          ${showStatus ? `<div class="sbst"><div class="status">${lightsOn.length ? tp(lightsOn.length, "{n} luz acesa", "{n} luzes acesas") : status}</div>${others.length ? `<div class="sdet">${esc(this._othersLine(others))}</div>` : ""}${offBtn}</div>` : ""}
-          <span class="sp"></span>
-          <div class="sbft">${this._peopleHtml}<span class="sp"></span>${this._editBtn()}${this._gear()}</div>
+          ${stat("sbst", 2, false)}
         </aside>
         <div class="hmain">${sc}${grid}</div>
       </div>`;
     }
     if (layout === "top") {
-      // a big clock with the home status beside it, then scenes and cards
+      // a big clock with the home status beside it and the weather at the right, then scenes and cards
       return `<div class="top t1">
-          <div class="tclock"><div class="eyebrow tdate">${esc(this._dateText())}</div><div class="clock">${this._clockText()}</div>${this._hint()}</div>
-          ${showStatus ? `<div class="tstat"><div class="eyebrow">${t("Estado da casa")}</div><div class="status">${lightsOn.length ? tp(lightsOn.length, "{n} luz acesa", "{n} luzes acesas") : status}</div>${others.length ? `<div class="sdet">${esc(this._othersLine(others))}</div>` : ""}${lightBtns}</div>` : `<div class="tstat"></div>`}
-          <div class="tside"><div class="right">${this._peopleHtml}${this._editBtn()}${this._gear()}</div>${cfg.show_weather ? this._wxCard("wide") : ""}</div>
-          <div class="tsc">${this._edit ? "" : scenesHtml}</div>
+          <div class="tclock">${this._dateRow()}<div class="clock">${this._clockText()}</div>${this._hint()}</div>
+          ${stat("tstat", 2) || `<div class="tstat"></div>`}
+          <div class="tside">${cfg.show_weather ? this._wxCard("big") : ""}</div>
+          <div class="tsc">${sc}</div>
         </div>
         ${grid}`;
     }
-    return `${topBar}
-      ${showStatus ? `<div class="statusrow"><div><div class="eyebrow">${t("Estado da casa")}</div><div class="status">${status}</div>${others.length ? `<div class="sdet">${esc(this._othersLine(others))}</div>` : ""}</div>
-        ${lightBtns}</div>` : ""}
-      ${this._edit ? "" : scenesHtml}
+    // classic: clock, home status and the weather pill on one row, then scenes and cards
+    return `<div class="top tcl">
+        <div>${this._dateRow()}<div class="clock">${this._clockText()}</div>${this._hint()}</div>
+        ${stat("clst", 1)}
+        <div class="right">${cfg.show_weather ? this._wxPill() : ""}</div>
+      </div>
+      ${sc}
       ${grid}`;
   }
 
@@ -1553,7 +1653,7 @@ class Pine3ViewPanel extends HTMLElement {
       + (scenes.length && !this._edit ? `${cats.length > 1 ? `<span class="rsep"></span>` : ""}${scenes.map((i) => `<div class="scene glass ${this._fired === i ? "fired" : ""} ${this._sceneOn(i) ? "on" : ""}" data-scene="${i}" title="${this._sceneOn(i) ? t("Toca para desligar") : ""}"><ha-icon icon="${this._s(i).attributes.icon || "mdi:creation-outline"}"></ha-icon>${esc(this._name(i))}</div>`).join("")}` : "");
     return `<div class="rhead">
         <div class="rtitle"><div class="eyebrow">${tp(room.count, "{n} dispositivo", "{n} dispositivos")}${sub ? ` · ${esc(sub)}` : ""}</div><div class="t">${esc(this._roomName(room))}</div>${this._hint()}</div>
-        ${this._edit ? "" : `<div class="rstat"><div class="status">${status}</div>${others.length && lit.length ? `<div class="sdet">${esc(this._othersLine(others))}</div>` : ""}</div>`}
+        ${this._edit ? "" : `<div class="rstat"><div class="status">${status}</div>${lit.length ? this._onChips(others, 1) : ""}</div>`}
         <div class="right">${lights.length && !this._edit ? `<button class="pill" data-rlights="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender")}</button><button class="pill solid" data-rlights="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar")}</button>` : ""}${this._editBtn()}${this._gear()}</div>
       </div>
       ${chips ? `<div class="rchips">${chips}</div>` : ""}
@@ -1716,6 +1816,8 @@ class Pine3ViewPanel extends HTMLElement {
     on("[data-editstart]", () => this._startEdit());
     on("[data-fs]", () => this._toggleFullscreen());
     on("[data-wx]", () => this._openForecast());
+    on("[data-alertmore]", (el, ev) => { ev.stopPropagation(); this._alertsMenu(el); });
+    on(".fitmore", (el, ev) => { ev.stopPropagation(); this._moreMenu(el); });
     if (this._edit) {
       this._bindEdit(root);
     } else {
