@@ -21,6 +21,7 @@ export const EN = {
   // general
   "Casa": "Home", "Casa 3D": "3D Home", "Divisões": "Rooms", "Cenas": "Scenes", "Segurança": "Security", "Outros": "Other",
   "Definições": "Settings", "Concluído": "Done", "Cancelar": "Cancel", "Fechar": "Close", "Mostrar": "Show",
+  "Trancar": "Lock", "Destrancar": "Unlock", "Toca para trancar": "Tap to lock", "Toca para destrancar": "Tap to unlock", "Esta divisão": "This room", "Base": "Dock", "Última: {t}": "Last: {t}", "hoje {h}": "today {h}",
   "Esconder": "Hide", "Ligar": "Turn on", "Desligar": "Turn off", "Abrir": "Open", "Parar": "Stop", "Atual": "Current",
   "Sala": "Living room", "Quarto": "Bedroom", "Interior": "Indoor", "Clima": "Climate", "A tocar": "Now playing",
   "Indisponível": "Unavailable", "Tocar para executar": "Tap to run", "Toca para executar": "Tap to run",

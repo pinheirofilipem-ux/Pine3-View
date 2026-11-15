@@ -1444,7 +1444,7 @@ class Pine3ViewPanel extends HTMLElement {
     const power = ["light", "switch", "fan", "input_boolean"].includes(d) || (this._isTv(id) && ((s.attributes.supported_features || 0) & 384) !== 0);
     return `<div class="tile ${on ? "on" : "glass"} ${sensor ? "sensor" : ""} ${big ? "big" : ""} ${s.state === "unavailable" ? "na" : ""}" data-ent="${esc(id)}" data-key="${esc(id)}" style="--acc:${this._accent(id)}">
       ${this._meta?.[id] ? this._editChrome("dev", id) : ""}
-      <div class="row1"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div>${power ? `<div class="pw" data-pw="${esc(id)}"><ha-icon icon="mdi:power"></ha-icon></div>` : ""}</div>
+      <div class="row1"><div class="ic" ${d === "lock" ? `data-lk="${esc(id)}" title="${s.state === "locked" ? t("Destrancar") : t("Trancar")}"` : ""}><ha-icon icon="${this._icon(id)}"></ha-icon></div>${power ? `<div class="pw" data-pw="${esc(id)}"><ha-icon icon="mdi:power"></ha-icon></div>` : ""}</div>
       <div class="tx"><div class="nm">${esc(this._name(id))}</div>${sensor ? `<div class="val">${esc(this._sensorVal(id))}</div>` : `<div class="st">${esc(this._stateText(id))}</div>`}${this._extras(id)}</div>
     </div>`;
   }
@@ -1540,7 +1540,7 @@ class Pine3ViewPanel extends HTMLElement {
     this._hass.callWS({ type: "call_service", domain: "roborock", service: "get_maps", target: { entity_id: id }, return_response: true })
       .then((r) => { const res = r?.response?.[id] ?? r?.response; this._vacRooms[id] = res?.maps || []; })
       .catch((e) => { console.warn("Pine3 View: roborock.get_maps", e); this._vacRooms[id] = []; })
-      .finally(() => { if (this._modal === id) this._render(); });
+      .finally(() => { if (this._modal === id || this._view === "room") this._render(); });
   }
   /** The map the robot is using: the one named by its "selected map" select, else the first. */
   _vacMap(id, maps) {
@@ -1548,6 +1548,52 @@ class Pine3ViewPanel extends HTMLElement {
     const names = maps.map((m) => m.name);
     const sel = (this._meta?.[id]?.members || []).find((e) => dom(e) === "select" && (this._s(e)?.attributes.options || []).some((o) => names.includes(o)));
     return maps.find((m) => m.name === this._s(sel)?.state) || maps[0];
+  }
+  /** The map segment named like this Home Assistant room ("Sala" ↔ "sala"), if the robot knows one. */
+  _vacSegment(id, room) {
+    const maps = this._vacRooms?.[id], map = Array.isArray(maps) ? this._vacMap(id, maps) : null;
+    const norm = (x) => String(x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    const want = [room?.name, this._roomName?.(room)].map(norm).filter(Boolean);
+    const hit = Object.entries(map?.rooms || {}).find(([, n]) => want.includes(norm(n)));
+    return hit ? Number(hit[0]) : null;
+  }
+  /** Room view: a wide vacuum card with its status and four quick commands; a tap elsewhere opens the full card. */
+  _vacCard(id, room) {
+    const s = this._s(id), a = s.attributes, on = this._isOn(id), na = s.state === "unavailable";
+    this._vacLoadRooms(id);
+    const level = this._vacBattery(id);
+    const status = this._vacMember(id, "sensor", "status");
+    const err = this._vacMember(id, "sensor", "vacuum_error");
+    const errOn = err && !["none", "ok", "unknown", "no_error"].includes(this._s(err).state);
+    const area = this._vacMember(id, "sensor", "cleaning_area"), time = this._vacMember(id, "sensor", "cleaning_time");
+    const pctE = this._vacMember(id, "sensor", "clean_percent", "cleaning_progress");
+    const pct = on && pctE ? Number(this._s(pctE).state) : NaN;
+    const last = this._vacMember(id, "sensor", "last_clean_end");
+    const lastD = last ? new Date(this._s(last).state) : null;
+    const lastTxt = lastD && !isNaN(lastD) && !on ? (() => {
+      const lang = this._hass?.locale?.language || this._hass?.language;
+      const hm = lastD.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
+      return lastD.toDateString() === new Date().toDateString() ? t("hoje {h}", { h: hm }) : `${lastD.toLocaleDateString(lang, { day: "numeric", month: "short" })} ${hm}`;
+    })() : "";
+    const fans = a.fan_speed_list || [];
+    const fanTxt = a.fan_speed ? (() => { try { const v = this._hass.formatEntityAttributeValue?.(s, "fan_speed", a.fan_speed); return v && v !== a.fan_speed ? v : this._st(a.fan_speed); } catch { return this._st(a.fan_speed); } })() : "";
+    const meta = [level != null ? `<span><ha-icon icon="mdi:battery${level >= 95 ? "" : "-" + Math.max(10, Math.round(level / 10) * 10)}"></ha-icon>${level}%</span>` : "",
+      on ? [area, time].filter(Boolean).map((e) => `<span>${esc(this._sensorVal(e))}</span>`).join("") : fanTxt ? `<span><ha-icon icon="mdi:fan"></ha-icon>${esc(fanTxt)}</span>` : "",
+      lastTxt ? `<span><ha-icon icon="mdi:clock-outline"></ha-icon>${esc(t("Última: {t}", { t: lastTxt }))}</span>` : ""].join("");
+    const seg = this._vacSegment(id, room);
+    const q = (act, icon, label, main) => `<button class="vq ${main ? "main" : ""}" data-vq="${act}" data-vid="${esc(id)}" ${seg != null && act === "room" ? `data-seg="${seg}"` : ""}><ha-icon icon="mdi:${icon}"></ha-icon><span>${label}</span></button>`;
+    const third = seg != null ? q("room", "broom", t("Esta divisão")) : fans.length > 1 ? q("fan", "fan", t("Potência")) : "";
+    const btns = [s.state === "cleaning" ? q("pause", "pause", t("Pausar"), true) : q("start", "play", s.state === "paused" || (errOn && s.state !== "docked") ? t("Retomar") : t("Iniciar"), true),
+      q("return_to_base", "home-import-outline", t("Base")), third, q("locate", "map-marker-radius-outline", t("Localizar"))].join("");
+    return `<div class="tile vacw big ${on ? "on" : "glass"} ${errOn ? "err" : ""} ${na ? "na" : ""}" data-open="${esc(id)}" data-key="${esc(id)}">
+      ${this._meta?.[id] ? this._editChrome("dev", id) : ""}
+      <div class="vw-l"><div class="ic"><ha-icon icon="mdi:robot-vacuum${errOn ? "-alert" : ""}"></ha-icon></div>
+        <div class="tx"><div class="nm">${esc(this._name(id))}</div><div class="st">${esc(this._fmtState(status || id))}</div>
+          ${errOn ? `<div class="vw-err"><ha-icon icon="mdi:alert"></ha-icon>${esc(this._fmtState(err))}</div>` : ""}
+          ${meta ? `<div class="vw-meta">${meta}</div>` : ""}
+          ${Number.isFinite(pct) ? `<div class="vw-bar"><i style="width:${Math.max(2, Math.min(100, pct))}%"></i></div>` : ""}</div></div>
+      ${na ? "" : `<div class="vw-q">${btns}</div>`}
+    </div>`;
   }
   /**
    * The robot's routines (Roborock creates one button per routine of its app: no category and no
@@ -1674,7 +1720,7 @@ class Pine3ViewPanel extends HTMLElement {
         <div class="right">${lights.length && !this._edit ? `<button class="pill" data-rlights="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender")}</button><button class="pill solid" data-rlights="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar")}</button>` : ""}${this._editBtn()}${this._gear()}</div>
       </div>
       ${chips ? `<div class="rchips">${chips}</div>` : ""}
-      <div class="tiles rgrid" data-sortable="dev:${esc(room.id)}">${shown.map((i) => (dom(i) === "climate" && this._s(i) ? this._climateCard(i, room) : this._tile(i))).join("")}</div>
+      <div class="tiles rgrid" data-sortable="dev:${esc(room.id)}">${shown.map((i) => (dom(i) === "climate" && this._s(i) ? this._climateCard(i, room) : dom(i) === "vacuum" && this._s(i) ? this._vacCard(i, room) : this._tile(i))).join("")}</div>
       ${hiddenHere ? `<div class="tiles" style="margin-top:18px"><div class="tile add" data-edrestore="devices"><ha-icon icon="mdi:plus"></ha-icon><span>${tp(hiddenHere, "Mostrar {n} escondido", "Mostrar {n} escondidos")}</span></div></div>` : ""}`;
   }
 
@@ -1793,6 +1839,10 @@ class Pine3ViewPanel extends HTMLElement {
         <!--side-->${a.preset_modes?.length ? `<div class="sub sh-only">${t("Modo")}</div>` : ""}${a.preset_modes?.length ? `<div class="row ${compact ? "presets" : ""}">${a.preset_modes.map((m) => `<button class="pill ${on && m === a.preset_mode ? "act" : ""}" data-preset="${esc(m)}">${esc(this._st(m))}</button>`).join("")}</div>` : ""}`;
     } else if (d === "vacuum") {
       content = this._vacuumContent(id);
+    } else if (d === "lock") {
+      const locked = s.state === "locked", busy = ["locking", "unlocking", "opening"].includes(s.state);
+      content = `<button class="lockbig ${locked ? "ok" : ""}" data-toggle ${busy || s.state === "unavailable" ? "disabled" : ""}><ha-icon icon="${this._icon(id)}"></ha-icon></button>
+        <div class="lockcap">${busy ? esc(this._stateText(id)) : locked ? t("Toca para destrancar") : t("Toca para trancar")}</div>`;
     } else if (d === "camera") {
       content = `<img src="/api/camera_proxy/${esc(id)}?token=${esc(a.access_token || "")}&t=${Date.now()}" style="width:100%;border-radius:18px;margin-top:18px;background:#000">`;
     } else {
@@ -1816,7 +1866,7 @@ class Pine3ViewPanel extends HTMLElement {
     const layout = cols ? `wide dev cols ${device ? "" : "cols-sm"}` : device ? "wide dev" : "";
     return `<div class="ov ${this._ovEnter(id)} ${device ? "dev" : ""}" data-close><div class="sheet ${layout}" style="--acc:${this._accent(id)}">
       <div class="hd"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div><div style="flex:1;min-width:0"><div class="nm">${esc(this._name(id))}</div><div class="st">${esc(this._stateText(id))}</div></div>
-      ${canToggle ? `<button class="pill ${on ? "act" : ""}" data-toggle>${on ? t("Desligar") : t("Ligar")}</button>` : ""}<button class="sh-x" data-closex title="${t("Fechar")}" aria-label="${t("Fechar")}"><ha-icon icon="mdi:close"></ha-icon></button></div>
+      ${d === "lock" ? `<button class="pill act" data-toggle><ha-icon icon="mdi:lock${s.state === "locked" ? "-open-variant" : ""}"></ha-icon>${s.state === "locked" ? t("Destrancar") : t("Trancar")}</button>` : canToggle ? `<button class="pill ${on ? "act" : ""}" data-toggle>${on ? t("Desligar") : t("Ligar")}</button>` : ""}<button class="sh-x" data-closex title="${t("Fechar")}" aria-label="${t("Fechar")}"><ha-icon icon="mdi:close"></ha-icon></button></div>
       ${cols ? `<div class="sh-main">${left}${more}</div><div class="sh-side">${right}</div>` : `${content}${device}${more}`}</div></div>`;
   }
 
@@ -1859,7 +1909,18 @@ class Pine3ViewPanel extends HTMLElement {
         const r = this._rooms().find((x) => x.id === this._room), ls = (r?.ents || []).filter((i) => dom(i) === "light");
         if (ls.length) this._call("light", el.dataset.rlights === "on" ? "turn_on" : "turn_off", { entity_id: ls });
       });
-      on("[data-open]", (el) => this._openModal(el.dataset.open));
+      on("[data-open]", (el, ev) => { if (!ev.target.closest("[data-vq],[data-lk]")) this._openModal(el.dataset.open); });
+      // wide vacuum card: quick commands without opening the card
+      on("[data-vq]", (el, ev) => {
+        ev.stopPropagation();
+        const v = el.dataset.vid, act = el.dataset.vq;
+        if (act === "room") return this._call("vacuum", "send_command", { entity_id: v, command: "app_segment_clean", params: [{ segments: [Number(el.dataset.seg)] }] });
+        if (act === "fan") {
+          const s = this._s(v), fl = (f) => { try { const x = this._hass.formatEntityAttributeValue?.(s, "fan_speed", f); return x && x !== f ? x : this._st(f); } catch { return this._st(f); } };
+          return this._popMenu(el, t("Potência"), (s.attributes.fan_speed_list || []).map((f) => ["mdi:fan", fl(f), () => this._call("vacuum", "set_fan_speed", { entity_id: v, fan_speed: f }), "", f === s.attributes.fan_speed ? "var(--amber)" : ""]));
+        }
+        this._call("vacuum", act, { entity_id: v });
+      });
       // climate cards: power and ± target, without opening the card
       on("[data-cpw]", (el, ev) => {
         ev.stopPropagation();
@@ -1893,8 +1954,10 @@ class Pine3ViewPanel extends HTMLElement {
         el.addEventListener("pointerup", cancel);
         el.addEventListener("pointerleave", cancel);
         el.addEventListener("contextmenu", (ev) => { ev.preventDefault(); cancel(); this._openModal(id); });
-        el.addEventListener("click", () => {
+        el.addEventListener("click", (ev) => {
           if (long) return;
+          // a lock only (un)locks from its icon; the rest of the tile opens its card
+          if (dom(id) === "lock") return ev.target.closest("[data-lk]") ? this._tap(id) : this._openModal(id);
           if (el.querySelector("[data-pw]") && DETAIL.has(dom(id))) this._openModal(id);
           else this._tap(id);
         });
