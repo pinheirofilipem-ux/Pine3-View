@@ -671,6 +671,30 @@ a.pill{color:inherit;text-decoration:none}
 .as-list .tile.clx{grid-column:span 1}
 @media (min-width:721px) and (max-height:760px){.clx-r{gap:7px}.clx-seg button{height:30px;line-height:30px;font-size:13px}.clx-pm button{height:32px}.tile.clx{gap:14px}}
 @media (max-width:720px){.tiles.clim{grid-template-columns:1fr}.tile.clx{grid-column:1/-1}}
+/* room view: a wide vacuum card with quick commands */
+.tile.vacw{flex-direction:row;align-items:stretch;gap:16px}
+.vw-l{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between}
+.tile.vacw .ic{background:#30d158;color:#06210f}.tile.vacw.err .ic{background:#ff9f0a;color:#2a1500}
+.tile.vacw .nm{margin-top:10px;-webkit-line-clamp:1}
+.vw-err{display:flex;align-items:center;gap:5px;color:#ff9f0a;font-weight:600;font-size:14px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile.on .vw-err{color:#b25f00}.vw-err ha-icon{--mdc-icon-size:16px;flex:none}
+.vw-meta{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:14px;color:var(--muted);margin-top:4px}
+.tile.on .vw-meta{color:var(--ink-soft)}
+.vw-meta span{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}.vw-meta ha-icon{--mdc-icon-size:16px}
+.vw-bar{height:6px;border-radius:9px;background:rgba(42,34,31,.12);margin-top:8px;overflow:hidden}.vw-bar i{display:block;height:100%;background:#30d158;border-radius:9px}
+.vw-q{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:clamp(170px,17vw,220px);align-content:center;flex:none}
+.vq{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:52px;padding:6px 4px;border-radius:18px;background:rgba(255,255,255,.12);font-size:13px;font-weight:600;text-align:center;line-height:1.15}
+.vq span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vq ha-icon{--mdc-icon-size:22px}.vq:active{transform:scale(.95)}
+.vq.main{background:#30d158;color:#06210f}
+.tile.on .vq{background:rgba(42,34,31,.08);color:var(--ink)}.tile.on .vq.main{background:var(--ink);color:var(--cream)}
+.editing .vq,.editing [data-lk]{pointer-events:none}
+@media (max-width:720px){.tile.vacw{grid-column:1/-1;flex-direction:column}.vw-q{width:auto;grid-template-columns:repeat(4,1fr)}}
+/* lock: only the icon (un)locks on the tile; a big lock button in its card */
+.tile [data-lk]{width:54px;height:54px;cursor:pointer;transition:transform .12s}.tile [data-lk] ha-icon{--mdc-icon-size:26px}.tile [data-lk]:active{transform:scale(.92)}
+.lockbig{all:unset;cursor:pointer;display:grid;place-items:center;width:150px;height:150px;border-radius:50%;margin:26px auto 8px;background:#ff9f0a;color:#2a1500;transition:transform .12s,background .25s}
+.lockbig.ok{background:#30d158;color:#06210f}.lockbig ha-icon{--mdc-icon-size:64px}.lockbig:active{transform:scale(.95)}.lockbig[disabled]{opacity:.5;pointer-events:none}
+.lockcap{text-align:center;color:var(--muted);font-size:14px}
 /* forecast sheet: now, chips and warnings; hours as small cards and days with a range bar */
 .fnow{display:flex;align-items:center;gap:14px;margin-top:6px}
 .fnow>ha-icon{--mdc-icon-size:54px;color:var(--amber)}
