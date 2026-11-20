@@ -1607,6 +1607,9 @@ class Pine3ViewPanel extends HTMLElement {
   _securityView(rooms) {
     const all = rooms.flatMap((r) => r.ents);
     const ids = all.filter((i) => dom(i) === "lock" || dom(i) === "camera" || (dom(i) === "binary_sensor" && ["door", "window", "garage_door", "opening", "motion", "smoke", "moisture", "gas"].includes(this._s(i).attributes.device_class)));
+    // cameras first, then locks, then the door / window / alarm sensors (each kind in room order)
+    const rank = (i) => ({ camera: 0, lock: 1 })[dom(i)] ?? 2;
+    ids.sort((x, y) => rank(x) - rank(y));
     const watch = ids.filter((i) => ["lock", "binary_sensor"].includes(dom(i)) && this._s(i).state !== "unavailable");
     const isBad = (i) => (dom(i) === "lock" ? this._s(i).state !== "locked" : this._s(i).state === "on");
     const bad = watch.filter(isBad).length;
