@@ -21,7 +21,7 @@ export const EN = {
   // general
   "Casa": "Home", "Casa 3D": "3D Home", "Divisões": "Rooms", "Cenas": "Scenes", "Segurança": "Security", "Outros": "Other",
   "Definições": "Settings", "Concluído": "Done", "Cancelar": "Cancel", "Fechar": "Close", "Mostrar": "Show",
-  "Trancar": "Lock", "Destrancar": "Unlock", "Toca para trancar": "Tap to lock", "Toca para destrancar": "Tap to unlock", "Esta divisão": "This room", "Base": "Dock", "Última: {t}": "Last: {t}", "hoje {h}": "today {h}",
+  "Trancar": "Lock", "Destrancar": "Unlock", "Toca para trancar": "Tap to lock", "Toca 2 vezes para destrancar": "Tap twice to unlock", "Toca outra vez para destrancar": "Tap again to unlock", "Confirmar": "Confirm", "Ao vivo": "Live", "A ligar à câmara…": "Connecting to the camera…", "fecha em {t}": "closes in {t}", "manter ao vivo": "keep live", "Ao fechar, o vídeo para.": "Closing stops the video.", "Escolher portas": "Choose doors", "Portas ao lado desta câmara": "Doors beside this camera", "Não há fechaduras nem botões de porta.": "There are no locks or door buttons.", "Aberta": "Open", "Toca outra vez": "Tap again", "toca 2 vezes": "tap twice", "Última imagem · {t}": "Last picture · {t}", "Toca para ver ao vivo": "Tap to watch live", "Esta divisão": "This room", "Base": "Dock", "Última: {t}": "Last: {t}", "hoje {h}": "today {h}",
   "Esconder": "Hide", "Ligar": "Turn on", "Desligar": "Turn off", "Abrir": "Open", "Parar": "Stop", "Atual": "Current",
   "Sala": "Living room", "Quarto": "Bedroom", "Interior": "Indoor", "Clima": "Climate", "A tocar": "Now playing",
   "Indisponível": "Unavailable", "Tocar para executar": "Tap to run", "Toca para executar": "Tap to run",

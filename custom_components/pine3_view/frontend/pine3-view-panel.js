@@ -82,6 +82,7 @@ class Pine3ViewPanel extends HTMLElement {
     const prev = this._hass;
     this._hass = h;
     if (!this._connecting) this._connect();
+    if (this._camOv) this._camUpdate();
     if (this._drag) return; // don't redraw under a finger
     // Home Assistant pushes a new hass object whenever *any* entity changes; only redraw
     // when something this screen shows has changed (redraws restart animations and flicker).
@@ -121,7 +122,7 @@ class Pine3ViewPanel extends HTMLElement {
 
   _onTick() {
     const mins = this._cfg().screensaver;
-    if (mins && !this._saver && this._view !== "settings" && !this._edit && Date.now() - this._lastActivity > mins * 60000) {
+    if (mins && !this._saver && !this._camOv && this._view !== "settings" && !this._edit && Date.now() - this._lastActivity > mins * 60000) {
       this._saver = true;
       this._modal = null;
       this._render();
@@ -369,12 +370,190 @@ class Pine3ViewPanel extends HTMLElement {
     if (d === "script") return this._call(d, "turn_on", { entity_id: id });
     if (d === "button") return this._call("button", "press", { entity_id: id });
     if (d === "cover") return this._call("cover", s.state === "closed" || s.state === "closing" ? "open_cover" : "close_cover", { entity_id: id });
-    if (d === "lock") return this._call("lock", s.state === "locked" ? "unlock" : "lock", { entity_id: id });
+    if (d === "lock") return this._lockTap(id);
+    if (d === "camera") return this._openCam(id);
     if (d === "media_player") return this._isTv(id) ? this._openModal(id) : this._call("media_player", "media_play_pause", { entity_id: id });
     if (d === "climate" || d === "vacuum" || d === "camera" || d === "sensor" || d === "binary_sensor") return this._openModal(id);
     if (TOGGLE.has(d)) return this._call("homeassistant", "toggle", { entity_id: id });
   }
-  _openModal(id) { this._modal = id; this._modalAt = Date.now(); this._render(); }
+  /** Two-tap actions (unlock, open a door): the first tap arms for 3 s, the second one acts. */
+  _armed(key) { return this._arm?.key === key && Date.now() < this._arm.until; }
+  _twoTap(key, fn, redraw = () => this._render()) {
+    clearTimeout(this._armT);
+    if (this._armed(key)) { this._arm = null; fn(); redraw(); return; }
+    this._arm = { key, until: Date.now() + 3000 };
+    this._armT = setTimeout(() => { this._arm = null; redraw(); }, 3000);
+    redraw();
+  }
+  /** A lock locks with one tap; unlocking takes a second tap, so a stray touch never opens a door. */
+  _lockTap(id, redraw) {
+    const s = this._s(id);
+    if (!s || s.state === "unavailable") return;
+    if (s.state === "locked") this._twoTap(id, () => this._call("lock", "unlock", { entity_id: id }), redraw);
+    else this._call("lock", "lock", { entity_id: id });
+  }
+
+  // ---------- live camera ----------
+  /** The last picture this device saw of a camera (kept in this browser only; a thumbnail request would wake some cameras). */
+  _camShot(id) {
+    this._camShots ||= {};
+    if (!(id in this._camShots)) {
+      try { this._camShots[id] = JSON.parse(localStorage.getItem(`pine3_cam_${id}`) || "null"); } catch { this._camShots[id] = null; }
+    }
+    return this._camShots[id];
+  }
+  _camKeep(id) {
+    const tok = this._s(id)?.attributes.access_token;
+    if (!tok) return;
+    fetch(`/api/camera_proxy/${id}?token=${encodeURIComponent(tok)}`).then((r) => (r.ok ? r.blob() : null)).then((b) => {
+      if (!b || !b.size) return;
+      const fr = new FileReader();
+      fr.onload = () => {
+        const shot = { t: Date.now(), d: fr.result };
+        (this._camShots ||= {})[id] = shot;
+        try { localStorage.setItem(`pine3_cam_${id}`, JSON.stringify(shot)); } catch { /* full or blocked: memory only */ }
+        if (!this._camOv && !this._modal) this._render();
+      };
+      fr.readAsDataURL(b);
+    }).catch(() => {});
+  }
+  /** Door-like entities anywhere in the house: locks and buttons that open something (an intercom's "Activate"). */
+  _doorLike(i) { return dom(i) === "lock" || (dom(i) === "button" && /lock|door|gate|entrance|porta|port[aã]o|fechadura|trinco|entrada/i.test(`${i} ${this._name(i)}`)); }
+  /**
+   * Doors to open from a camera: the ones chosen for it, else the locks of its room, else its door-like buttons.
+   * (An apartment door in the same hall must not show up beside the building's camera: hence the choice.)
+   */
+  _camDoors(id) {
+    const chosen = this._cfg().cam_doors?.[id];
+    if (Array.isArray(chosen)) return chosen.filter((e) => this._s(e));
+    const room = this._rooms().find((r) => r.ents.includes(id));
+    const ents = (room?.ents || []).filter((i) => this._s(i));
+    const locks = ents.filter((i) => dom(i) === "lock");
+    if (locks.length) return locks;
+    return ents.filter((i) => dom(i) === "button" && this._doorLike(i));
+  }
+  _camChoose(e) {
+    const cfg = this._cfg(), cur = this._camDoors(this._camId);
+    const list = cur.includes(e) ? cur.filter((x) => x !== e) : [...cur, e];
+    this._saveSettings({ cam_doors: { ...(cfg.cam_doors || {}), [this._camId]: list } });
+    this._camSide();
+  }
+  /** A camera's live picture in its own window, outside the redrawn part: redraws don't restart the video. */
+  _openCam(id) {
+    if (!this._s(id)) return;
+    this._closeCam(false);
+    this._camId = id;
+    this._camPicking = false;
+    this._camT0 = Date.now();
+    this._camEnd = Date.now() + 120000;
+    const ov = document.createElement("div");
+    ov.className = "ov enter camov";
+    ov.innerHTML = `<div class="sheet cam">
+      <div class="hd"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div><div style="flex:1;min-width:0"><div class="nm">${esc(this._name(id))}</div>
+        <div class="st"><span class="live"><i></i>${t("Ao vivo")}</span><span class="cam-el">0:00</span></div></div>
+        <button class="sh-x" data-camx title="${t("Fechar")}" aria-label="${t("Fechar")}"><ha-icon icon="mdi:close"></ha-icon></button></div>
+      <div class="cam-v"><div class="cam-wait"><ha-icon icon="mdi:cctv"></ha-icon>${t("A ligar à câmara…")}</div><div class="cam-bar"><span><ha-icon icon="mdi:timer-outline"></ha-icon><b class="cam-left"></b></span></div></div>
+      <div class="cam-side"></div></div>`;
+    const v = ov.querySelector(".cam-v");
+    let el;
+    if (customElements.get("ha-camera-stream")) {
+      el = document.createElement("ha-camera-stream");
+      el.hass = this._hass; el.stateObj = this._s(id); el.muted = true; el.controls = false;
+    } else {
+      el = document.createElement("img");
+      el.alt = "";
+      el.src = `/api/camera_proxy_stream/${id}?token=${encodeURIComponent(this._s(id).attributes.access_token || "")}`;
+    }
+    el.className = "cam-s";
+    v.prepend(el);
+    ov.addEventListener("click", (ev) => {
+      if (ev.target === ov || ev.target.closest("[data-camx]")) return this._closeCam();
+      if (ev.target.closest("[data-camplus]")) { this._camEnd = Math.min(Date.now() + 600000, Math.max(this._camEnd, Date.now()) + 120000); return this._camTick(); }
+      if (ev.target.closest("[data-campick]")) { this._camPicking = !this._camPicking; return this._camSide(); }
+      const c = ev.target.closest("[data-camsel]")?.dataset.camsel;
+      if (c) return this._camChoose(c);
+      const d = ev.target.closest("[data-camdoor]")?.dataset.camdoor;
+      if (d) this._camDoor(d);
+    });
+    this._camKeyFn = (ev) => { if (ev.key === "Escape") this._closeCam(); };
+    window.addEventListener("keydown", this._camKeyFn);
+    this.shadowRoot.appendChild(ov);
+    this._camOv = ov;
+    this._camSide();
+    this._camTick();
+    this._camTimer = setInterval(() => this._camTick(), 1000);
+  }
+  _camDoor(d) {
+    if (dom(d) === "lock" && this._s(d)?.state !== "locked") return;
+    this._twoTap(`cam:${d}`, () => {
+      if (dom(d) === "lock") this._call("lock", "unlock", { entity_id: d });
+      else this._call("button", "press", { entity_id: d });
+      this._camDone = { id: d, until: Date.now() + 5000 };
+      this._camEnd = Math.min(this._camEnd, Date.now() + 5000); // opened: the window closes by itself
+    }, () => this._camSide());
+  }
+  _camTick() {
+    if (!this._camOv) return;
+    const now = Date.now();
+    if (now >= this._camEnd) return this._closeCam();
+    const mmss = (ms) => { const x = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(x / 60)}:${String(x % 60).padStart(2, "0")}`; };
+    this._camOv.querySelector(".cam-el").textContent = mmss(now - this._camT0);
+    this._camOv.querySelector(".cam-left").textContent = t("fecha em {t}", { t: mmss(this._camEnd - now) });
+    if (this._camDone && now > this._camDone.until) { this._camDone = null; this._camSide(); }
+  }
+  _camSide() {
+    if (!this._camOv) return;
+    const doors = this._camDoors(this._camId);
+    if (this._camPicking) {
+      const all = [...new Set(this._rooms().flatMap((r) => r.ents))].filter((i) => this._s(i) && this._doorLike(i));
+      const roomOf = (i) => this._rooms().find((r) => r.ents.includes(i))?.name || "";
+      this._camOv.querySelector(".cam-side").innerHTML = `<div class="cam-pk-h">${t("Portas ao lado desta câmara")}</div>
+        ${all.map((i) => `<button class="cam-pk ${doors.includes(i) ? "on" : ""}" data-camsel="${esc(i)}"><ha-icon icon="mdi:${doors.includes(i) ? "checkbox-marked-circle" : "checkbox-blank-circle-outline"}"></ha-icon><span>${esc(this._name(i))}<small>${esc(roomOf(i))}</small></span></button>`).join("") || `<div class="cam-note">${t("Não há fechaduras nem botões de porta.")}</div>`}
+        <button class="pill solid cam-pk-ok" data-campick><ha-icon icon="mdi:check"></ha-icon>${t("Concluído")}</button>`;
+      return;
+    }
+    const btn = (d) => {
+      const open = (this._camDone?.id === d) || (dom(d) === "lock" && this._s(d).state !== "locked");
+      const armed = !open && this._armed(`cam:${d}`), na = this._s(d).state === "unavailable";
+      return `<button class="cam-b door ${armed ? "arm" : ""} ${open ? "ok" : ""}" data-camdoor="${esc(d)}" ${na ? "disabled" : ""}>
+        <ha-icon icon="mdi:${open ? "check" : "door-open"}"></ha-icon><b>${open ? t("Aberta") : armed ? t("Toca outra vez") : t("Abrir")}</b><small>${esc(this._name(d))}${open || armed ? "" : ` · ${t("toca 2 vezes")}`}</small></button>`;
+    };
+    this._camOv.querySelector(".cam-side").innerHTML = `${doors.map(btn).join("")}
+      <button class="cam-b" data-camplus><ha-icon icon="mdi:timer-plus-outline"></ha-icon><b>+2 min</b><small>${t("manter ao vivo")}</small></button>
+      <div class="cam-note">${t("Ao fechar, o vídeo para.")}<button class="cam-edit" data-campick><ha-icon icon="mdi:pencil-outline"></ha-icon>${t("Escolher portas")}</button></div>`;
+  }
+  _camUpdate() {
+    const el = this._camOv?.querySelector("ha-camera-stream");
+    if (el) { el.hass = this._hass; el.stateObj = this._s(this._camId); }
+    this._camSide();
+  }
+  _closeCam(keep = true) {
+    if (!this._camOv) return;
+    const id = this._camId;
+    clearInterval(this._camTimer);
+    window.removeEventListener("keydown", this._camKeyFn);
+    this._camOv.remove();
+    this._camOv = null;
+    this._camDone = null;
+    // the session is still open for a few seconds: keep one picture for the camera's card
+    if (keep) this._camKeep(id);
+  }
+  /** A camera card: the last picture seen on this device (or its icon) and a play button; it never streams by itself. */
+  _camTile(id) {
+    const s = this._s(id), shot = this._camShot(id);
+    const lang = this._hass?.locale?.language || this._hass?.language;
+    const when = shot ? new Date(shot.t) : null;
+    const whenTxt = when ? (when.toDateString() === new Date().toDateString() ? when.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" }) : when.toLocaleDateString(lang, { day: "numeric", month: "short" })) : "";
+    return `<div class="tile camt big glass ${shot ? "pic" : ""} ${s.state === "unavailable" ? "na" : ""}" data-cam="${esc(id)}" data-key="${esc(id)}">
+      ${shot ? `<div class="camt-bg" style="background-image:url('${shot.d}')"></div>` : ""}<div class="camt-sh"></div>
+      ${this._meta?.[id] ? this._editChrome("dev", id) : ""}
+      <div class="row1"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div></div>
+      <div class="camt-play"><ha-icon icon="mdi:play"></ha-icon></div>
+      <div class="tx"><div class="nm">${esc(this._name(id))}</div><div class="st">${shot ? `${esc(t("Última imagem · {t}", { t: whenTxt }))} · ` : ""}${t("Toca para ver ao vivo")}</div></div>
+    </div>`;
+  }
+
+  _openModal(id) { if (dom(id) === "camera") return this._openCam(id); this._modal = id; this._modalAt = Date.now(); this._render(); }
   /** A click that lands on a card just opened: the end of the press that opened it (a long press on a tablet), not a choice. */
   _ghost(el) { return !!el.closest?.(".ov") && Date.now() - (this._modalAt || 0) < 600; }
   _moreInfo(id) {
@@ -1432,7 +1611,7 @@ class Pine3ViewPanel extends HTMLElement {
     const isBad = (i) => (dom(i) === "lock" ? this._s(i).state !== "locked" : this._s(i).state === "on");
     const bad = watch.filter(isBad).length;
     const chip = watch.length ? `<div class="secst ${bad ? "bad" : "ok"}"><ha-icon icon="mdi:shield-${bad ? "alert-outline" : "check-outline"}"></ha-icon>${bad ? tp(bad, "{n} item aberto", "{n} itens abertos") : t("Tudo seguro")}</div>` : "";
-    const tile = (i) => (watch.includes(i) && !isBad(i) ? this._tile(i).replace('class="tile ', 'class="tile secok ') : this._tile(i));
+    const tile = (i) => (dom(i) === "camera" ? this._camTile(i) : watch.includes(i) && !isBad(i) ? this._tile(i).replace('class="tile ', 'class="tile secok ') : this._tile(i));
     return `<div class="hero"><div><div class="eyebrow">${t("Segurança")}</div><div class="t" style="margin-top:8px">${t("Portas, janelas e fechaduras")}</div></div><div class="right">${chip}${this._gear()}</div></div>
       ${ids.length ? `<div class="tiles">${ids.map(tile).join("")}</div>` : `<div class="empty">${t("Nada para monitorizar.")}</div>`}`;
   }
@@ -1442,10 +1621,11 @@ class Pine3ViewPanel extends HTMLElement {
     const sensor = d === "sensor";
     const big = this._cfg().big_devices?.includes(id);
     const power = ["light", "switch", "fan", "input_boolean"].includes(d) || (this._isTv(id) && ((s.attributes.supported_features || 0) & 384) !== 0);
-    return `<div class="tile ${on ? "on" : "glass"} ${sensor ? "sensor" : ""} ${big ? "big" : ""} ${s.state === "unavailable" ? "na" : ""}" data-ent="${esc(id)}" data-key="${esc(id)}" style="--acc:${this._accent(id)}">
+    const armed = d === "lock" && this._armed(id);
+    return `<div class="tile ${on ? "on" : "glass"} ${armed ? "arm" : ""} ${sensor ? "sensor" : ""} ${big ? "big" : ""} ${s.state === "unavailable" ? "na" : ""}" data-ent="${esc(id)}" data-key="${esc(id)}" style="--acc:${this._accent(id)}">
       ${this._meta?.[id] ? this._editChrome("dev", id) : ""}
       <div class="row1"><div class="ic" ${d === "lock" ? `data-lk="${esc(id)}" title="${s.state === "locked" ? t("Destrancar") : t("Trancar")}"` : ""}><ha-icon icon="${this._icon(id)}"></ha-icon></div>${power ? `<div class="pw" data-pw="${esc(id)}"><ha-icon icon="mdi:power"></ha-icon></div>` : ""}</div>
-      <div class="tx"><div class="nm">${esc(this._name(id))}</div>${sensor ? `<div class="val">${esc(this._sensorVal(id))}</div>` : `<div class="st">${esc(this._stateText(id))}</div>`}${this._extras(id)}</div>
+      <div class="tx"><div class="nm">${esc(this._name(id))}</div>${sensor ? `<div class="val">${esc(this._sensorVal(id))}</div>` : `<div class="st">${armed ? t("Toca outra vez para destrancar") : esc(this._stateText(id))}</div>`}${this._extras(id)}</div>
     </div>`;
   }
 
@@ -1720,7 +1900,7 @@ class Pine3ViewPanel extends HTMLElement {
         <div class="right">${lights.length && !this._edit ? `<button class="pill" data-rlights="on"><ha-icon icon="mdi:lightbulb-outline"></ha-icon>${t("Acender")}</button><button class="pill solid" data-rlights="off"><ha-icon icon="mdi:power"></ha-icon>${t("Apagar")}</button>` : ""}${this._editBtn()}${this._gear()}</div>
       </div>
       ${chips ? `<div class="rchips">${chips}</div>` : ""}
-      <div class="tiles rgrid" data-sortable="dev:${esc(room.id)}">${shown.map((i) => (dom(i) === "climate" && this._s(i) ? this._climateCard(i, room) : dom(i) === "vacuum" && this._s(i) ? this._vacCard(i, room) : this._tile(i))).join("")}</div>
+      <div class="tiles rgrid" data-sortable="dev:${esc(room.id)}">${shown.map((i) => (dom(i) === "climate" && this._s(i) ? this._climateCard(i, room) : dom(i) === "vacuum" && this._s(i) ? this._vacCard(i, room) : dom(i) === "camera" && this._s(i) ? this._camTile(i) : this._tile(i))).join("")}</div>
       ${hiddenHere ? `<div class="tiles" style="margin-top:18px"><div class="tile add" data-edrestore="devices"><ha-icon icon="mdi:plus"></ha-icon><span>${tp(hiddenHere, "Mostrar {n} escondido", "Mostrar {n} escondidos")}</span></div></div>` : ""}`;
   }
 
@@ -1841,8 +2021,9 @@ class Pine3ViewPanel extends HTMLElement {
       content = this._vacuumContent(id);
     } else if (d === "lock") {
       const locked = s.state === "locked", busy = ["locking", "unlocking", "opening"].includes(s.state);
-      content = `<button class="lockbig ${locked ? "ok" : ""}" data-toggle ${busy || s.state === "unavailable" ? "disabled" : ""}><ha-icon icon="${this._icon(id)}"></ha-icon></button>
-        <div class="lockcap">${busy ? esc(this._stateText(id)) : locked ? t("Toca para destrancar") : t("Toca para trancar")}</div>`;
+      const armed = locked && this._armed(id);
+      content = `<button class="lockbig ${locked ? "ok" : ""} ${armed ? "arm" : ""}" data-toggle ${busy || s.state === "unavailable" ? "disabled" : ""}><ha-icon icon="${this._icon(id)}"></ha-icon></button>
+        <div class="lockcap">${busy ? esc(this._stateText(id)) : armed ? t("Toca outra vez para destrancar") : locked ? t("Toca 2 vezes para destrancar") : t("Toca para trancar")}</div>`;
     } else if (d === "camera") {
       content = `<img src="/api/camera_proxy/${esc(id)}?token=${esc(a.access_token || "")}&t=${Date.now()}" style="width:100%;border-radius:18px;margin-top:18px;background:#000">`;
     } else {
@@ -1866,7 +2047,7 @@ class Pine3ViewPanel extends HTMLElement {
     const layout = cols ? `wide dev cols ${device ? "" : "cols-sm"}` : device ? "wide dev" : "";
     return `<div class="ov ${this._ovEnter(id)} ${device ? "dev" : ""}" data-close><div class="sheet ${layout}" style="--acc:${this._accent(id)}">
       <div class="hd"><div class="ic"><ha-icon icon="${this._icon(id)}"></ha-icon></div><div style="flex:1;min-width:0"><div class="nm">${esc(this._name(id))}</div><div class="st">${esc(this._stateText(id))}</div></div>
-      ${d === "lock" ? `<button class="pill act" data-toggle><ha-icon icon="mdi:lock${s.state === "locked" ? "-open-variant" : ""}"></ha-icon>${s.state === "locked" ? t("Destrancar") : t("Trancar")}</button>` : canToggle ? `<button class="pill ${on ? "act" : ""}" data-toggle>${on ? t("Desligar") : t("Ligar")}</button>` : ""}<button class="sh-x" data-closex title="${t("Fechar")}" aria-label="${t("Fechar")}"><ha-icon icon="mdi:close"></ha-icon></button></div>
+      ${d === "lock" ? `<button class="pill act" data-toggle><ha-icon icon="mdi:lock${s.state === "locked" ? "-open-variant" : ""}"></ha-icon>${s.state === "locked" ? (this._armed(id) ? t("Confirmar") : t("Destrancar")) : t("Trancar")}</button>` : canToggle ? `<button class="pill ${on ? "act" : ""}" data-toggle>${on ? t("Desligar") : t("Ligar")}</button>` : ""}<button class="sh-x" data-closex title="${t("Fechar")}" aria-label="${t("Fechar")}"><ha-icon icon="mdi:close"></ha-icon></button></div>
       ${cols ? `<div class="sh-main">${left}${more}</div><div class="sh-side">${right}</div>` : `${content}${device}${more}`}</div></div>`;
   }
 
@@ -1909,6 +2090,7 @@ class Pine3ViewPanel extends HTMLElement {
         const r = this._rooms().find((x) => x.id === this._room), ls = (r?.ents || []).filter((i) => dom(i) === "light");
         if (ls.length) this._call("light", el.dataset.rlights === "on" ? "turn_on" : "turn_off", { entity_id: ls });
       });
+      on("[data-cam]", (el) => { if (!this._edit) this._openCam(el.dataset.cam); });
       on("[data-open]", (el, ev) => { if (!ev.target.closest("[data-vq],[data-lk]")) this._openModal(el.dataset.open); });
       // wide vacuum card: quick commands without opening the card
       on("[data-vq]", (el, ev) => {

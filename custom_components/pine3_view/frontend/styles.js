@@ -695,6 +695,48 @@ a.pill{color:inherit;text-decoration:none}
 .lockbig{all:unset;cursor:pointer;display:grid;place-items:center;width:150px;height:150px;border-radius:50%;margin:26px auto 8px;background:#ff9f0a;color:#2a1500;transition:transform .12s,background .25s}
 .lockbig.ok{background:#30d158;color:#06210f}.lockbig ha-icon{--mdc-icon-size:64px}.lockbig:active{transform:scale(.95)}.lockbig[disabled]{opacity:.5;pointer-events:none}
 .lockcap{text-align:center;color:var(--muted);font-size:14px}
+/* two-tap unlock: the first tap arms (amber), the second opens */
+.tile.arm{background:#ff9f0a!important;color:#2a1500;border-color:transparent}.tile.arm .st{color:rgba(42,21,0,.8)}.tile.arm [data-lk]{background:#2a1500!important;color:#ff9f0a}
+.lockbig.arm{background:#fff;color:#2a1500;box-shadow:0 0 0 6px #ff9f0a}
+/* camera card: last picture seen here (or the icon) and a play button; it never streams by itself */
+.tile.camt{grid-column:span 2;overflow:hidden;background-color:rgba(0,0,0,.25)}
+.camt-bg{position:absolute;inset:0;background-size:cover;background-position:center}
+.camt-sh{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.1) 30%,rgba(0,0,0,.65))}
+.tile.camt:not(.pic) .camt-sh{background:radial-gradient(120% 120% at 70% 20%,rgba(90,200,250,.18),transparent 60%)}
+.tile.camt>.row1,.tile.camt>.tx,.tile.camt>.camt-play{position:relative}
+.tile.camt .ic{background:#5ac8fa;color:#06202a}
+.tile.camt.pic .nm,.tile.camt.pic .st{color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.5)}
+.camt-play{position:absolute!important;left:50%;top:44%;transform:translate(-50%,-50%);width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.3);color:#fff}
+.camt-play ha-icon{--mdc-icon-size:30px}
+@media (max-width:720px){.tile.camt{grid-column:1/-1}}
+/* live camera window */
+.camov .sheet.cam{width:min(1040px,calc(100vw - 48px));max-height:calc(100vh - 32px);display:grid;grid-template-columns:minmax(0,1fr) 240px;grid-template-rows:auto minmax(0,1fr);gap:16px 20px;overflow:hidden}
+.sheet.cam>.hd{grid-column:1/-1}.sheet.cam .hd .ic{background:#5ac8fa;color:#06202a}
+.sheet.cam .st{display:flex;align-items:center;gap:8px}
+.live{display:inline-flex;align-items:center;gap:6px;background:#ff453a;color:#fff;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;border-radius:999px;padding:3px 9px}
+.live i{width:7px;height:7px;border-radius:50%;background:#fff;animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+.cam-v{position:relative;border-radius:22px;overflow:hidden;background:#000;aspect-ratio:4/3;max-height:calc(100vh - 150px);min-height:0;justify-self:stretch}
+.cam-s{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;z-index:1;display:block}
+.cam-wait{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--muted);font-size:14px}
+.cam-wait ha-icon{--mdc-icon-size:40px;animation:blink 1.6s infinite}
+.cam-bar{position:absolute;right:12px;bottom:12px;z-index:2;font-size:13px}
+.cam-bar span{display:inline-flex;align-items:center;gap:5px;background:rgba(0,0,0,.55);color:#fff;border-radius:999px;padding:5px 11px}
+.cam-bar ha-icon{--mdc-icon-size:16px}.cam-bar b{font-weight:600}
+.cam-side{display:flex;flex-direction:column;gap:12px;min-height:0;overflow:auto}
+.cam-b{all:unset;cursor:pointer;border-radius:22px;padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;background:rgba(255,255,255,.1);transition:transform .12s,background .2s}
+.cam-b ha-icon{--mdc-icon-size:34px}.cam-b b{font-size:17px}.cam-b small{font-size:13px;opacity:.75}
+.cam-b:active{transform:scale(.96)}.cam-b[disabled]{opacity:.45;pointer-events:none}
+.cam-b.door{background:#ff9f0a;color:#2a1500}
+.cam-b.door.arm{background:#fff;color:#2a1500;box-shadow:0 0 0 4px #ff9f0a}
+.cam-b.door.ok{background:#30d158;color:#06210f;pointer-events:none}
+.cam-note{margin-top:auto;font-size:13px;color:var(--muted);text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px}
+.cam-edit{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--muted);font-size:13px;font-weight:600}.cam-edit ha-icon{--mdc-icon-size:16px}
+.cam-pk-h{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.cam-pk{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.07);font-weight:600;font-size:15px}
+.cam-pk.on{background:rgba(255,159,10,.22)}.cam-pk.on ha-icon{color:#ff9f0a}.cam-pk span{display:flex;flex-direction:column;min-width:0}.cam-pk small{font-weight:500;color:var(--muted);font-size:12px}
+.cam-pk-ok{align-self:center;margin-top:6px}
+@media (max-width:720px),(orientation:portrait){.camov .sheet.cam{grid-template-columns:1fr;overflow:auto}.cam-side{flex-direction:row;flex-wrap:wrap}.cam-b{flex:1 1 140px}.cam-note{width:100%}}
 /* forecast sheet: now, chips and warnings; hours as small cards and days with a range bar */
 .fnow{display:flex;align-items:center;gap:14px;margin-top:6px}
 .fnow>ha-icon{--mdc-icon-size:54px;color:var(--amber)}

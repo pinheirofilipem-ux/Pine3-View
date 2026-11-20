@@ -49,6 +49,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "house_layout": {},
     "shown": [],
     "placements": {},
+    "cam_doors": {},
     "wall_height": 30,
     "settings_version": 2,
 }
@@ -191,6 +192,8 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
                 vol.Optional("l"): vol.All(vol.Coerce(float), vol.Range(min=0.25, max=30)),
             }
         },
+        # the doors shown beside each camera's live picture
+        vol.Optional("cam_doors"): {vol.Match(r"^camera\.[a-z0-9_]+$"): [str]},
         vol.Optional("settings_version"): int,
     }
 )
