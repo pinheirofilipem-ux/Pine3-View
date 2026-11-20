@@ -730,7 +730,12 @@ a.pill{color:inherit;text-decoration:none}
 .cam-b.door{background:#ff9f0a;color:#2a1500}
 .cam-b.door.arm{background:#fff;color:#2a1500;box-shadow:0 0 0 4px #ff9f0a}
 .cam-b.door.ok{background:#30d158;color:#06210f;pointer-events:none}
-.cam-note{margin-top:auto;font-size:13px;color:var(--muted);text-align:center}
+.cam-note{margin-top:auto;font-size:13px;color:var(--muted);text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px}
+.cam-edit{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--muted);font-size:13px;font-weight:600}.cam-edit ha-icon{--mdc-icon-size:16px}
+.cam-pk-h{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.cam-pk{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.07);font-weight:600;font-size:15px}
+.cam-pk.on{background:rgba(255,159,10,.22)}.cam-pk.on ha-icon{color:#ff9f0a}.cam-pk span{display:flex;flex-direction:column;min-width:0}.cam-pk small{font-weight:500;color:var(--muted);font-size:12px}
+.cam-pk-ok{align-self:center;margin-top:6px}
 @media (max-width:720px),(orientation:portrait){.camov .sheet.cam{grid-template-columns:1fr;overflow:auto}.cam-side{flex-direction:row;flex-wrap:wrap}.cam-b{flex:1 1 140px}.cam-note{width:100%}}
 /* forecast sheet: now, chips and warnings; hours as small cards and days with a range bar */
 .fnow{display:flex;align-items:center;gap:14px;margin-top:6px}

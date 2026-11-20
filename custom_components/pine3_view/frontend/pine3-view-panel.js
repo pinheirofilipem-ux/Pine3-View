@@ -417,19 +417,33 @@ class Pine3ViewPanel extends HTMLElement {
       fr.readAsDataURL(b);
     }).catch(() => {});
   }
-  /** Doors to open from a camera: the locks of its room, else its door-like buttons (an intercom's "Activate"). */
+  /** Door-like entities anywhere in the house: locks and buttons that open something (an intercom's "Activate"). */
+  _doorLike(i) { return dom(i) === "lock" || (dom(i) === "button" && /lock|door|gate|entrance|porta|port[aã]o|fechadura|trinco|entrada/i.test(`${i} ${this._name(i)}`)); }
+  /**
+   * Doors to open from a camera: the ones chosen for it, else the locks of its room, else its door-like buttons.
+   * (An apartment door in the same hall must not show up beside the building's camera: hence the choice.)
+   */
   _camDoors(id) {
+    const chosen = this._cfg().cam_doors?.[id];
+    if (Array.isArray(chosen)) return chosen.filter((e) => this._s(e));
     const room = this._rooms().find((r) => r.ents.includes(id));
     const ents = (room?.ents || []).filter((i) => this._s(i));
     const locks = ents.filter((i) => dom(i) === "lock");
     if (locks.length) return locks;
-    return ents.filter((i) => dom(i) === "button" && /lock|door|gate|entrance|porta|port[aã]o|fechadura|trinco|entrada/i.test(`${i} ${this._name(i)}`));
+    return ents.filter((i) => dom(i) === "button" && this._doorLike(i));
+  }
+  _camChoose(e) {
+    const cfg = this._cfg(), cur = this._camDoors(this._camId);
+    const list = cur.includes(e) ? cur.filter((x) => x !== e) : [...cur, e];
+    this._saveSettings({ cam_doors: { ...(cfg.cam_doors || {}), [this._camId]: list } });
+    this._camSide();
   }
   /** A camera's live picture in its own window, outside the redrawn part: redraws don't restart the video. */
   _openCam(id) {
     if (!this._s(id)) return;
     this._closeCam(false);
     this._camId = id;
+    this._camPicking = false;
     this._camT0 = Date.now();
     this._camEnd = Date.now() + 120000;
     const ov = document.createElement("div");
@@ -455,6 +469,9 @@ class Pine3ViewPanel extends HTMLElement {
     ov.addEventListener("click", (ev) => {
       if (ev.target === ov || ev.target.closest("[data-camx]")) return this._closeCam();
       if (ev.target.closest("[data-camplus]")) { this._camEnd = Math.min(Date.now() + 600000, Math.max(this._camEnd, Date.now()) + 120000); return this._camTick(); }
+      if (ev.target.closest("[data-campick]")) { this._camPicking = !this._camPicking; return this._camSide(); }
+      const c = ev.target.closest("[data-camsel]")?.dataset.camsel;
+      if (c) return this._camChoose(c);
       const d = ev.target.closest("[data-camdoor]")?.dataset.camdoor;
       if (d) this._camDoor(d);
     });
@@ -487,6 +504,14 @@ class Pine3ViewPanel extends HTMLElement {
   _camSide() {
     if (!this._camOv) return;
     const doors = this._camDoors(this._camId);
+    if (this._camPicking) {
+      const all = [...new Set(this._rooms().flatMap((r) => r.ents))].filter((i) => this._s(i) && this._doorLike(i));
+      const roomOf = (i) => this._rooms().find((r) => r.ents.includes(i))?.name || "";
+      this._camOv.querySelector(".cam-side").innerHTML = `<div class="cam-pk-h">${t("Portas ao lado desta câmara")}</div>
+        ${all.map((i) => `<button class="cam-pk ${doors.includes(i) ? "on" : ""}" data-camsel="${esc(i)}"><ha-icon icon="mdi:${doors.includes(i) ? "checkbox-marked-circle" : "checkbox-blank-circle-outline"}"></ha-icon><span>${esc(this._name(i))}<small>${esc(roomOf(i))}</small></span></button>`).join("") || `<div class="cam-note">${t("Não há fechaduras nem botões de porta.")}</div>`}
+        <button class="pill solid cam-pk-ok" data-campick><ha-icon icon="mdi:check"></ha-icon>${t("Concluído")}</button>`;
+      return;
+    }
     const btn = (d) => {
       const open = (this._camDone?.id === d) || (dom(d) === "lock" && this._s(d).state !== "locked");
       const armed = !open && this._armed(`cam:${d}`), na = this._s(d).state === "unavailable";
@@ -495,7 +520,7 @@ class Pine3ViewPanel extends HTMLElement {
     };
     this._camOv.querySelector(".cam-side").innerHTML = `${doors.map(btn).join("")}
       <button class="cam-b" data-camplus><ha-icon icon="mdi:timer-plus-outline"></ha-icon><b>+2 min</b><small>${t("manter ao vivo")}</small></button>
-      <div class="cam-note">${t("Ao fechar, o vídeo para.")}</div>`;
+      <div class="cam-note">${t("Ao fechar, o vídeo para.")}<button class="cam-edit" data-campick><ha-icon icon="mdi:pencil-outline"></ha-icon>${t("Escolher portas")}</button></div>`;
   }
   _camUpdate() {
     const el = this._camOv?.querySelector("ha-camera-stream");
