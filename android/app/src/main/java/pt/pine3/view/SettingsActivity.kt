@@ -515,8 +515,8 @@ class SettingsActivity : Activity() {
     private fun buildSaver() {
         val ent = panel()
         h3(ent, Tr.t("Entrada e bloqueio"), true)
-        para(ent, "O screensaver aparece quando ninguém toca no ecrã durante este tempo (0 = desligado) e nunca entra antes do bloqueio. O bloqueio desliga o ecrã quando ninguém se mexe: conta sempre, também com o screensaver ativo.")
-        var lockV = prefs.timeoutSec.coerceIn(3, 120)
+        para(ent, "O screensaver entra sempre antes do bloqueio: se o screensaver estiver ativo, o bloqueio fica sempre acima dele. O bloqueio desliga o ecrã quando ninguém se mexe e conta sempre, também com o screensaver ativo.")
+        var lockV = prefs.timeoutSec.coerceIn(3, 180)
         var saverV = prefs.saverSec(draft.optInt("screensaver", 0)).coerceIn(0, 120)
         lateinit var lockBar: SeekBar; lateinit var saverBar: SeekBar
         lateinit var lockTx: TextView; lateinit var saverTx: TextView
@@ -538,15 +538,16 @@ class SettingsActivity : Activity() {
             ent.addView(sb, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(6) })
             return sb to tx
         }
-        // screensaver: 0 = desligado, e quando ativo nunca fica abaixo do bloqueio
-        val s1 = bar("Entrar no screensaver após (segundos sem toques)", saverV, 0, 120) { v ->
-            saverV = if (v == 0) 0 else maxOf(v, lockV)
-            saverBar.progress = saverV; saverTx.text = saverText()
+        // o screensaver entra sempre ANTES do bloqueio: o bloqueio fica sempre acima do screensaver (quando este está ativo)
+        val s1 = bar("Entrar no screensaver após (segundos sem toques, 0 = desligado)", saverV, 0, 120) { v ->
+            saverV = v
+            if (saverV > 0 && lockV <= saverV) { lockV = minOf(180, saverV + 1); lockBar.progress = lockV - 3; lockTx.text = "$lockV s" }
+            saverTx.text = saverText()
         }
         saverBar = s1.first; saverTx = s1.second; saverTx.text = saverText()
-        val s2 = bar("Bloquear o ecrã após (segundos sem movimento)", lockV, 3, 120) { v ->
+        val s2 = bar("Bloquear o ecrã após (segundos sem movimento)", lockV, 3, 180) { v ->
             lockV = v
-            if (saverV in 1 until lockV) { saverV = lockV; saverBar.progress = saverV; saverTx.text = saverText() }
+            if (saverV > 0 && saverV >= lockV) { saverV = lockV - 1; saverBar.progress = saverV; saverTx.text = saverText() }
             lockTx.text = "$lockV s"
         }
         lockBar = s2.first; lockTx = s2.second; lockTx.text = "$lockV s"

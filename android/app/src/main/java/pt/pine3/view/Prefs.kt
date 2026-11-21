@@ -51,10 +51,10 @@ class Prefs(ctx: Context) {
         get() = sp.getInt("saverSec", -1)
         set(v) = sp.edit().putInt("saverSec", v.coerceIn(0, 120)).apply()
 
-    /** O tempo efetivo de entrada: nunca menor que o do bloqueio quando está ativo. */
+    /** O tempo efetivo de entrada: o screensaver entra sempre antes do bloqueio (pelo menos 1 s antes) quando está ativo. */
     fun saverSec(webMinutes: Int): Int {
         val s = saverSecRaw.let { if (it >= 0) it else (webMinutes * 60).coerceIn(0, 120) }
-        return if (s <= 0) 0 else maxOf(s, timeoutSec)
+        return if (s <= 0) 0 else minOf(s, maxOf(1, timeoutSec - 1))
     }
 
     /** Cor de fundo (pastel) atrás dos clipes com transparência, ex. "#F7C6CE"; vazio = sem fundo. */
