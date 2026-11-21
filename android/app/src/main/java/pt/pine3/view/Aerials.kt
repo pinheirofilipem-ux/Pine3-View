@@ -113,7 +113,7 @@ object Aerials {
     @Volatile private var local: List<Clip> = emptyList()
 
     /** Os clipes já guardados no tablet. */
-    fun setLocal(ctx: Context) { local = Pack.files(ctx).map { Clip("local:" + it.name, "", it.absolutePath) } }
+    fun setLocal(ctx: Context) { local = Pack.enabled(ctx).map { Clip("local:" + it.name, "", it.absolutePath) } }
 
     /** Uma lista de vídeos num ficheiro: JSON (["url",...] ou {"videos":[{"url":...}]}) ou texto com um endereço por linha. Guarda-se em cache. */
     fun loadList(ctx: Context, url: String, done: (Int) -> Unit) {

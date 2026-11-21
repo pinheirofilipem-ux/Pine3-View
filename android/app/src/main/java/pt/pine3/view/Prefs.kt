@@ -46,6 +46,21 @@ class Prefs(ctx: Context) {
         get() = sp.getString("saverSource", null) ?: Aerials.DEFAULT_SOURCE
         set(v) = sp.edit().putString("saverSource", v.trim()).apply()
 
+    /** Cor de fundo (pastel) atrás dos clipes com transparência, ex. "#F7C6CE"; vazio = sem fundo. */
+    var saverBg: String
+        get() = sp.getString("saverBg", "") ?: ""
+        set(v) = sp.edit().putString("saverBg", v).apply()
+
+    /** Tamanho mínimo (MB) de um clipe para entrar por regra: os pequenos costumam ser loops soltos. */
+    var clipMinMb: Int
+        get() = sp.getInt("clipMinMb", 8)
+        set(v) = sp.edit().putInt("clipMinMb", v.coerceIn(0, 500)).apply()
+
+    /** Escolhas manuais por ficheiro (nome -> ligado); o que não está aqui segue a regra. */
+    var clipChoices: Map<String, Boolean>
+        get() = try { JSONObject(sp.getString("clipChoices", "{}") ?: "{}").let { o -> o.keys().asSequence().associateWith { k -> o.optBoolean(k) } } } catch (_: Exception) { emptyMap() }
+        set(v) = sp.edit().putString("clipChoices", JSONObject(v.mapKeys { it.key }).toString()).apply()
+
     /** Endereço do zip com os clipes a guardar no tablet. */
     var packUrl: String
         get() = sp.getString("packUrl", null) ?: Pack.DEFAULT_URL

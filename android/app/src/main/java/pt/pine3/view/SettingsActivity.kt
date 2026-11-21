@@ -270,7 +270,7 @@ class SettingsActivity : Activity() {
 
     private val sections = listOf(
         Triple("app", "mdi:tablet", "App"), Triple("look", "mdi:palette-outline", "Aparência"), Triple("home", "mdi:home-outline", "Início"),
-        Triple("rooms", "mdi:view-grid-outline", "Divisões"), Triple("entities", "mdi:format-list-checks", "Entidades"),
+        Triple("rooms", "mdi:view-grid-outline", "Divisões"), Triple("entities", "mdi:format-list-checks", "Entidades"), Triple("saver", "mdi:movie-open-play-outline", "Screensaver"),
         Triple("plan", "mdi:floor-plan", "Planta 3D"), Triple("nav", "mdi:dock-bottom", "Navegação"), Triple("system", "mdi:cog-outline", "Sistema"),
     )
 
@@ -360,7 +360,7 @@ class SettingsActivity : Activity() {
         mainBox.removeAllViews()
         when (key) {
             "app" -> buildApp(); "look" -> buildLook(); "home" -> buildHome(); "rooms" -> buildRooms()
-            "entities" -> buildEntities(); "plan" -> buildPlan(); "nav" -> buildNav(); else -> buildSystem()
+            "entities" -> buildEntities(); "saver" -> buildSaver(); "plan" -> buildPlan(); "nav" -> buildNav(); else -> buildSystem()
         }
         if (keepScroll) { if (y > 0) restoreScroll(y) }
         else if (animateNav) Elastic.popGrids(mainBox)
@@ -448,23 +448,7 @@ class SettingsActivity : Activity() {
 
         // Ecrã e campainha
         val scr = panel()
-        h3(scr, Tr.t("Ecrã e campainha"), true); para(scr, "Acorda com movimento ou com a campainha.")
-        label(scr, "Desligar o ecrã após (segundos sem movimento)")
-        val timeout = input(prefs.timeoutSec.toString(), "15", InputType.TYPE_CLASS_NUMBER, app = true); scr.addView(timeout)
-        val sh = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        sh.addView(kit.text("Sensibilidade", 13f, kit.muted), LinearLayout.LayoutParams(0, -2, 1f))
-        val sensValue = kit.text("${prefs.sensitivity} / 10", 15f, kit.accent, 600); sh.addView(sensValue)
-        scr.addView(sh, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(18) })
-        val sens = SeekBar(this).apply {
-            max = 9; progress = prefs.sensitivity - 1
-            progressTintList = ColorStateList.valueOf(kit.accent); thumbTintList = ColorStateList.valueOf(kit.accent)
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(s: SeekBar, p: Int, u: Boolean) { sensValue.text = "${p + 1} / 10"; if (u) markApp() }
-                override fun onStartTrackingTouch(s: SeekBar) {}
-                override fun onStopTrackingTouch(s: SeekBar) {}
-            })
-        }
-        scr.addView(sens, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(6) })
+        h3(scr, Tr.t("Interface e campainha"), true); para(scr, "O tamanho da interface e a campainha que acorda o ecrã. O bloqueio do ecrã e o screensaver estão na secção Screensaver.")
         val sc = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         sc.addView(kit.text(Tr.t("Tamanho da interface"), 13f, kit.muted), LinearLayout.LayoutParams(0, -2, 1f))
         val scValue = kit.text("${prefs.uiScale}%", 15f, kit.accent, 600); sc.addView(scValue)
@@ -488,44 +472,6 @@ class SettingsActivity : Activity() {
         val bellHold = input(rule.holdSec.toString(), "120", InputType.TYPE_CLASS_NUMBER, app = true); scr.addView(bellHold)
         var boot = prefs.bootStart
         optToggle(scr, "Abrir quando o tablet arranca", null, boot) { boot = it; markApp() }
-
-        // Ecrã de descanso com vídeos
-        val vid = panel()
-        h3(vid, Tr.t("Vídeos no ecrã de descanso"), true)
-        para(vid, "Vídeos sem som em ecrã inteiro, com a hora e a data por cima. Quando aparecem define-se em Início → Ecrã de descanso.")
-        var saverVideo = prefs.saverVideo
-        optToggle(vid, "Usar vídeos no ecrã de descanso", null, saverVideo) { saverVideo = it; markApp() }
-        var quality = prefs.saverQuality
-        optChoice(vid, "Qualidade", "1080p gasta menos dados; 4K só em tablets potentes.", listOf("1080" to "1080p (H.264)", "4k" to "4K"), quality) { quality = it; markApp(); redraw() }
-        label(vid, "Lista de vídeos (endereço de um ficheiro .json ou .txt)")
-        val listIn = input(prefs.saverList, "https://…/videos.json", InputType.TYPE_TEXT_VARIATION_URI, app = true); vid.addView(listIn)
-        label(vid, "Fonte Apple TV (opcional: endereço do resources-atv….tar)")
-        val src = input(prefs.saverSource, "", InputType.TYPE_TEXT_VARIATION_URI, app = true); vid.addView(src)
-        label(vid, "Vídeos extra (um endereço por linha)")
-        val extraIn = input(prefs.saverExtra, "https://…/clip.mp4", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_VARIATION_URI, app = true).apply { setSingleLine(false); minLines = 3; gravity = Gravity.TOP }
-        vid.addView(extraIn)
-        para(vid, "Para juntares os teus clipes (por exemplo os do Snoopy) aloja os ficheiros num servidor teu ou na pasta /local do Home Assistant e cola aqui os endereços.")
-        label(vid, "Clipes guardados no tablet")
-        para(vid, "Descarrega o pacote uma vez (cerca de 530 MB, melhor com Wi-Fi) e os clipes ficam no tablet: depois passam sem rede. O pacote por omissão é o snoopy.saver.zip do repositório hitnology/snoopy.")
-        val packUrl = input(prefs.packUrl, Pack.DEFAULT_URL, InputType.TYPE_TEXT_VARIATION_URI, app = true); vid.addView(packUrl)
-        packStatus = kit.text(Pack.describe(this), 13f, kit.muted)
-        val prow = LinearLayout(this)
-        prow.addView(pillBtn("Descarregar clipes", "mdi:download") {
-            prefs.packUrl = packUrl.text.toString().ifBlank { Pack.DEFAULT_URL }
-            Pack.download(this, prefs.packUrl) { packStatus?.text = Pack.describe(this) }
-            packStatus?.text = Pack.describe(this)
-        })
-        prow.addView(pillBtn("Apagar clipes", "mdi:delete-outline") { Pack.delete(this); packStatus?.text = Pack.describe(this) }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = d(10) })
-        vid.addView(prow, LinearLayout.LayoutParams(-2, -2).apply { topMargin = d(14) })
-        vid.addView(packStatus, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(8) })
-        val vstatus = kit.text(if (Aerials.count > 0) "${Aerials.count} vídeos" else "", 13f, kit.muted)
-        vid.addView(pillBtn("Atualizar lista", "mdi:refresh") {
-            prefs.saverSource = src.text.toString(); prefs.saverQuality = quality
-            vstatus.text = "A descarregar…"
-            prefs.saverList = listIn.text.toString()
-            Aerials.loadList(this, prefs.saverList) { Aerials.load(this, prefs.saverSource, quality, force = true) { _ -> vstatus.text = if (Aerials.count > 0) "${Aerials.count} vídeos" else "✘ " + (Aerials.error ?: "sem vídeos") } }
-        }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = d(14) })
-        vid.addView(vstatus, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(8) })
 
         // Permissões
         val sys = panel()
@@ -554,15 +500,139 @@ class SettingsActivity : Activity() {
 
         saveApp = {
             commitHa()
-            prefs.timeoutSec = timeout.text.toString().toIntOrNull() ?: 15
-            prefs.sensitivity = sens.progress + 1
             prefs.bootStart = boot
-            prefs.saverVideo = saverVideo; prefs.saverQuality = quality; prefs.saverSource = src.text.toString(); prefs.saverList = listIn.text.toString(); prefs.packUrl = packUrl.text.toString().ifBlank { Pack.DEFAULT_URL }; prefs.saverExtra = extraIn.text.toString()
-            Aerials.reparse(this, quality)
             val entity = bellEntity.text.toString().trim().lowercase()
             prefs.wakeRules = if (entity.isBlank()) emptyList() else listOf(WakeRule(entity, bellWhen.text.toString().trim(), (bellHold.text.toString().toIntOrNull() ?: 120).coerceIn(5, 3600)))
             Ha.configure(this)
             if (checkSelfPermission(android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) MotionService.start(this)
+        }
+    }
+
+    // ---------------------------------------------------------------- Screensaver (e bloqueio do ecrã)
+
+    private val PASTELS = listOf("#F7C6CE", "#FBD5B5", "#FFF1B8", "#CDEBC5", "#BFE3F0", "#D6CCF0", "#F3D1E8", "#E8E2D5")
+
+    private fun buildSaver() {
+        val ent = panel()
+        h3(ent, Tr.t("Entrada e bloqueio"), true)
+        para(ent, "O screensaver aparece quando ninguém toca no ecrã durante este tempo. O bloqueio desliga o ecrã quando ninguém se mexe: conta sempre, também com o screensaver ativo.")
+        label(ent, "Entrar no screensaver após (minutos sem toques, 0 = desligado)")
+        val mins = input(draft.optInt("screensaver", 0).toString(), "0", InputType.TYPE_CLASS_NUMBER)
+        mins.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(e: Editable?) { val v = (e?.toString()?.toIntOrNull() ?: 0).coerceIn(0, 600); if (v != draft.optInt("screensaver", 0)) setD("screensaver", v) }
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+        })
+        ent.addView(mins)
+        label(ent, "Bloquear o ecrã após (segundos sem movimento)")
+        val timeout = input(prefs.timeoutSec.toString(), "15", InputType.TYPE_CLASS_NUMBER, app = true); ent.addView(timeout)
+        val sh = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        sh.addView(kit.text("Sensibilidade ao movimento", 13f, kit.muted), LinearLayout.LayoutParams(0, -2, 1f))
+        val sensValue = kit.text("${prefs.sensitivity} / 10", 15f, kit.accent, 600); sh.addView(sensValue)
+        ent.addView(sh, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(18) })
+        val sens = SeekBar(this).apply {
+            max = 9; progress = prefs.sensitivity - 1
+            progressTintList = ColorStateList.valueOf(kit.accent); thumbTintList = ColorStateList.valueOf(kit.accent)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar, p: Int, u: Boolean) { sensValue.text = "${p + 1} / 10"; if (u) markApp() }
+                override fun onStartTrackingTouch(s: SeekBar) {}
+                override fun onStopTrackingTouch(s: SeekBar) {}
+            })
+        }
+        ent.addView(sens, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(6) })
+
+        val vid = panel()
+        h3(vid, Tr.t("Vídeos"), true)
+        para(vid, "Vídeos sem som em ecrã inteiro, com a hora e a data por cima.")
+        var saverVideo = prefs.saverVideo
+        optToggle(vid, "Usar vídeos no screensaver", null, saverVideo) { saverVideo = it; markApp() }
+
+        // fundo pastel atrás dos clipes com transparência
+        var bg = prefs.saverBg
+        label(vid, "Fundo atrás dos clipes com transparência")
+        val sw = Grid(this, d(44), d(44), d(10))
+        (listOf("") + PASTELS).forEach { c ->
+            val sel = c.equals(bg, true)
+            sw.addView(FrameLayout(this).apply {
+                background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(if (c.isEmpty()) Color.BLACK else Color.parseColor(c)); setStroke(d(if (sel) 3 else 1), if (sel) kit.fg else kit.soft) }
+                isClickable = true; setOnClickListener { bg = c; prefs.saverBg = c; markApp(); redraw() }
+            })
+        }
+        vid.addView(sw, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(4) })
+        para(vid, "O Android não lê a transparência destes clipes: a cor aparece no preto deles (por isso as linhas pretas do desenho ficam da cor do fundo). Preto = sem fundo.")
+
+        var quality = prefs.saverQuality
+        optChoice(vid, "Qualidade (vídeos da Apple TV)", "1080p gasta menos dados; 4K só em tablets potentes.", listOf("1080" to "1080p (H.264)", "4k" to "4K"), quality) { quality = it; markApp(); redraw() }
+        label(vid, "Lista de vídeos (endereço de um ficheiro .json ou .txt)")
+        val listIn = input(prefs.saverList, "https://…/videos.json", InputType.TYPE_TEXT_VARIATION_URI, app = true); vid.addView(listIn)
+        label(vid, "Fonte Apple TV (opcional: endereço do resources-atv….tar)")
+        val src = input(prefs.saverSource, "", InputType.TYPE_TEXT_VARIATION_URI, app = true); vid.addView(src)
+        label(vid, "Vídeos extra (um endereço por linha)")
+        val extraIn = input(prefs.saverExtra, "https://…/clip.mp4", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_VARIATION_URI, app = true).apply { setSingleLine(false); minLines = 3; gravity = Gravity.TOP }
+        vid.addView(extraIn)
+        val vstatus = kit.text(if (Aerials.count > 0) "${Aerials.count} vídeos" else "", 13f, kit.muted)
+        vid.addView(pillBtn("Atualizar listas", "mdi:refresh") {
+            prefs.saverSource = src.text.toString(); prefs.saverQuality = quality; prefs.saverList = listIn.text.toString()
+            vstatus.text = "A descarregar…"
+            Aerials.loadList(this, prefs.saverList) { Aerials.load(this, prefs.saverSource, quality, force = true) { _ -> vstatus.text = if (Aerials.count > 0) "${Aerials.count} vídeos" else "✘ " + (Aerials.error ?: "sem vídeos") } }
+        }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = d(14) })
+        vid.addView(vstatus, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(8) })
+
+        // clipes guardados no tablet, com tamanho e escolha
+        val pk = panel()
+        h3(pk, Tr.t("Clipes no tablet"), true)
+        para(pk, "Descarrega o pacote uma vez (cerca de 530 MB, melhor com Wi-Fi) e os clipes passam do disco, sem rede. Por omissão é o snoopy.saver.zip do repositório hitnology/snoopy.")
+        val packUrl = input(prefs.packUrl, Pack.DEFAULT_URL, InputType.TYPE_TEXT_VARIATION_URI, app = true); pk.addView(packUrl)
+        packStatus = kit.text(Pack.describe(this), 13f, kit.muted)
+        val prow = LinearLayout(this)
+        prow.addView(pillBtn("Descarregar clipes", "mdi:download") {
+            prefs.packUrl = packUrl.text.toString().ifBlank { Pack.DEFAULT_URL }
+            Pack.download(this, prefs.packUrl) { packStatus?.text = Pack.describe(this); if (section == "saver") redraw() }
+            packStatus?.text = Pack.describe(this)
+        })
+        prow.addView(pillBtn("Apagar clipes", "mdi:delete-outline") { Pack.delete(this); prefs.clipChoices = emptyMap(); redraw() }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = d(10) })
+        pk.addView(prow, LinearLayout.LayoutParams(-2, -2).apply { topMargin = d(14) })
+        pk.addView(packStatus, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(8) })
+
+        val files = Pack.files(this)
+        var choices = prefs.clipChoices.toMutableMap()
+        var minMb = prefs.clipMinMb
+        if (files.isNotEmpty()) {
+            divider(pk)
+            label(pk, "Regra: ignorar clipes com menos de (MB) e os que têm \"loop\" no nome")
+            val minIn = input(minMb.toString(), "8", InputType.TYPE_CLASS_NUMBER, app = true); pk.addView(minIn)
+            minIn.addTextChangedListener(object : TextWatcher {
+                override fun afterTextChanged(e: Editable?) { minMb = (e?.toString()?.toIntOrNull() ?: 0).coerceIn(0, 500) }
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            })
+            val brow = LinearLayout(this)
+            brow.addView(pillBtn("Aplicar regra", "mdi:filter-outline") { choices.clear(); prefs.clipMinMb = minMb; prefs.clipChoices = emptyMap(); redraw() })
+            brow.addView(pillBtn("Todos", null) { files.forEach { choices[it.name] = true }; prefs.clipChoices = choices; redraw() }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = d(10) })
+            brow.addView(pillBtn("Nenhum", null) { files.forEach { choices[it.name] = false }; prefs.clipChoices = choices; redraw() }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = d(10) })
+            pk.addView(brow, LinearLayout.LayoutParams(-2, -2).apply { topMargin = d(14) })
+            val on = files.count { choices[it.name] ?: Pack.defaultOn(it, minMb) }
+            para(pk, "$on de ${files.size} clipes vão passar.")
+            files.forEach { f ->
+                val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, d(8), 0, d(8)) }
+                val mb = f.length() / 1_000_000.0
+                row.addView(LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    addView(kit.text(f.name.removeSuffix(".mov"), 15f, kit.fg, 500).apply { setSingleLine(); ellipsize = TextUtils.TruncateAt.END })
+                    addView(kit.text(String.format(java.util.Locale.US, "%.1f MB", mb) + if (f.name.contains("loop", true)) " · loop" else "", 12f, kit.muted))
+                }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = d(12) })
+                row.addView(Toggle(kit, choices[f.name] ?: Pack.defaultOn(f, minMb)) { v -> choices[f.name] = v; prefs.clipChoices = choices; Aerials.setLocal(this) })
+                pk.addView(row, LinearLayout.LayoutParams(-1, -2))
+            }
+        }
+
+        saveApp = {
+            prefs.timeoutSec = timeout.text.toString().toIntOrNull() ?: 15
+            prefs.sensitivity = sens.progress + 1
+            prefs.saverVideo = saverVideo; prefs.saverQuality = quality; prefs.saverSource = src.text.toString(); prefs.saverList = listIn.text.toString()
+            prefs.packUrl = packUrl.text.toString().ifBlank { Pack.DEFAULT_URL }; prefs.saverExtra = extraIn.text.toString(); prefs.saverBg = bg
+            if (files.isNotEmpty()) prefs.clipMinMb = minMb
+            Aerials.reparse(this, quality)
         }
     }
 
@@ -648,9 +718,6 @@ class SettingsActivity : Activity() {
         optToggle(p, Tr.t("Cenas"), "Faixa de cenas no início.", bool("show_scenes", true)) { setD("show_scenes", it) }
         optToggle(p, Tr.t("Cartões de resumo"), "Clima, Segurança e A tocar.", bool("show_summary", true)) { setD("show_summary", it) }
         optToggle(p, Tr.t("Relógio de 24 horas"), "Desliga para mostrar AM/PM.", bool("clock_24h", true)) { setD("clock_24h", it) }
-        val s = panel()
-        optChoice(s, Tr.t("Ecrã de descanso"), "Relógio grande e escurecido depois de algum tempo sem toques. Ideal para tablets na parede.",
-            listOf(0, 1, 5, 10, 30).map { it.toString() to if (it == 0) Tr.t("Desligado") else "$it min" }, draft.optInt("screensaver", 0).toString()) { setD("screensaver", it.toInt()); redraw() }
     }
 
     // ---------------------------------------------------------------- Divisões

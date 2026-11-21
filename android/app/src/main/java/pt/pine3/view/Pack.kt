@@ -25,6 +25,14 @@ object Pack {
 
     fun files(ctx: Context): List<File> = dir(ctx).listFiles { f -> f.isFile && f.name.endsWith(".mov", true) && f.length() > 0 }?.sortedBy { it.name }.orEmpty()
 
+    /** Regra por omissão: ignora os "loop" e os ficheiros pequenos. */
+    fun defaultOn(f: File, minMb: Int) = !f.name.contains("loop", true) && f.length() >= minMb * 1_000_000L
+
+    fun isOn(f: File, prefs: Prefs) = prefs.clipChoices[f.name] ?: defaultOn(f, prefs.clipMinMb)
+
+    /** Só os clipes escolhidos. */
+    fun enabled(ctx: Context): List<File> { val p = Prefs(ctx); return files(ctx).filter { isOn(it, p) } }
+
     fun describe(ctx: Context): String {
         if (running) return progress
         val f = files(ctx)

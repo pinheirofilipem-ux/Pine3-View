@@ -17,7 +17,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 /** Ecrã de descanso (.saver do painel web): relógio grande e escurecido que deriva devagar. Um toque fecha. */
-class SaverView(private val kit: Kit, private val h24: Boolean, private val video: Boolean = false, private val onClose: () -> Unit) : FrameLayout(kit.ctx) {
+class SaverView(private val kit: Kit, private val h24: Boolean, private val video: Boolean = false, private val bg: Int? = null, private val onClose: () -> Unit) : FrameLayout(kit.ctx) {
     private var player: AerialView? = null
     private val clock = kit.text("", kit.clamp(90f, kit.vw(18f), 220f), Color.argb(235, 255, 255, 255), 200, display = true)
     private val date = kit.text("", kit.clamp(18f, kit.vw(2.4f), 28f), Color.argb(153, 255, 255, 255))
@@ -35,12 +35,13 @@ class SaverView(private val kit: Kit, private val h24: Boolean, private val vide
         setOnClickListener { onClose() }
         if (video) {
             // vídeo por trás e, em baixo à esquerda como na Apple TV, a hora e a data com sombra
-            setBackgroundColor(Color.BLACK)
-            player = AerialView(kit.ctx).also { addView(it, LayoutParams(-1, -1)) }
+            setBackgroundColor(bg ?: Color.BLACK)
+            player = AerialView(kit.ctx, bg != null).also { addView(it, LayoutParams(-1, -1)) }
             addView(View(kit.ctx).apply { background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.TRANSPARENT, Color.argb(150, 0, 0, 0))) },
                 LayoutParams(-1, kit.dp(kit.clamp(220f, kit.hdp * 0.42f, 420f)), Gravity.BOTTOM))
             for (t in listOf(clock, date)) t.setShadowLayer(kit.dp(10).toFloat(), 0f, kit.dp(2).toFloat(), Color.argb(170, 0, 0, 0))
             clock.textSize = kit.clamp(64f, kit.vw(9f), 120f)
+            clock.includeFontPadding = false; clock.setPadding(0, 0, kit.dp(28), 0); clock.setSingleLine(true); clock.ellipsize = null
             inner.gravity = Gravity.START
             inner.addView(clock); inner.addView(date, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(2) })
             addView(inner, LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply { leftMargin = kit.dp(56); bottomMargin = kit.dp(44) })
@@ -92,7 +93,8 @@ class SaverView(private val kit: Kit, private val h24: Boolean, private val vide
 }
 
 /** Reproduz os vídeos em sequência, sem som, ocupando o ecrã todo (corta as margens como "preencher") e com fade entre eles. */
-class AerialView(ctx: Context) : TextureView(ctx), TextureView.SurfaceTextureListener {
+class AerialView(ctx: Context, private val hasBg: Boolean = false) : TextureView(ctx), TextureView.SurfaceTextureListener {
+    private val lighten = android.graphics.Paint().apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.LIGHTEN) }
     private var mp: MediaPlayer? = null
     private var queue: ArrayDeque<Aerials.Clip> = ArrayDeque()
     private var failures = 0
@@ -126,6 +128,8 @@ class AerialView(ctx: Context) : TextureView(ctx), TextureView.SurfaceTextureLis
         if (queue.isEmpty()) { queue = ArrayDeque(Aerials.shuffled()); if (queue.isEmpty()) return }
         val clip = queue.removeFirst()
         val st = surfaceTexture ?: return
+        // os clipes com transparência chegam com o fundo preto (o Android ignora o canal alfa): "clarear" deixa ver a cor de fundo nesse preto
+        setLayerPaint(if (hasBg && clip.id.startsWith("local:")) lighten else null)
         try { mp?.release() } catch (_: Exception) {}
         val p = MediaPlayer()
         mp = p
