@@ -101,6 +101,8 @@ class Kit(val ctx: Context) {
     fun vh(p: Float) = hdp * p / 100f
     fun clamp(min: Float, v: Float, max: Float) = v.coerceIn(min, max)
     /** @media (max-width:1280px),(max-height:820px): o painel web usa medidas mais compactas. */
+    /** Tablets em horizontal com ecrã baixo (min-width:721px e max-height:920px): cartões mais densos, três filas acima da dock. */
+    val short: Boolean get() = wdp >= 721f && hdp <= 920f
     val compact: Boolean get() = wdp <= 1280f || hdp <= 820f
 
     private val fonts = HashMap<String, Typeface>()
@@ -141,6 +143,7 @@ class Kit(val ctx: Context) {
         background = ripple(circle(bg))
         isClickable = true
         setOnClickListener { onClick() }
+        Elastic.press(this, 0.88f)
         addView(icon(icon, tint, sizeDp * 5 / 10), FrameLayout.LayoutParams(dp(sizeDp * 5 / 10), dp(sizeDp * 5 / 10), Gravity.CENTER))
         layoutParams = LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp))
     }
@@ -154,6 +157,7 @@ class Kit(val ctx: Context) {
             setPadding(dp(18), dp(12), dp(20), dp(12))
             isClickable = true
             setOnClickListener { onClick() }
+            Elastic.press(this, 0.94f)
             if (icon != null) addView(icon(icon, fgc, 18).also { (it.layoutParams as LinearLayout.LayoutParams).marginEnd = dp(8) })
             addView(text(label, 15f, fgc, 500))
         }

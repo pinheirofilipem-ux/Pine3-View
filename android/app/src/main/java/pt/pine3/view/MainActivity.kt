@@ -208,6 +208,7 @@ class MainActivity : Activity(), Nav {
             return
         }
         val anim = home.settings.optBoolean("animations", true)
+        Elastic.on = anim
         if (anim != animationsOn) { animationsOn = anim; buildDock() }
         kit.cream = home.color("card_color", kit.cream)
         kit.accent = home.color("accent_color", kit.accent)
@@ -258,6 +259,7 @@ class MainActivity : Activity(), Nav {
         val ease = android.view.animation.PathInterpolator(0.2f, 0.8f, 0.2f, 1f)
         v.alpha = 0f; v.translationY = kit.dp(14).toFloat(); v.scaleX = 0.985f; v.scaleY = 0.985f
         v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f).setDuration(460).setInterpolator(ease).start()
+        Elastic.popGrids(v)
         if (Build.VERSION.SDK_INT >= 31) {
             android.animation.ValueAnimator.ofFloat(10f, 0f).apply {
                 duration = 460; interpolator = ease

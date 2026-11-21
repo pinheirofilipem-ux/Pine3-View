@@ -389,9 +389,11 @@ class RoomsPage(kit: Kit, home: Home, nav: Nav) : Page(kit) {
         val rooms = home.rooms.filter { !it.hidden }
         view = pageOf(kit) { w ->
             w.addView(hero(kit, Tr.pl(rooms.size, "divisão", "divisões", "room", "rooms"), Tr.t("Divisões")))
-            val g = Grid(kit.ctx, kit.dp(230), kit.dp(250), kit.dp(20))
-            rooms.forEach { r -> val c = RoomCard(kit, r, false) { nav.openRoom(r) }; cards += c; g.addView(c) }
-            w.addView(g, lp(kit, top = 22))
+            val sh = kit.short
+            val g = if (sh) Grid(kit.ctx, kit.dp(210), kit.dp(kit.clamp(116f, (kit.hdp - 226f) / 3f, 250f).toInt()), kit.dp(14))
+            else Grid(kit.ctx, kit.dp(230), kit.dp(250), kit.dp(20))
+            rooms.forEach { r -> val c = RoomCard(kit, r, false, sh) { nav.openRoom(r) }; cards += c; g.addView(c) }
+            w.addView(g, lp(kit, top = if (sh) 16 else 22))
         }
     }
 

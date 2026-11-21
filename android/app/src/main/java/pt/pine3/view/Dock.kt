@@ -86,7 +86,7 @@ class DockView(private val kit: Kit, labels: List<Triple<String, String, String>
             icons += ic; texts += tx; tabs += tab
             row.addView(tab, LinearLayout.LayoutParams(-2, tabH).apply { marginEnd = kit.dp(if (small) 4 else 6) })
         }
-        tabs.forEachIndexed { i, t -> t.setOnClickListener { onPick(i) } }
+        tabs.forEachIndexed { i, t -> t.setOnClickListener { onPick(i) }; Elastic.press(t, 0.92f) }
         applyMode()
     }
 
@@ -125,7 +125,7 @@ class DockView(private val kit: Kit, labels: List<Triple<String, String, String>
     private fun applyLens(l: Float, w: Float) {
         lensL = l; lensW = w
         val lp = lens.layoutParams as LayoutParams
-        lp.width = Math.max(0, w.toInt()); lp.height = tabH; lp.leftMargin = 0; lp.topMargin = paddingTop
+        lp.width = Math.max(0, w.toInt()); lp.height = tabH; lp.leftMargin = 0; lp.topMargin = 0
         lens.layoutParams = lp
         lens.translationX = l
     }

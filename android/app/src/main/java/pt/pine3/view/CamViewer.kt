@@ -25,6 +25,7 @@ class CamViewer(private val act: Activity, private val kit: Kit, private val cam
     private var until = 0L
     private var armed: String? = null
     private var armUntil = 0L
+    private val loading = LoadingOverlay(kit, Tr.t("A carregar a câmara…"))
     private var open = true
 
     private val tick = object : Runnable {
@@ -35,7 +36,7 @@ class CamViewer(private val act: Activity, private val kit: Kit, private val cam
             val s = ((now - started) / 1000).toInt(); elapsed.text = "${s / 60}:${"%02d".format(s % 60)}"
             val left = ((until - now) / 1000).toInt(); timer.text = Tr.t("fecha em ") + "${left / 60}:${"%02d".format(left % 60)}"
             val pic = Fmt.state(camId)?.attrs?.optString("entity_picture").orEmpty()
-            Ha.fetchImage(pic.ifBlank { "/api/camera_proxy/$camId" }) { b -> if (b != null && open) img.setImageBitmap(b) }
+            Ha.fetchImage(pic.ifBlank { "/api/camera_proxy/$camId" }) { b -> if (b != null && open) { img.setImageBitmap(b); loading.visibility = View.GONE } }
             h.postDelayed(this, 1000)
         }
     }
@@ -65,6 +66,7 @@ class CamViewer(private val act: Activity, private val kit: Kit, private val cam
         val body = LinearLayout(act).apply { setPadding(0, kit.dp(14), 0, 0) }
         val pic = FrameLayout(act)
         pic.addView(img, FrameLayout.LayoutParams(-1, -1))
+        pic.addView(loading, FrameLayout.LayoutParams(-1, -1))
         pic.addView(timer, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, kit.dp(14), kit.dp(14)) })
         pic.clipToOutline = true
         pic.outlineProvider = object : android.view.ViewOutlineProvider() { override fun getOutline(v: View, o: android.graphics.Outline) { o.setRoundRect(0, 0, v.width, v.height, kit.dp(20).toFloat()) } }
@@ -113,6 +115,7 @@ class CamViewer(private val act: Activity, private val kit: Kit, private val cam
         }
         dialog.setOnDismissListener { open = false; h.removeCallbacks(tick) }
         dialog.show()
+        Elastic.pop(card, 0, 0.9f)
         h.post(tick)
     }
 

@@ -16,6 +16,7 @@ import org.json.JSONObject
 
 /** Um cartão que se atualiza sozinho quando os estados mudam (sem reconstruir a página). */
 abstract class Card(ctx: Context) : FrameLayout(ctx) {
+    init { Elastic.press(this, 0.96f) }
     abstract fun update()
 }
 
@@ -33,17 +34,17 @@ private class IconCircle(val kit: Kit, sizeDp: Int, iconDp: Int, icon: String) :
 private fun TextView.oneLine() = apply { setSingleLine(); ellipsize = TextUtils.TruncateAt.END }
 
 /** Cartão de uma divisão (.rc): ícone, botão de ligar/desligar, nome, "x de y ligados", bolinhas e temperatura. */
-class RoomCard(private val kit: Kit, private val room: Room, dense: Boolean, private val onOpen: () -> Unit) : Card(kit.ctx) {
+class RoomCard(private val kit: Kit, private val room: Room, dense: Boolean, private val short: Boolean = false, private val onOpen: () -> Unit) : Card(kit.ctx) {
     private val ids = room.devices.filter { !it.hidden }.map { it.id }
-    private val ri = IconCircle(kit, if (dense) 38 else 52, if (dense) 22 else 26, room.icon)
-    private val pw = IconCircle(kit, if (dense) 44 else 64, if (dense) 24 else 28, "mdi:power")
-    private val nm = kit.text(room.name, 22f, kit.ink, 500, display = true).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END }
-    private val meta = kit.text("", 16f, kit.ink).oneLine()
+    private val ri = IconCircle(kit, if (short) 42 else if (dense) 38 else 52, if (short || dense) 22 else 26, room.icon)
+    private val pw = IconCircle(kit, if (short) 50 else if (dense) 44 else 64, if (short || dense) 24 else 28, "mdi:power")
+    private val nm = kit.text(room.name, if (short) 19f else 22f, kit.ink, 500, display = true).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END }
+    private val meta = kit.text("", if (short) 14f else 16f, kit.ink).oneLine()
     private val dots = Dots(kit.ctx, kit)
-    private val tmp = kit.text("", 16f, kit.ink)
+    private val tmp = kit.text("", if (short) 14f else 16f, kit.ink)
 
     init {
-        val pad = kit.dp(if (dense) 16 else 22)
+        val pad = kit.dp(if (short || dense) 16 else 22)
         isClickable = true
         setOnClickListener { onOpen() }
         val col = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, pad) }
@@ -54,11 +55,11 @@ class RoomCard(private val kit: Kit, private val room: Room, dense: Boolean, pri
         col.addView(row1, LinearLayout.LayoutParams(-1, -2))
         col.addView(View(kit.ctx), LinearLayout.LayoutParams(-1, 0, 1f))
         col.addView(nm, LinearLayout.LayoutParams(-1, -2))
-        col.addView(meta, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(4) })
+        col.addView(meta, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(if (short) 2 else 4) })
         val drow = LinearLayout(kit.ctx).apply { gravity = Gravity.CENTER_VERTICAL; minimumHeight = kit.dp(22) }
         drow.addView(dots, LinearLayout.LayoutParams(0, -2, 1f))
         drow.addView(tmp)
-        col.addView(drow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(12) })
+        col.addView(drow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(if (short) 8 else 12) })
         addView(col, LayoutParams(-1, -1))
         pw.setOnClickListener {
             val sw = Fmt.switchables(ids)
@@ -72,7 +73,8 @@ class RoomCard(private val kit: Kit, private val room: Room, dense: Boolean, pri
         val on = sw.filter { Fmt.isOn(it) }
         val active = on.isNotEmpty()
         val fg = if (active) kit.ink else kit.fg
-        background = kit.ripple(if (active) kit.rounded(kit.cream, 28) else kit.glass(28))
+        val rad = if (short) 24 else 28
+        background = kit.ripple(if (active) kit.rounded(kit.cream, rad) else kit.glass(rad))
         ri.paint(if (active) kit.accent else kit.soft, if (active) kit.ink else kit.fg)
         pw.paint(if (active) Color.argb(20, 42, 34, 31) else kit.soft, fg)
         pw.visibility = if (sw.isEmpty()) View.GONE else View.VISIBLE
@@ -403,6 +405,7 @@ class CamTile(private val kit: Kit, private val dev: Dev, private val onOpen: (S
     private val ic = IconCircle(kit, 48, 24, "mdi:cctv")
     private val nm = kit.text(dev.name, 19f, Color.WHITE, 500, display = true).oneLine()
     private val st = kit.text("", 15f, Color.argb(210, 255, 255, 255)).oneLine()
+    private val loading = LoadingOverlay(kit, Tr.t("A carregar a câmara…"))
     private var at = 0L
 
     init {
@@ -414,6 +417,7 @@ class CamTile(private val kit: Kit, private val dev: Dev, private val onOpen: (S
             override fun getOutline(v: View, o: android.graphics.Outline) { o.setRoundRect(0, 0, v.width, v.height, kit.dp(26).toFloat()) }
         }
         addView(shot, LayoutParams(-1, -1))
+        addView(loading, LayoutParams(-1, -1))
         addView(View(kit.ctx).apply { background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.argb(20, 0, 0, 0), Color.argb(150, 0, 0, 0))) }, LayoutParams(-1, -1))
         val pad = kit.dp(18)
         val col = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, pad) }
@@ -437,7 +441,7 @@ class CamTile(private val kit: Kit, private val dev: Dev, private val onOpen: (S
         if (System.currentTimeMillis() - at > 60_000) {
             at = System.currentTimeMillis()
             Ha.fetchImage(pic.ifBlank { "/api/camera_proxy/${dev.id}" }) { bmp ->
-                if (bmp != null) { shot.setImageBitmap(bmp); shot.visibility = View.VISIBLE; st.text = Tr.t("Última imagem") + " · " + java.text.SimpleDateFormat("HH:mm", Tr.locale).format(java.util.Date()) + " · " + Tr.t("Toca para ver ao vivo") }
+                if (bmp != null) { shot.setImageBitmap(bmp); shot.visibility = View.VISIBLE; loading.visibility = View.GONE; st.text = Tr.t("Última imagem") + " · " + java.text.SimpleDateFormat("HH:mm", Tr.locale).format(java.util.Date()) + " · " + Tr.t("Toca para ver ao vivo") }
             }
         }
         if (shot.visibility != View.VISIBLE) st.text = Tr.t("Toca para ver ao vivo")

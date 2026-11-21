@@ -54,6 +54,7 @@ class DeviceSheet(private val act: Activity, private val kit: Kit, private val i
         Ha.listeners += listener
         render()
         dialog.show()
+        Elastic.pop(card, 0, 0.9f)
     }
 
     fun dismiss() = dialog.dismiss()
@@ -64,7 +65,7 @@ class DeviceSheet(private val act: Activity, private val kit: Kit, private val i
     private fun pill(label: String, active: Boolean, onClick: () -> Unit) =
         kit.text(label, 15f, if (active) kit.ink else Color.WHITE, 600).apply {
             gravity = Gravity.CENTER; background = kit.ripple(kit.rounded(if (active) kit.cream else Color.argb(36, 255, 255, 255), 40))
-            setPadding(kit.dp(18), kit.dp(10), kit.dp(18), kit.dp(10)); isClickable = true; setOnClickListener { onClick() }
+            setPadding(kit.dp(18), kit.dp(10), kit.dp(18), kit.dp(10)); isClickable = true; setOnClickListener { onClick() }; Elastic.press(this, 0.94f)
         }
 
     private fun row(into: LinearLayout, vararg v: View, top: Int = 16) {
