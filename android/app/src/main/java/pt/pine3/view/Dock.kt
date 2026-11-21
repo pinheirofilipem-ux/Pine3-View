@@ -19,7 +19,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 /** A "lente" de vidro debaixo do separador ativo: desliza com mola e estica como uma gota (como no painel web). */
-private class LensView(private val kit: Kit) : View(kit.ctx) {
+internal class LensView(private val kit: Kit) : View(kit.ctx) {
     var scaleXf = 1f
     var scaleYf = 1f
     /** 0 = creme sólido, 1 = vidro claro (a meio da animação). */
@@ -114,7 +114,8 @@ class DockView(private val kit: Kit, labels: List<Triple<String, String, String>
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         super.onLayout(changed, l, t, r, b)
-        if (active >= 0) place(active, animate = false)
+        // a lente é posicionada à mão (nunca por LayoutParams): senão cada fotograma da animação pedia um layout que a cancelava
+        if (move?.isRunning == true) applyLens(lensL, lensW) else if (active >= 0) place(active, animate = false)
     }
 
     private fun target(i: Int): Pair<Float, Float> {
@@ -124,10 +125,8 @@ class DockView(private val kit: Kit, labels: List<Triple<String, String, String>
 
     private fun applyLens(l: Float, w: Float) {
         lensL = l; lensW = w
-        val lp = lens.layoutParams as LayoutParams
-        lp.width = Math.max(0, w.toInt()); lp.height = tabH; lp.leftMargin = 0; lp.topMargin = 0
-        lens.layoutParams = lp
-        lens.translationX = l
+        lens.layout(l.toInt(), paddingTop, (l + Math.max(0f, w)).toInt(), paddingTop + tabH)
+        lens.invalidate()
     }
 
     private fun colorTo(i: Int, on: Boolean, animate: Boolean) {

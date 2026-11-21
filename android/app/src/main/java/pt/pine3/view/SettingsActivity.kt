@@ -119,7 +119,7 @@ class SettingsActivity : Activity() {
         saveBtn.alpha = if (d) 1f else 0.6f
         saveBtn.isEnabled = d
     }
-    private fun setD(k: String, v: Any) { draft.put(k, v); updateSave() }
+    private fun setD(k: String, v: Any) { draft.put(k, v); if (k in LOOK_KEYS) relook() else updateSave() }
     private fun bool(k: String, def: Boolean) = draft.optBoolean(k, def)
     private fun list(k: String): MutableList<String> = (0 until (draft.optJSONArray(k)?.length() ?: 0)).map { draft.optJSONArray(k)!!.getString(it) }.toMutableList()
     private fun setList(k: String, l: List<String>) = setD(k, JSONArray(l))
@@ -144,15 +144,38 @@ class SettingsActivity : Activity() {
 
     // ---------------------------------------------------------------- ciclo de vida
 
+    private val LOOK_KEYS = setOf("theme", "theme_day", "theme_night", "appearance", "language", "card_color", "accent_color")
+
+    // navegação com lente deslizante
+    private lateinit var navWrap: FrameLayout
+    private lateinit var navLens: LensView
+    private val navRows = ArrayList<Triple<FrameLayout, android.widget.ImageView, TextView>>()
+    private val navItems = ArrayList<View>()
+    private var navTop = 0f
+    private var navH = 0f
+    private var navMove: android.animation.ValueAnimator? = null
+    private var navSquish: android.animation.ValueAnimator? = null
+    private var navActive = -1
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         UiScale.apply(this)
         prefs = Prefs(this)
-        kit = Kit(this)
         reloadDraft0()
+        buildUi(0)
+    }
+
+    private fun colorOf(k: String, def: Int) = try { Color.parseColor(draft.optString(k)) } catch (e: Exception) { def }
+
+    /** (Re)constrói todo o ecrã com o aspeto do rascunho atual (tema, língua, cores): é o que aplica as alterações de aspeto de imediato. */
+    private fun buildUi(scrollY: Int) {
+        kit = Kit(this)
         val theme = Themes.pick(draft, Ha.states["sun.sun"]?.state, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY))
         kit.applyTheme(theme)
+        kit.cream = colorOf("card_color", kit.cream)
+        kit.accent = colorOf("accent_color", kit.accent)
         Tr.en = draft.optString("language", "pt") == "en"
+        Elastic.on = draft.optBoolean("animations", true)
 
         root = FrameLayout(this).apply { background = ThemeBackground(theme) }
         val page = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(kit.dp(40), kit.dp(24), kit.dp(40), kit.dp(20)) }
@@ -165,15 +188,22 @@ class SettingsActivity : Activity() {
         hd.addView(titles, LinearLayout.LayoutParams(0, -2, 1f))
         saveBtn = kit.text("✓  " + Tr.t("Guardar alterações"), 16f, kit.ink, 600).apply {
             setPadding(kit.dp(22), kit.dp(13), kit.dp(22), kit.dp(13)); isClickable = true; setOnClickListener { save() }
+            Elastic.press(this, 0.95f)
         }
         hd.addView(saveBtn)
         hd.addView(kit.roundButton("mdi:close", 48, kit.soft, kit.fg) { saveApp?.invoke(); finish() }, LinearLayout.LayoutParams(kit.dp(48), kit.dp(48)).apply { marginStart = kit.dp(12) })
         page.addView(hd, LinearLayout.LayoutParams(-1, -2))
 
-        // corpo: barra lateral + conteúdo
+        // corpo: barra lateral (com a lente) + conteúdo
         val body = LinearLayout(this).apply { setPadding(0, kit.dp(18), 0, 0) }
         navBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        body.addView(ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(navBox) }, LinearLayout.LayoutParams(kit.dp(kit.clamp(200f, kit.vw(20f), 270f)), -1).apply { marginEnd = kit.dp(22) })
+        navLens = LensView(kit)
+        navWrap = FrameLayout(this).apply {
+            addView(navLens, FrameLayout.LayoutParams(0, 0))
+            addView(navBox, FrameLayout.LayoutParams(-1, -2))
+            addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> if (navMove?.isRunning == true) applyNavLens(navTop, navH) else placeNav(false) }
+        }
+        body.addView(ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(navWrap) }, LinearLayout.LayoutParams(kit.dp(kit.clamp(200f, kit.vw(20f), 270f)), -1).apply { marginEnd = kit.dp(22) })
         mainBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         mainScroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(mainBox) }
         body.addView(mainScroll, LinearLayout.LayoutParams(0, -1, 1f))
@@ -183,8 +213,18 @@ class SettingsActivity : Activity() {
         toast = kit.text("", 15f, kit.ink, 600).apply { background = kit.rounded(kit.cream, 40); setPadding(kit.dp(20), kit.dp(12), kit.dp(20), kit.dp(12)); visibility = View.GONE }
         root.addView(toast, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = kit.dp(26) })
         setContentView(root)
+        navActive = -1
+        buildNavItems()
         updateSave()
-        showSection(section)
+        showSection(section, keepScroll = false, animateNav = false)
+        if (scrollY > 0) mainScroll.post { mainScroll.scrollTo(0, scrollY) }
+    }
+
+    /** Muda o aspeto já, sem sair do ecrã: refaz tudo com as cores novas e mantém a secção e o scroll. */
+    private fun relook() {
+        saveApp?.invoke()
+        val y = mainScroll.scrollY
+        buildUi(y)
     }
 
     private fun reloadDraft0() { draft = JSONObject(Ha.home?.settings?.toString() ?: "{}"); saved = draft.toString() }
@@ -208,34 +248,98 @@ class SettingsActivity : Activity() {
         Triple("plan", "mdi:floor-plan", "Planta 3D"), Triple("nav", "mdi:dock-bottom", "Navegação"), Triple("system", "mdi:cog-outline", "Sistema"),
     )
 
-    private fun showSection(key: String, keepScroll: Boolean = false) {
+    private fun buildNavItems() {
+        navBox.removeAllViews(); navRows.clear(); navItems.clear()
+        sections.forEach { (k, icon, label) ->
+            val circle = FrameLayout(this).apply { background = kit.circle(kit.soft) }
+            val ic = kit.icon(icon, kit.fg, 22)
+            circle.addView(ic, FrameLayout.LayoutParams(kit.dp(22), kit.dp(22), Gravity.CENTER))
+            val tx = kit.text(if (k == "app") "App" else Tr.t(label), 18f, kit.fg, 500)
+            val item = LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(kit.dp(12), kit.dp(10), kit.dp(16), kit.dp(10)); isClickable = true
+                setOnClickListener { if (k != section) showSection(k) }
+                Elastic.press(this, 0.96f)
+                addView(circle, LinearLayout.LayoutParams(kit.dp(44), kit.dp(44)).apply { marginEnd = kit.dp(14) })
+                addView(tx)
+            }
+            navBox.addView(item, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = kit.dp(4) })
+            navRows += Triple(circle, ic, tx); navItems += item
+        }
+    }
+
+    private fun markNav(i: Int, animate: Boolean) {
+        navRows.forEachIndexed { n, (circle, ic, tx) ->
+            val on = n == i
+            val to = if (on) kit.ink else kit.fg
+            circle.background = kit.circle(if (on) Color.argb(20, 42, 34, 31) else kit.soft)
+            val from = tx.currentTextColor
+            if (!animate || from == to) { tx.setTextColor(to); ic.setColorFilter(to) }
+            else android.animation.ValueAnimator.ofObject(android.animation.ArgbEvaluator(), from, to).apply {
+                duration = 350
+                addUpdateListener { tx.setTextColor(it.animatedValue as Int); ic.setColorFilter(it.animatedValue as Int) }
+                start()
+            }
+        }
+    }
+
+    private fun applyNavLens(t: Float, h: Float) {
+        navTop = t; navH = h
+        navLens.layout(0, t.toInt(), navWrap.width, (t + Math.max(0f, h)).toInt())
+        navLens.invalidate()
+    }
+
+    /** Põe a lente no item ativo; com [animate] desliza com mola e estica como uma gota (na vertical). */
+    private fun placeNav(animate: Boolean) {
+        val i = navActive
+        if (i < 0 || i >= navItems.size) return
+        val item = navItems[i]
+        if (item.height <= 0) return
+        val t1 = item.top.toFloat(); val h1 = item.height.toFloat()
+        navMove?.cancel(); navSquish?.cancel()
+        if (!animate || !Elastic.on) { applyNavLens(t1, h1); navLens.scaleXf = 1f; navLens.scaleYf = 1f; navLens.glass = 0f; return }
+        val t0 = navTop; val h0 = navH
+        navMove = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 550; interpolator = android.view.animation.PathInterpolator(0.34f, 1.36f, 0.5f, 1f)
+            addUpdateListener { val f = it.animatedValue as Float; applyNavLens(t0 + (t1 - t0) * f, h0 + (h1 - h0) * f) }
+            start()
+        }
+        val ease = android.view.animation.PathInterpolator(0.3f, 0.9f, 0.4f, 1f)
+        navSquish = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 550
+            addUpdateListener {
+                val f = it.animatedValue as Float
+                fun seg(a: Float, b: Float, x0: Float, x1: Float): Float { val k = ease.getInterpolation(((f - a) / (b - a)).coerceIn(0f, 1f)); return x0 + (x1 - x0) * k }
+                // esticar no sentido do movimento (vertical)
+                when {
+                    f < 0.35f -> { navLens.scaleYf = seg(0f, 0.35f, 1f, 1.12f); navLens.scaleXf = seg(0f, 0.35f, 1f, 0.95f); navLens.glass = seg(0f, 0.35f, 0f, 1f) }
+                    f < 0.70f -> { navLens.scaleYf = seg(0.35f, 0.70f, 1.12f, 0.98f); navLens.scaleXf = seg(0.35f, 0.70f, 0.95f, 1.02f); navLens.glass = seg(0.35f, 0.70f, 1f, 0f) }
+                    else -> { navLens.scaleYf = seg(0.70f, 1f, 0.98f, 1f); navLens.scaleXf = seg(0.70f, 1f, 1.02f, 1f); navLens.glass = 0f }
+                }
+                navLens.invalidate()
+            }
+            start()
+        }
+    }
+
+    private fun showSection(key: String, keepScroll: Boolean = false, animateNav: Boolean = true) {
         saveApp?.invoke(); saveApp = null; statusDot = null; statusText = null; perms.clear()
         val y = if (keepScroll) mainScroll.scrollY else 0
         section = key
-        navBox.removeAllViews()
-        sections.forEach { (k, icon, label) ->
-            val act = k == key
-            navBox.addView(LinearLayout(this).apply {
-                gravity = Gravity.CENTER_VERTICAL
-                background = if (act) kit.rounded(kit.cream, 40) else null
-                setPadding(kit.dp(12), kit.dp(10), kit.dp(16), kit.dp(10)); isClickable = true
-                setOnClickListener { if (k != section) showSection(k) }
-                addView(FrameLayout(this@SettingsActivity).apply {
-                    background = kit.circle(if (act) Color.argb(20, 42, 34, 31) else kit.soft)
-                    addView(kit.icon(icon, if (act) kit.ink else kit.fg, 22), FrameLayout.LayoutParams(kit.dp(22), kit.dp(22), Gravity.CENTER))
-                }, LinearLayout.LayoutParams(kit.dp(44), kit.dp(44)).apply { marginEnd = kit.dp(14) })
-                addView(kit.text(if (k == "app") "App" else Tr.t(label), 18f, if (act) kit.ink else kit.fg, 500))
-            }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = kit.dp(4) })
-        }
+        val prev = navActive
+        navActive = sections.indexOfFirst { it.first == key }
+        markNav(navActive, animateNav && prev >= 0)
+        placeNav(animateNav && prev >= 0 && prev != navActive)
         mainBox.removeAllViews()
         when (key) {
             "app" -> buildApp(); "look" -> buildLook(); "home" -> buildHome(); "rooms" -> buildRooms()
             "entities" -> buildEntities(); "plan" -> buildPlan(); "nav" -> buildNav(); else -> buildSystem()
         }
         if (keepScroll) mainScroll.post { mainScroll.scrollTo(0, y) }
+        else if (animateNav) Elastic.popGrids(mainBox)
     }
 
-    private fun redraw() = showSection(section, keepScroll = true)
+    private fun redraw() = showSection(section, keepScroll = true, animateNav = false)
 
     // ---------------------------------------------------------------- blocos de interface
 
