@@ -188,11 +188,11 @@ class DeviceSheet(private val act: Activity, private val kit: Kit, private val i
                 chips(side, Tr.t("Modo"), list(a, "preset_modes"), if (on) a.optString("preset_mode") else null) { call("fan", "set_preset_mode", JSONObject().put("preset_mode", it)) }
                 row(main, pill(Tr.t(if (on) "Desligado" else "Ligado"), false) { call("fan", if (on) "turn_off" else "turn_on") }, top = 20)
             }
-            "vacuum" -> row(main, pill(Tr.t("Iniciar"), false) { call("vacuum", "start") }, pill(Tr.t("Pausar"), false) { call("vacuum", "pause") }, pill(Tr.t("Base"), false) { call("vacuum", "return_to_base") }, top = 20)
+            "vacuum" -> vacuumContent(s, a)
             "lock" -> row(main, pill(Tr.t(if (s.state == "locked") "Destrancar" else "Trancar"), false) { call("lock", if (s.state == "locked") "unlock" else "lock") }, top = 20)
             else -> if (Fmt.isToggle(id)) row(main, pill(Tr.t(if (on) "Desligado" else "Ligado"), false) { Fmt.tap(id) }, top = 20)
         }
-        deviceSection()
+        if (d != "vacuum") deviceSection()
 
         if (wide) {
             val cols = LinearLayout(act).apply { setPadding(0, kit.dp(6), 0, 0) }
@@ -202,13 +202,108 @@ class DeviceSheet(private val act: Activity, private val kit: Kit, private val i
         } else { content.addView(main, lp(4)); content.addView(side, lp(0)) }
     }
 
+    private val vacOpen = HashSet<String>()
+
+    /** Aspirador: estado, rotinas, comandos, potência, divisões a limpar e o mapa; o resto das entidades arrumado em secções. */
+    private fun vacuumContent(s: Ha.State, a: JSONObject) {
+        Vac.load(id) { schedule() }
+        val state = s.state
+        val on = Fmt.isOn(id)
+        val level = Vac.battery(id, dev)
+        val status = Vac.member(dev, "sensor", "status")
+        val errE = Vac.error(dev)
+        val now = if (on) listOfNotNull(Vac.member(dev, "sensor", "cleaning_area"), Vac.member(dev, "sensor", "cleaning_time"), Vac.member(dev, "sensor", "clean_percent", "cleaning_progress")).joinToString(" · ") { Fmt.sub(it) } else ""
+        val hd = LinearLayout(act).apply { gravity = Gravity.CENTER_VERTICAL }
+        if (level != null) {
+            hd.addView(kit.icon(Vac.batteryIcon(level), kit.accent, 26), LinearLayout.LayoutParams(kit.dp(26), kit.dp(26)).apply { marginEnd = kit.dp(6) })
+            hd.addView(kit.text("$level%", 22f, Color.WHITE, 600, display = true), LinearLayout.LayoutParams(-2, -2).apply { marginEnd = kit.dp(18) })
+        }
+        val tv = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        tv.addView(kit.text(Fmt.sub(status ?: id), 18f, Color.WHITE, 600))
+        if (now.isNotBlank()) tv.addView(kit.text(now, 13f, muted))
+        if (errE != null) tv.addView(kit.text(Fmt.sub(errE), 13f, Color.parseColor("#FF6B5C"), 600))
+        hd.addView(tv)
+        main.addView(hd, lp(14))
+
+        val routines = Vac.routines(dev)
+        if (routines.isNotEmpty()) {
+            sub(main, Tr.t("Rotinas"))
+            val g = Grid(act, kit.dp(150), kit.dp(42), kit.dp(8))
+            routines.forEach { e -> g.addView(pill(Fmt.name(e).removePrefix(dev?.name ?: "").trim().ifBlank { Fmt.name(e) }, firedRoutine == e) { firedRoutine = e; Ha.call("button", "press", listOf(e)); h.postDelayed({ firedRoutine = null; schedule() }, 1200); schedule() }) }
+            main.addView(g, lp(8))
+        }
+        val btns = ArrayList<View>()
+        btns += if (state == "cleaning") pill(Tr.t("Pausar"), true) { call("vacuum", "pause") } else pill(Tr.t(if (state == "paused") "Retomar" else "Iniciar"), false) { call("vacuum", "start") }
+        btns += pill(Tr.t("Voltar à base"), state == "returning") { call("vacuum", "return_to_base") }
+        btns += pill(Tr.t("Localizar"), false) { call("vacuum", "locate") }
+        row(main, *btns.toTypedArray(), top = 18)
+
+        val fans = list(a, "fan_speed_list")
+        if (fans.size > 1) {
+            sub(main, Tr.t("Potência"))
+            val g = Grid(act, kit.dp(110), kit.dp(42), kit.dp(8))
+            fans.forEach { f -> g.addView(pill(Vac.fanLabel(f), f == a.optString("fan_speed")) { call("vacuum", "set_fan_speed", JSONObject().put("fan_speed", f)) }) }
+            main.addView(g, lp(8))
+        }
+        val maps = Vac.maps[id]
+        val rooms = Vac.map(id, dev)?.rooms?.entries?.toList().orEmpty()
+        val pick = Vac.pick.getOrPut(id) { HashSet() }
+        if (maps == "loading") { sub(main, Tr.t("Divisões")); main.addView(kit.text(Tr.t("A carregar as divisões…"), 14f, muted), lp(8)) }
+        else if (rooms.isNotEmpty()) {
+            sub(main, Tr.t("Limpar divisões"))
+            val g = Grid(act, kit.dp(110), kit.dp(42), kit.dp(8))
+            rooms.forEach { (sid, name) -> g.addView(pill(name, sid in pick) { if (sid in pick) pick.remove(sid) else pick.add(sid); render() }) }
+            main.addView(g, lp(8))
+            val go = pill(if (pick.isEmpty()) Tr.t("Escolhe as divisões") else Tr.t("Limpar") + " " + Tr.pl(pick.size, "divisão", "divisões", "room", "rooms"), pick.isNotEmpty()) {
+                if (pick.isNotEmpty()) { Vac.cleanRooms(id, pick.toList()); pick.clear(); render() }
+            }
+            go.alpha = if (pick.isEmpty()) 0.5f else 1f
+            main.addView(go, lp(12))
+        }
+
+        // o mapa desenhado pelo robô, na coluna do lado
+        val mapImg = android.widget.ImageView(act).apply { adjustViewBounds = true; scaleType = android.widget.ImageView.ScaleType.FIT_CENTER; visibility = View.GONE }
+        side.addView(mapImg, lp(4))
+        Vac.mapImage(id, dev) { b -> mapImg.setImageBitmap(b); mapImg.visibility = View.VISIBLE }
+
+        // resto das entidades: o que se usa já (opções, comandos) e, dobrado, manutenção, definições e diagnóstico
+        val cats = Ha.home?.rooms.orEmpty().flatMap { it.entities }.filter { it.category }.map { it.id }.toSet()
+        val skip = listOf("battery", "status", "cleaning_area", "cleaning_time", "clean_percent", "cleaning_progress", "vacuum_error", "dock_error").mapNotNull { Vac.member(dev, "sensor", it) }.toSet() + routines.toSet()
+        val mem = dev?.members.orEmpty().filter { val st = Fmt.state(it); st != null && st.state != "unavailable" && Fmt.domain(it) != "image" && it !in skip }
+        fun isReading(e: String) = Fmt.domain(e) in setOf("sensor", "binary_sensor")
+        val maint = mem.filter { (isReading(it) && Regex("_(time_)?left$|_remaining$|consumable").containsMatchIn(it)) || (Fmt.domain(it) == "button" && it.contains("reset")) }
+        val mainL = mem.filter { it !in maint && !isReading(it) && (Fmt.domain(it) == "select" || it !in cats) }
+        val settings = mem.filter { it !in maint && it !in mainL && !isReading(it) }
+        val diag = mem.filter { it !in maint && isReading(it) }
+        if (mainL.isNotEmpty()) deviceSection(mainL, side)
+        fun fold(key: String, title: String, icon: String, list: List<String>) {
+            if (list.isEmpty()) return
+            val open = key in vacOpen
+            val hdr = LinearLayout(act).apply {
+                gravity = Gravity.CENTER_VERTICAL; background = kit.ripple(kit.rounded(Color.argb(24, 255, 255, 255), 16)); setPadding(kit.dp(14), kit.dp(12), kit.dp(14), kit.dp(12)); isClickable = true
+                setOnClickListener { if (open) vacOpen.remove(key) else vacOpen.add(key); render() }
+                addView(kit.icon(icon, kit.accent, 20), LinearLayout.LayoutParams(kit.dp(20), kit.dp(20)).apply { marginEnd = kit.dp(10) })
+                addView(kit.text(title, 15f, Color.WHITE, 500), LinearLayout.LayoutParams(0, -2, 1f))
+                addView(kit.text("${list.size}", 13f, muted), LinearLayout.LayoutParams(-2, -2).apply { marginEnd = kit.dp(8) })
+                addView(kit.icon(if (open) "mdi:chevron-up" else "mdi:chevron-down", muted, 18), LinearLayout.LayoutParams(kit.dp(18), kit.dp(18)))
+            }
+            side.addView(hdr, lp(10))
+            if (open) { val box = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }; deviceSection(list, box); side.addView(box, lp(0)) }
+        }
+        fold("maint", Tr.t("Manutenção"), "mdi:wrench-outline", maint)
+        fold("set", Tr.t("Definições do robô"), "mdi:tune-variant", settings)
+        fold("diag", Tr.t("Diagnóstico"), "mdi:chart-box-outline", diag)
+    }
+
+    private var firedRoutine: String? = null
+
     /** As outras entidades do dispositivo: leituras (sensores), alternadores, opções e controlos. */
-    private fun deviceSection() {
+    private fun deviceSection(only: List<String>? = null, into: LinearLayout = side) {
         // Como a secção "Entidades" do painel: configuração e diagnóstico (reiniciar, velocidade do efeito, tipo de fita...) ficam escondidos, a não ser que os tenhas ativado.
         val allEnts = Ha.home?.rooms.orEmpty().flatMap { it.entities }.associateBy { it.id }
         val shownIds = Ha.home?.settings?.optJSONArray("shown")?.let { a -> (0 until a.length()).map { a.getString(it) }.toSet() }.orEmpty()
-        val all = dev?.members.orEmpty().filter {
-            val ent = allEnts[it]; if (ent != null && (ent.category || ent.haHidden) && it !in shownIds) return@filter false
+        val all = (only ?: dev?.members.orEmpty()).filter {
+            val ent = allEnts[it]; if (only == null && ent != null && (ent.category || ent.haHidden) && it !in shownIds) return@filter false
             val st = Fmt.state(it); st != null && st.state != "unavailable" && Fmt.domain(it) != "image" &&
                 !(Fmt.domain(it) == "button" && st.attrs.optString("device_class") == "identify") &&
                 !Regex("power[_ ]?on[_ ]?(behaviou?r|state)|startup[_ ]?on[_ ]?off", RegexOption.IGNORE_CASE).containsMatchIn((it + " " + st.attrs.optString("friendly_name")).replace("-", "_"))
@@ -221,7 +316,7 @@ class DeviceSheet(private val act: Activity, private val kit: Kit, private val i
         fun nm(e: String) = Fmt.name(e).removePrefix(dev?.name ?: "").trim().ifBlank { Fmt.name(e) }
 
         if (readings.isNotEmpty()) {
-            sub(side, Tr.t("Leituras"))
+            sub(into, Tr.t("Leituras"))
             val g = Grid(act, kit.dp(130), kit.dp(64), kit.dp(10))
             readings.forEach { e ->
                 g.addView(LinearLayout(act).apply {
@@ -232,9 +327,9 @@ class DeviceSheet(private val act: Activity, private val kit: Kit, private val i
                     addView(v); addView(kit.text(nm(e), 12f, muted).apply { setSingleLine(); ellipsize = android.text.TextUtils.TruncateAt.END })
                 })
             }
-            side.addView(g, lp(8))
+            into.addView(g, lp(8))
         }
-        if (toggles.isNotEmpty() || selects.isNotEmpty() || other.isNotEmpty()) sub(side, Tr.t("Controlos"))
+        if (toggles.isNotEmpty() || selects.isNotEmpty() || other.isNotEmpty()) sub(into, Tr.t("Controlos"))
         if (toggles.isNotEmpty() || selects.isNotEmpty()) {
             val g = Grid(act, kit.dp(180), kit.dp(56), kit.dp(10))
             toggles.forEach { e ->
@@ -259,20 +354,20 @@ class DeviceSheet(private val act: Activity, private val kit: Kit, private val i
                     addView(kit.icon("mdi:chevron-down", muted, 18), LinearLayout.LayoutParams(kit.dp(18), kit.dp(18)))
                 })
             }
-            side.addView(g, lp(8))
+            into.addView(g, lp(8))
         }
         openSel?.let { e ->
             val st = Fmt.state(e) ?: return@let
             val g = Grid(act, kit.dp(110), kit.dp(42), kit.dp(8))
             list(st.attrs, "options").forEach { o -> g.addView(pill(Tr.t(Fmt.STATE_PT[o] ?: o), o == st.state) { Ha.call(Fmt.domain(e), "select_option", listOf(e), JSONObject().put("option", o)) }) }
-            side.addView(g, lp(10))
+            into.addView(g, lp(10))
         }
         other.forEach { e ->
             val r = LinearLayout(act).apply { gravity = Gravity.CENTER_VERTICAL; background = kit.rounded(Color.argb(24, 255, 255, 255), 16); setPadding(kit.dp(14), kit.dp(10), kit.dp(14), kit.dp(10)) }
             r.addView(kit.text(nm(e), 15f, Color.WHITE).apply { setSingleLine(); ellipsize = android.text.TextUtils.TruncateAt.END }, LinearLayout.LayoutParams(0, -2, 1f))
             if (Fmt.domain(e) == "button") { r.addView(pill(Tr.t("Executar"), false) { Ha.call("button", "press", listOf(e)) }) }
             else r.addView(kit.text(Fmt.sub(e), 15f, muted, 600))
-            side.addView(r, lp(8))
+            into.addView(r, lp(8))
         }
     }
 }

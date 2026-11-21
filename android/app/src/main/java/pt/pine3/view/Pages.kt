@@ -431,7 +431,7 @@ class RoomPage(kit: Kit, private val room: Room, private val nav: Nav) : Page(ki
             w.addView(head)
             w.addView(HorizontalScrollView(kit.ctx).apply { isHorizontalScrollBarEnabled = false; addView(chips) }, lp(kit, top = 18))
             sorted.forEach { d ->
-                val card: Card = if (d.kind == "climate" && Fmt.state(d.id) != null) ClimateCard(kit, d, null) { nav.openDevice(it) } else Tile(kit, d) { nav.openDevice(it) }
+                val card: Card = if (d.kind == "climate" && Fmt.state(d.id) != null) ClimateCard(kit, d, null) { nav.openDevice(it) } else if (d.kind == "vacuum" && Fmt.state(d.id) != null) VacCard(kit, d, room) { nav.openDevice(it) } else Tile(kit, d) { nav.openDevice(it) }
                 tiles += d to card; grid.addView(card)
             }
             w.addView(grid, lp(kit, top = 16))
