@@ -91,3 +91,15 @@ class LoadingOverlay(private val kit: Kit, label: String) : FrameLayout(kit.ctx)
         ring.color = Color.WHITE; c.drawArc(r, t * 720f, 100f, false, ring)
     }
 }
+
+/** Janela por cima da app sem barras do sistema e sem fundo preto: o painel continua visível por trás. */
+fun immersive(d: android.app.Dialog) {
+    d.window?.apply {
+        clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        addFlags(android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        @Suppress("DEPRECATION")
+        decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+    }
+}

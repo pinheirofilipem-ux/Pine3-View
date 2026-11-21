@@ -111,7 +111,9 @@ class SettingsActivity : Activity() {
         saved = draft.toString()
         updateSave()
     }
-    private fun dirty() = draft.toString() != saved
+    private var appDirty = false
+    private fun markApp() { if (!appDirty) { appDirty = true; updateSave() } }
+    private fun dirty() = draft.toString() != saved || appDirty
     private fun updateSave() {
         val d = dirty()
         saveBtn.background = kit.ripple(kit.rounded(if (d) kit.cream else kit.soft, 40))
@@ -126,6 +128,8 @@ class SettingsActivity : Activity() {
 
     private fun save() {
         saveApp?.invoke()
+        val appChanged = appDirty
+        appDirty = false
         val old = JSONObject(saved.ifBlank { "{}" })
         val changes = JSONObject()
         draft.keys().forEach { k -> if (!old.has(k) || old.get(k).toString() != draft.get(k).toString()) changes.put(k, draft.get(k)) }
@@ -133,7 +137,7 @@ class SettingsActivity : Activity() {
             Ha.saveSettings(changes)
             saved = draft.toString()
             showToast(Tr.t("Alterações guardadas"))
-        }
+        } else if (appChanged) showToast(Tr.t("Alterações guardadas"))
         updateSave()
     }
 
@@ -217,7 +221,20 @@ class SettingsActivity : Activity() {
         buildNavItems()
         updateSave()
         showSection(section, keepScroll = false, animateNav = false)
-        if (scrollY > 0) mainScroll.post { mainScroll.scrollTo(0, scrollY) }
+        if (scrollY > 0) restoreScroll(scrollY)
+    }
+
+    /** O conteúdo só tem altura depois do layout: restaura o scroll nesse momento (com post ficava sempre no topo). */
+    private fun restoreScroll(y: Int) {
+        val sv = mainScroll
+        sv.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                if (sv.getChildAt(0).height <= 0) return true
+                sv.viewTreeObserver.removeOnPreDrawListener(this)
+                sv.scrollTo(0, y)
+                return true
+            }
+        })
     }
 
     /** Muda o aspeto já, sem sair do ecrã: refaz tudo com as cores novas e mantém a secção e o scroll. */
@@ -335,7 +352,7 @@ class SettingsActivity : Activity() {
             "app" -> buildApp(); "look" -> buildLook(); "home" -> buildHome(); "rooms" -> buildRooms()
             "entities" -> buildEntities(); "plan" -> buildPlan(); "nav" -> buildNav(); else -> buildSystem()
         }
-        if (keepScroll) mainScroll.post { mainScroll.scrollTo(0, y) }
+        if (keepScroll) { if (y > 0) restoreScroll(y) }
         else if (animateNav) Elastic.popGrids(mainBox)
     }
 
@@ -383,9 +400,10 @@ class SettingsActivity : Activity() {
         p.addView(g, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(10) })
     }
 
-    private fun input(v: String, hint: String, type: Int) = EditText(this).apply {
+    private fun input(v: String, hint: String, type: Int, app: Boolean = false) = EditText(this).apply {
         setText(v); this.hint = hint; setHintTextColor(kit.muted); setTextColor(kit.fg); textSize = 16f; inputType = type; setSingleLine()
         typeface = kit.font(400, false); background = kit.rounded(kit.soft, 14); setPadding(d(16), d(13), d(16), d(13))
+        if (app) addTextChangedListener(object : TextWatcher { override fun afterTextChanged(e: Editable?) { markApp() } override fun beforeTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {} override fun onTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {} })
     }
     private fun label(p: LinearLayout, t: String) = p.addView(kit.text(t, 13f, kit.muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(14); bottomMargin = d(6) })
 
@@ -398,11 +416,11 @@ class SettingsActivity : Activity() {
         val ha = panel()
         h3(ha, Tr.t("Ligação"), true); para(ha, "A app lê a casa do Pine3 View e acorda com as tuas entidades.")
         label(ha, Tr.t("Endereço"))
-        val url = input(prefs.haUrl, DEFAULT_HA_URL, InputType.TYPE_TEXT_VARIATION_URI); ha.addView(url)
+        val url = input(prefs.haUrl, DEFAULT_HA_URL, InputType.TYPE_TEXT_VARIATION_URI, app = true); ha.addView(url)
         label(ha, "Token (perfil do HA, separador Segurança)")
-        val token = input(prefs.haToken, "Token de acesso de longa duração", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD); ha.addView(token)
+        val token = input(prefs.haToken, "Token de acesso de longa duração", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, app = true); ha.addView(token)
         var ssl = prefs.ignoreSsl
-        optToggle(ha, "Aceitar certificado HTTPS auto-assinado", null, ssl) { ssl = it }
+        optToggle(ha, "Aceitar certificado HTTPS auto-assinado", null, ssl) { ssl = it; markApp() }
         val st = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         statusDot = View(this).apply { background = kit.circle(Color.parseColor("#F2755C")) }
         st.addView(statusDot, LinearLayout.LayoutParams(d(10), d(10)).apply { marginEnd = d(12) })
@@ -422,7 +440,7 @@ class SettingsActivity : Activity() {
         val scr = panel()
         h3(scr, Tr.t("Ecrã e campainha"), true); para(scr, "Acorda com movimento ou com a campainha.")
         label(scr, "Desligar o ecrã após (segundos sem movimento)")
-        val timeout = input(prefs.timeoutSec.toString(), "15", InputType.TYPE_CLASS_NUMBER); scr.addView(timeout)
+        val timeout = input(prefs.timeoutSec.toString(), "15", InputType.TYPE_CLASS_NUMBER, app = true); scr.addView(timeout)
         val sh = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         sh.addView(kit.text("Sensibilidade", 13f, kit.muted), LinearLayout.LayoutParams(0, -2, 1f))
         val sensValue = kit.text("${prefs.sensitivity} / 10", 15f, kit.accent, 600); sh.addView(sensValue)
@@ -431,7 +449,7 @@ class SettingsActivity : Activity() {
             max = 9; progress = prefs.sensitivity - 1
             progressTintList = ColorStateList.valueOf(kit.accent); thumbTintList = ColorStateList.valueOf(kit.accent)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(s: SeekBar, p: Int, u: Boolean) { sensValue.text = "${p + 1} / 10" }
+                override fun onProgressChanged(s: SeekBar, p: Int, u: Boolean) { sensValue.text = "${p + 1} / 10"; if (u) markApp() }
                 override fun onStartTrackingTouch(s: SeekBar) {}
                 override fun onStopTrackingTouch(s: SeekBar) {}
             })
@@ -453,13 +471,13 @@ class SettingsActivity : Activity() {
         para(scr, "Se o painel web mostra mais coisas por ecrã, baixa este valor.")
         val rule = prefs.wakeRules.firstOrNull() ?: DEFAULT_DOORBELL
         label(scr, "Campainha: entidade que acorda o ecrã")
-        val bellEntity = input(rule.entity, DEFAULT_DOORBELL.entity, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS); scr.addView(bellEntity)
+        val bellEntity = input(rule.entity, DEFAULT_DOORBELL.entity, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, app = true); scr.addView(bellEntity)
         label(scr, "Só quando (estado ou event_type)")
-        val bellWhen = input(rule.whenValue, "ring", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS); scr.addView(bellWhen)
+        val bellWhen = input(rule.whenValue, "ring", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, app = true); scr.addView(bellWhen)
         label(scr, "Manter o ecrã ligado (segundos)")
-        val bellHold = input(rule.holdSec.toString(), "120", InputType.TYPE_CLASS_NUMBER); scr.addView(bellHold)
+        val bellHold = input(rule.holdSec.toString(), "120", InputType.TYPE_CLASS_NUMBER, app = true); scr.addView(bellHold)
         var boot = prefs.bootStart
-        optToggle(scr, "Abrir quando o tablet arranca", null, boot) { boot = it }
+        optToggle(scr, "Abrir quando o tablet arranca", null, boot) { boot = it; markApp() }
 
         // Permissões
         val sys = panel()

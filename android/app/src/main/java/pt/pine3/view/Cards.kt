@@ -401,7 +401,10 @@ class SummaryCard(private val kit: Kit, private val kind: String, private val id
 
 /** Cartão de câmara (.camt): imagem da última captura, botão de reproduzir e "Toca para ver ao vivo". Ocupa duas colunas. */
 class CamTile(private val kit: Kit, private val dev: Dev, private val onOpen: (String) -> Unit) : Card(kit.ctx) {
-    private val shot = ImageView(kit.ctx).apply { scaleType = ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
+    /** A imagem nunca define a altura do cartão (senão o cartão mudava de tamanho quando chegava a miniatura). */
+    private val shot = object : ImageView(kit.ctx) {
+        override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(getDefaultSize(0, w), getDefaultSize(0, h))
+    }.apply { scaleType = ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
     private val ic = IconCircle(kit, 48, 24, "mdi:cctv")
     private val nm = kit.text(dev.name, 19f, Color.WHITE, 500, display = true).oneLine()
     private val st = kit.text("", 15f, Color.argb(210, 255, 255, 255)).oneLine()

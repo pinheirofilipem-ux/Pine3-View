@@ -19,7 +19,7 @@ import org.json.JSONObject
  * transporte), à direita os modos, as leituras e os controlos das outras entidades do dispositivo.
  */
 class DeviceSheet(private val act: Activity, private val kit: Kit, private val id: String, private val dev: Dev?) {
-    private val dialog = Dialog(act, android.R.style.Theme_DeviceDefault_NoActionBar)
+    private val dialog = Dialog(act, android.R.style.Theme_Translucent_NoTitleBar)
     private val content = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
     private var main = LinearLayout(act)
     private var side = LinearLayout(act)
@@ -53,6 +53,7 @@ class DeviceSheet(private val act: Activity, private val kit: Kit, private val i
         dialog.setOnDismissListener { Ha.listeners -= listener; h.removeCallbacks(redraw) }
         Ha.listeners += listener
         render()
+        immersive(dialog)
         dialog.show()
         Elastic.pop(card, 0, 0.9f)
     }
