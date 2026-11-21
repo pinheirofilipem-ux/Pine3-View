@@ -737,6 +737,9 @@ a.pill{color:inherit;text-decoration:none}
 .cam-pk.on{background:rgba(255,159,10,.22)}.cam-pk.on ha-icon{color:#ff9f0a}.cam-pk span{display:flex;flex-direction:column;min-width:0}.cam-pk small{font-weight:500;color:var(--muted);font-size:12px}
 .cam-pk-ok{align-self:center;margin-top:6px}
 @media (max-width:720px),(orientation:portrait){.camov .sheet.cam{grid-template-columns:1fr;overflow:auto}.cam-side{flex-direction:row;flex-wrap:wrap}.cam-b{flex:1 1 140px}.cam-note{width:100%}}
+.devinfo{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin:-4px 0 10px}.devinfo ha-icon{--mdc-icon-size:18px}
+/* short landscape screens: the wide vacuum card keeps its four buttons inside the card */
+@media (min-width:721px) and (max-height:760px){.vw-q{gap:6px}.vq{min-height:44px;padding:4px;font-size:12px}.vq ha-icon{--mdc-icon-size:19px}.tile.vacw .nm{margin-top:6px}}
 /* forecast sheet: now, chips and warnings; hours as small cards and days with a range bar */
 .fnow{display:flex;align-items:center;gap:14px;margin-top:6px}
 .fnow>ha-icon{--mdc-icon-size:54px;color:var(--amber)}

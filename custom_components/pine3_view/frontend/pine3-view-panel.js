@@ -868,7 +868,8 @@ class Pine3ViewPanel extends HTMLElement {
         ${this._toggle("show_summary", d.show_summary, t("Cartões de resumo"), t("Clima, Segurança e A tocar."))}
         ${this._toggle("clock_24h", d.clock_24h, t("Relógio de 24 horas"), t("Desliga para mostrar AM/PM."))}
       </div></div>
-      <div class="panel glass"><h3 style="margin-top:0">${t("Este dispositivo")}</h3><p>${t("Opções guardadas só neste browser, para um tablet na parede ficar diferente do telemóvel.")}</p><div class="opts">
+      <div class="panel glass"><h3 style="margin-top:0">${t("Este dispositivo")}</h3><p>${t("Opções guardadas só neste browser, para um tablet na parede ficar diferente do telemóvel.")}</p>
+        <p class="devinfo"><ha-icon icon="mdi:tablet"></ha-icon>${esc(t("Ecrã: {w} × {h} · densidade {d} · {b}", { w: window.innerWidth, h: window.innerHeight, d: (window.devicePixelRatio || 1).toFixed(2).replace(/\.?0+$/, ""), b: /Pine3Wallpanel/.test(navigator.userAgent) ? "Pine3 Wallpanel" : /; wv\)/.test(navigator.userAgent) ? "WebView" : /Fully/i.test(navigator.userAgent) ? "Fully Kiosk" : t("browser") }))}</p><div class="opts">
         ${this._localToggle("hide_sidebar", t("Esconder a barra lateral do Home Assistant"), t("O painel ocupa a largura toda. Também podes abrir o painel com ?kiosk no endereço."))}
         ${this._localToggle("wake_lock", t("Manter o ecrã ligado"), navigator.wakeLock ? t("Impede o ecrã de adormecer enquanto o painel está aberto.") : t("Este browser não suporta manter o ecrã ligado."), !navigator.wakeLock)}
         ${(() => {
