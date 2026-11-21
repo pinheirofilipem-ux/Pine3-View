@@ -736,6 +736,17 @@ a.pill{color:inherit;text-decoration:none}
 .cam-pk{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.07);font-weight:600;font-size:15px}
 .cam-pk.on{background:rgba(255,159,10,.22)}.cam-pk.on ha-icon{color:#ff9f0a}.cam-pk span{display:flex;flex-direction:column;min-width:0}.cam-pk small{font-weight:500;color:var(--muted);font-size:12px}
 .cam-pk-ok{align-self:center;margin-top:6px}
+.bell-ic{background:#ff9f0a!important;color:#2a1500!important;animation:bellwob 1.1s ease-in-out infinite}
+.bellov.done .bell-ic{background:rgba(255,255,255,.15)!important;color:#fff!important;animation:none}
+@keyframes bellwob{0%,60%,100%{transform:rotate(0)}10%,30%{transform:rotate(-14deg)}20%,40%{transform:rotate(14deg)}}
+.bell-v{cursor:pointer}.bell-shot{object-fit:cover}
+.bell-v::after{content:"";position:absolute;inset:0;z-index:1;background:radial-gradient(circle at 50% 50%,rgba(0,0,0,.05),rgba(0,0,0,.45))}
+.bell-play{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#fff;font-size:18px;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+.bell-play span{width:92px;height:92px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.22);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:2px solid rgba(255,255,255,.7);transition:transform .12s}
+.bell-play ha-icon{--mdc-icon-size:48px}.bell-v:active .bell-play span{transform:scale(.94)}
+.bell-when{left:12px;right:auto;z-index:3}.bell-none{z-index:2;top:auto;bottom:16%}
+.bellov.nocam .sheet.cam{width:min(460px,calc(100vw - 48px));grid-template-columns:1fr}
+.bellov.nocam .cam-side{flex-direction:row;flex-wrap:wrap}.bellov.nocam .cam-b{flex:1 1 150px}
 @media (max-width:720px),(orientation:portrait){.camov .sheet.cam{grid-template-columns:1fr;overflow:auto}.cam-side{flex-direction:row;flex-wrap:wrap}.cam-b{flex:1 1 140px}.cam-note{width:100%}}
 .devinfo{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin:-4px 0 10px}.devinfo ha-icon{--mdc-icon-size:18px}
 /* short landscape screens: the wide vacuum card keeps its four buttons inside the card */

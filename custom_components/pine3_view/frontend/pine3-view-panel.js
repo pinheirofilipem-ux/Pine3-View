@@ -82,7 +82,9 @@ class Pine3ViewPanel extends HTMLElement {
     const prev = this._hass;
     this._hass = h;
     if (!this._connecting) this._connect();
+    if (prev) this._bellCheck(prev, h);
     if (this._camOv) this._camUpdate();
+    if (this._bellOv) this._bellSide();
     if (this._drag) return; // don't redraw under a finger
     // Home Assistant pushes a new hass object whenever *any* entity changes; only redraw
     // when something this screen shows has changed (redraws restart animations and flicker).
@@ -122,7 +124,7 @@ class Pine3ViewPanel extends HTMLElement {
 
   _onTick() {
     const mins = this._cfg().screensaver;
-    if (mins && !this._saver && !this._camOv && this._view !== "settings" && !this._edit && Date.now() - this._lastActivity > mins * 60000) {
+    if (mins && !this._saver && !this._camOv && !this._bellOv && this._view !== "settings" && !this._edit && Date.now() - this._lastActivity > mins * 60000) {
       this._saver = true;
       this._modal = null;
       this._render();
@@ -426,6 +428,9 @@ class Pine3ViewPanel extends HTMLElement {
   _camDoors(id) {
     const chosen = this._cfg().cam_doors?.[id];
     if (Array.isArray(chosen)) return chosen.filter((e) => this._s(e));
+    // a doorbell that names this camera and its door release (Comelit Intercom Doorbell options)
+    const rel = this._bellIds().map((b) => this._s(b).attributes).find((a) => a.camera_entity === id && this._s(a.release_entity))?.release_entity;
+    if (rel) return [rel];
     const room = this._rooms().find((r) => r.ents.includes(id));
     const ents = (room?.ents || []).filter((i) => this._s(i));
     const locks = ents.filter((i) => dom(i) === "lock");
@@ -551,6 +556,123 @@ class Pine3ViewPanel extends HTMLElement {
       <div class="camt-play"><ha-icon icon="mdi:play"></ha-icon></div>
       <div class="tx"><div class="nm">${esc(this._name(id))}</div><div class="st">${shot ? `${esc(t("Última imagem · {t}", { t: whenTxt }))} · ` : ""}${t("Toca para ver ao vivo")}</div></div>
     </div>`;
+  }
+
+  // ---------- doorbell ----------
+  /** Doorbells: event entities of class doorbell (e.g. Comelit Intercom Doorbell). Looked up again once a minute. */
+  _bellIds(h = this._hass) {
+    if (!this._bellList || Date.now() - this._bellListAt > 60000) {
+      this._bellList = Object.keys(h?.states || {}).filter((i) => i.startsWith("event.") && h.states[i].attributes.device_class === "doorbell");
+      this._bellListAt = Date.now();
+    }
+    return this._bellList;
+  }
+  /** An event entity's state is the time of its last event: a new time is a new event. */
+  _bellCheck(prev, h) {
+    for (const id of this._bellIds(h)) {
+      const a = prev.states[id], b = h.states[id];
+      if (!a || !b || a === b || a.state === b.state || a.state === "unavailable") continue;
+      const at = Date.parse(b.state);
+      if (!(Math.abs(Date.now() - at) < 60000)) continue; // an old event seen again after a reconnect
+      this._bellEvent(id, b.attributes.event_type || "ring", b.attributes);
+    }
+  }
+  _bellEvent(id, type, a) {
+    if (type === "ring" || type === "floor_call") {
+      if (store.get("bell", "on") === "off") return;
+      return this._openBell(id, type, a.call_id);
+    }
+    if (!this._bellOv || this._bell.id !== id || (a.call_id && this._bell.call && a.call_id !== this._bell.call)) return;
+    if (type === "answered") { this._bell.status = "answered"; this._bellEnd = Math.min(this._bellEnd, Date.now() + 6000); }
+    if (type === "missed_call") this._bell.status = "missed";
+    this._bellSide();
+  }
+  _bellWake(secs) {
+    const w = window.Pine3Wallpanel;
+    try { w?.wake?.(); if (secs != null) w?.keepAwake?.(secs); } catch { /* not the Pine3 Wallpanel app */ }
+    this._lastActivity = Date.now();
+    if (this._saver) { this._saver = false; this._render(); }
+  }
+  /** The doorbell window: shows at once with the last picture of the door camera; video starts only on "Ver câmara". */
+  _openBell(id, type = "ring", call = "") {
+    const a = this._s(id)?.attributes || {};
+    const cam = type === "ring" && this._s(a.camera_entity) ? a.camera_entity : "";
+    this._bellWake(90);
+    if (cam && this._camOv && this._camId === cam) return; // already watching that door
+    this._closeBell(false);
+    this._closeCam(false);
+    this._bell = { id, type, call, cam, at: Date.now(), status: "" };
+    this._bellEnd = Date.now() + 90000;
+    const shot = cam ? this._camShot(cam) : null;
+    const lang = this._hass?.locale?.language || this._hass?.language;
+    const hhmm = (d) => new Date(d).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
+    const when = shot ? (new Date(shot.t).toDateString() === new Date().toDateString() ? hhmm(shot.t) : new Date(shot.t).toLocaleDateString(lang, { day: "numeric", month: "short" })) : "";
+    const title = type === "floor_call" ? t("Tocaram à porta de casa") : t("Tocaram à porta");
+    const ov = document.createElement("div");
+    ov.className = `ov enter camov bellov ${cam ? "" : "nocam"}`;
+    ov.innerHTML = `<div class="sheet cam bell">
+      <div class="hd"><div class="ic bell-ic"><ha-icon icon="mdi:bell-ring"></ha-icon></div><div style="flex:1;min-width:0"><div class="nm">${esc(title)}</div>
+        <div class="st"><span class="bell-st"></span></div></div>
+        <button class="sh-x" data-bellx title="${t("Fechar")}" aria-label="${t("Fechar")}"><ha-icon icon="mdi:close"></ha-icon></button></div>
+      ${cam ? `<div class="cam-v bell-v" data-bellcam>${shot ? `<img class="cam-s bell-shot" alt="" src="${shot.d}">` : `<div class="cam-wait bell-none"><ha-icon icon="mdi:doorbell-video"></ha-icon>${t("Ainda não há imagem desta câmara")}</div>`}
+        <div class="bell-play"><span><ha-icon icon="mdi:play"></ha-icon></span><b>${t("Ver câmara")}</b></div>
+        ${shot ? `<div class="cam-bar bell-when"><span><ha-icon icon="mdi:image-outline"></ha-icon>${esc(t("Última imagem · {t}", { t: when }))}</span></div>` : ""}</div>` : ""}
+      <div class="cam-side"></div></div>`;
+    ov.addEventListener("click", (ev) => {
+      this._bellWake(90);
+      if (ev.target === ov || ev.target.closest("[data-bellx]")) return this._closeBell();
+      if (ev.target.closest("[data-bellcam]")) { const c = this._bell.cam; this._closeBell(false); return this._openCam(c); }
+      const d = ev.target.closest("[data-belldoor]")?.dataset.belldoor;
+      if (d) this._bellDoor(d);
+    });
+    this._bellKeyFn = (ev) => { if (ev.key === "Escape") this._closeBell(); };
+    window.addEventListener("keydown", this._bellKeyFn);
+    this.shadowRoot.appendChild(ov);
+    this._bellOv = ov;
+    this._bellSide();
+    this._bellTimer = setInterval(() => { if (Date.now() >= this._bellEnd) this._closeBell(); else this._bellSide(true); }, 1000);
+  }
+  /** Doors beside the doorbell: its door release, else the doors of its camera. Not for the flat's own bell. */
+  _bellDoors() {
+    const b = this._bell, rel = this._s(b.id)?.attributes.release_entity;
+    if (b.type === "floor_call") return [];
+    if (this._s(rel)) return [rel];
+    return b.cam ? this._camDoors(b.cam) : [];
+  }
+  _bellDoor(d) {
+    if (dom(d) === "lock" && this._s(d)?.state !== "locked") return;
+    this._twoTap(`bell:${d}`, () => {
+      if (dom(d) === "lock") this._call("lock", "unlock", { entity_id: d });
+      else this._call("button", "press", { entity_id: d });
+      this._bell.opened = d;
+      this._bellEnd = Math.min(this._bellEnd, Date.now() + 5000);
+    }, () => this._bellSide());
+  }
+  _bellSide(tick) {
+    if (!this._bellOv) return;
+    const b = this._bell, secs = Math.round((Date.now() - b.at) / 1000);
+    const ago = secs < 60 ? t("há {n} s", { n: secs }) : t("há {n} min", { n: Math.floor(secs / 60) });
+    const st = b.status === "answered" ? t("Atendida noutro aparelho") : b.status === "missed" ? t("Ninguém atendeu") : "";
+    this._bellOv.querySelector(".bell-st").textContent = st ? `${st} · ${ago}` : secs < 5 ? t("Agora mesmo") : ago;
+    this._bellOv.classList.toggle("done", !!b.status);
+    if (tick) return;
+    const btn = (d) => {
+      const open = b.opened === d || (dom(d) === "lock" && this._s(d).state !== "locked");
+      const armed = !open && this._armed(`bell:${d}`), na = this._s(d).state === "unavailable";
+      return `<button class="cam-b door ${armed ? "arm" : ""} ${open ? "ok" : ""}" data-belldoor="${esc(d)}" ${na ? "disabled" : ""}>
+        <ha-icon icon="mdi:${open ? "check" : "door-open"}"></ha-icon><b>${open ? t("Aberta") : armed ? t("Toca outra vez") : t("Abrir porta")}</b><small>${esc(this._name(d))}${open || armed ? "" : ` · ${t("toca 2 vezes")}`}</small></button>`;
+    };
+    this._bellOv.querySelector(".cam-side").innerHTML = `${this._bellDoors().map(btn).join("")}
+      ${b.cam ? `<button class="cam-b" data-bellcam><ha-icon icon="mdi:cctv"></ha-icon><b>${t("Ver câmara")}</b><small>${t("liga o vídeo")}</small></button>` : ""}
+      <button class="cam-b" data-bellx><ha-icon icon="mdi:bell-off-outline"></ha-icon><b>${t("Ignorar")}</b><small>${t("fecha esta janela")}</small></button>`;
+  }
+  _closeBell() {
+    if (!this._bellOv) return;
+    clearInterval(this._bellTimer);
+    window.removeEventListener("keydown", this._bellKeyFn);
+    this._bellOv.remove();
+    this._bellOv = null;
+    try { window.Pine3Wallpanel?.keepAwake?.(0); } catch { /* not the app */ }
   }
 
   _openModal(id) { if (dom(id) === "camera") return this._openCam(id); this._modal = id; this._modalAt = Date.now(); this._render(); }
@@ -880,7 +1002,10 @@ class Pine3ViewPanel extends HTMLElement {
             + this._localChoice("lite_fx", fx, [["auto", fx === "auto" ? t("Automático ({m})", { m: this._liteFx() ? t("Ligado") : t("Desligado") }) : t("Automático")], ["on", t("Ligado")], ["off", t("Desligado")]],
               t("Efeitos leves"), t("Tira o desfoque do vidro (o mais pesado para a placa gráfica). Usa se vires zonas brancas, vazias ou a piscar."))
             + this._localChoice("anim", an, [["auto", t("Como no painel")], ["on", t("Ligadas")], ["off", t("Desligadas")]],
-              t("Animações neste dispositivo"), t("Sobrepõe a opção Animações da Aparência só neste dispositivo."));
+              t("Animações neste dispositivo"), t("Sobrepõe a opção Animações da Aparência só neste dispositivo."))
+            + (this._bellIds().length ? this._localChoice("bell", store.get("bell", "on"), [["on", t("Ligado")], ["off", t("Desligado")]],
+              t("Pop-up da campainha"), t("Quando tocam à porta, abre logo a última imagem da câmara, o botão para abrir a porta e o vídeo a pedido.")) +
+              `<div class="opt"><div><b>${t("Testar a campainha")}</b><small>${t("Mostra o pop-up como se tivessem tocado agora.")}</small></div><button class="pill" data-belltest><ha-icon icon="mdi:bell-ring-outline"></ha-icon>${t("Testar")}</button></div>` : "");
         })()}
         ${this._fsSupported() ? `<div class="opt"><div><b>${t("Ecrã inteiro")}</b><small>${t("Esconde as barras do browser.")}</small></div><button class="pill" data-fs><ha-icon icon="mdi:fullscreen"></ha-icon>${document.fullscreenElement ? t("Sair do ecrã inteiro") : t("Ecrã inteiro")}</button></div>` : ""}
       </div></div>
@@ -996,6 +1121,7 @@ class Pine3ViewPanel extends HTMLElement {
       if (k === "wake_lock") { if (v) this._applyWakeLock(); else { this._wake?.release?.().catch(() => {}); this._wake = null; } }
       upd();
     });
+    on("[data-belltest]", () => this._openBell(this._bellIds()[0]));
     on("[data-lchoice]", (el) => { store.set(el.dataset.lchoice, el.dataset.val); upd(); });
     on("[data-closeset]", () => this._closeSettings());
     on("[data-save]", () => this._saveDraft());
