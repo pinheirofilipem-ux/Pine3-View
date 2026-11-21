@@ -52,7 +52,7 @@ object Tr {
         "Toca para ver ao vivo" to "Tap to watch live", "Dispositivo" to "Device", "Última imagem" to "Last picture",
         "Abrir a porta" to "Open the door", "toca duas vezes" to "tap twice", "mantém ao vivo" to "keep live",
         "Fechar para o vídeo." to "Closing stops the video.", "Em direto" to "LIVE", "fecha em " to "closes in ", "Escolher portas" to "Choose doors",
-        "Definições" to "Settings", "A carregar a câmara…" to "Loading camera…", "Guardar alterações" to "Save changes", "Alterações guardadas" to "Changes saved", "Aparência" to "Appearance",
+        "Definições" to "Settings", "A carregar a câmara…" to "Loading camera…", "À espera da foto do toque…" to "Waiting for the ring photo…", "Foto do toque" to "Ring photo", "A tocar" to "Ringing", "Atendida" to "Answered", "Chamada perdida" to "Missed call", "Tocaram à porta" to "Someone rang", "Tocaram à porta de casa" to "Someone is at the apartment door", "Ver câmara" to "Watch camera", "Guardar alterações" to "Save changes", "Alterações guardadas" to "Changes saved", "Aparência" to "Appearance",
         "Início" to "Home", "Entidades" to "Entities", "Planta 3D" to "3D floor plan", "Navegação" to "Navigation", "Sistema" to "System",
         "Idioma" to "Language", "Disposição" to "Layout", "Grelha" to "Grid", "Lista" to "List", "Animações" to "Animations",
         "Cor dos cartões" to "Card color", "Cor de destaque" to "Accent color", "Fundo" to "Background", "Fixo" to "Fixed", "Automático" to "Auto",

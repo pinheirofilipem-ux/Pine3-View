@@ -73,6 +73,54 @@ class MainActivity : Activity(), Nav {
         }
         override fun onHome() = rebuild()
         override fun onStatus() = updateBanner()
+        override fun onBell(id: String, type: String, attrs: org.json.JSONObject) = bellEvent(id, type, attrs)
+    }
+
+    private var bell: BellDialog? = null
+
+    // ecrã de descanso
+    private var saver: SaverView? = null
+    private var lastActivity = System.currentTimeMillis()
+    private val saverTick = object : Runnable {
+        override fun run() {
+            val mins = Ha.home?.settings?.optInt("screensaver", 0) ?: 0
+            if (mins > 0 && saver == null && resumed && !PanelState.sleeping && bell?.isShowing != true && System.currentTimeMillis() - lastActivity > mins * 60_000L) showSaver()
+            handler.postDelayed(this, 5_000)
+        }
+    }
+    private fun showSaver() {
+        val s = SaverView(kit, Ha.home?.settings?.optBoolean("clock_24h", true) ?: true) { hideSaver() }
+        saver = s
+        root.addView(s, root.indexOfChild(blackout), FrameLayout.LayoutParams(-1, -1))
+        s.alpha = 0f; s.animate().alpha(1f).setDuration(600).start()
+    }
+    private fun hideSaver() {
+        lastActivity = System.currentTimeMillis()
+        val s = saver ?: return
+        saver = null
+        s.animate().alpha(0f).setDuration(300).withEndAction { root.removeView(s) }.start()
+    }
+
+    private fun bellEvent(id: String, type: String, attrs: org.json.JSONObject) {
+        if (!resumed) return // fica em Ha.pendingBell; abre-se no onResume
+        if (type == "ring" || type == "floor_call") {
+            Ha.pendingBell = null
+            if (Ha.home?.settings?.optString("bell", "on") == "off") return
+            bell?.dismiss(); hideSaver()
+            val cam = attrs.optString("camera_entity")
+            val rel = attrs.optString("release_entity").takeIf { Ha.states.containsKey(it) }
+            val doors = if (rel != null) listOf(rel) else doorsFor(cam)
+            bell = BellDialog(this, kit, id, type, attrs, doors) { c, n -> camViewer(c, n) }.also { it.show() }
+        } else bell?.onEvent(id, type, attrs)
+    }
+
+    /** Portas associadas a uma câmara (cam_doors do Pine3 View, ou as fechaduras da casa). */
+    private fun doorsFor(camId: String): List<String> {
+        val home = Ha.home
+        val cfg = home?.settings?.optJSONObject("cam_doors")?.optJSONArray(camId)
+        val chosen = if (cfg != null) (0 until cfg.length()).map { cfg.getString(it) } else emptyList()
+        val locks = home?.rooms?.flatMap { it.devices }?.filter { it.kind == "lock" || (it.kind == "button" && Regex("lock|door|gate|entrance|porta|port[aã]o|fecha", RegexOption.IGNORE_CASE).containsMatchIn(it.id + it.name)) }?.map { it.id }.orEmpty()
+        return chosen.ifEmpty { locks.take(1) }
     }
 
     // Dois dedos premidos > 2 s abrem as definições.
@@ -123,17 +171,23 @@ class MainActivity : Activity(), Nav {
         PanelState.listener = { applySleeping(it) }
         applySleeping(PanelState.sleeping)
         Ha.listeners += haListener
+        lastActivity = System.currentTimeMillis()
+        handler.removeCallbacks(saverTick); handler.postDelayed(saverTick, 5_000)
         Ha.configure(this)
         if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) MotionService.start(this)
         MotionService.poke()
         rebuild()
         updateBanner()
+        // o ecrã acordou por causa da campainha: o evento chegou antes de a atividade estar pronta
+        Ha.pendingBell?.let { b -> if (System.currentTimeMillis() - b.at < 20_000) handler.postDelayed({ bellEvent(b.id, b.type, b.attrs) }, 400) else Ha.pendingBell = null }
     }
 
     override fun onPause() {
         resumed = false
+        bell?.dismiss()
         cover()
         handler.removeCallbacks(openSettingsRun)
+        handler.removeCallbacks(saverTick)
         handler.removeCallbacks(flush)
         Ha.listeners -= haListener
         PanelState.listener = null
@@ -301,6 +355,7 @@ class MainActivity : Activity(), Nav {
 
     /** Sem permissão de administrador: ecrã preto + brilho no mínimo. */
     private fun applySleeping(sleeping: Boolean) {
+        if (!sleeping) hideSaver()
         if (sleeping) cover() else scheduleReveal()
         val lp = window.attributes
         lp.screenBrightness = if (sleeping) WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
@@ -309,6 +364,7 @@ class MainActivity : Activity(), Nav {
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         MotionService.poke()
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) lastActivity = System.currentTimeMillis()
         when (ev.actionMasked) {
             MotionEvent.ACTION_POINTER_DOWN -> {
                 handler.removeCallbacks(openSettingsRun)

@@ -25,7 +25,16 @@ object Ha {
         fun onStates(changed: Set<String>) {}
         fun onHome() {}
         fun onStatus() {}
+        /** Tocaram à campainha (event.* de classe doorbell): tipo "ring", "floor_call", "answered", "missed_call". */
+        fun onBell(id: String, type: String, attrs: JSONObject) {}
     }
+
+    class Bell(val id: String, val type: String, val attrs: JSONObject, val at: Long)
+    /** Último toque ainda não mostrado (a atividade pode estar a acordar quando o evento chega). */
+    @Volatile var pendingBell: Bell? = null
+
+    private fun isBellEntity(id: String) =
+        (id.startsWith("event.") && states[id]?.attrs?.optString("device_class") == "doorbell") || (id.startsWith("image.") && id.contains("doorbell_snapshot"))
 
     val states = ConcurrentHashMap<String, State>()
     @Volatile var home: Home? = null
@@ -251,7 +260,7 @@ object Ha {
             if (i >= 0) {
                 val s = i + 13
                 val e = text.indexOf('"', s)
-                if (e > s && text.substring(s, e) !in watched) return
+                if (e > s && text.substring(s, e).let { it !in watched && !isBellEntity(it) }) return
             }
             val data = try { JSONObject(text).optJSONObject("event")?.optJSONObject("data") } catch (_: Exception) { null } ?: return
             onStateChanged(data)
@@ -311,6 +320,16 @@ object Ha {
         val oldState = data.optJSONObject("old_state")?.optString("state")
         states[id] = State(newState, attrs)
         notifyMain { it.onStates(setOf(id)) }
+
+        if (id.startsWith("event.") && attrs.optString("device_class") == "doorbell" && oldState != newState && newState != "unavailable" && newState != "unknown") {
+            val at = try { java.time.Instant.parse(newState).toEpochMilli() } catch (_: Exception) { 0L }
+            if (Math.abs(System.currentTimeMillis() - at) < 60_000) {
+                val type = attrs.optString("event_type", "ring").ifBlank { "ring" }
+                val b = Bell(id, type, attrs, System.currentTimeMillis())
+                if (type == "ring" || type == "floor_call") pendingBell = b
+                notifyMain { it.onBell(id, type, attrs) }
+            }
+        }
 
         // Regras que acordam o ecrã (só mudanças de estado; um event.* muda sempre: o estado é a hora do evento).
         if (oldState == newState || newState == "unavailable" || newState == "unknown") return
