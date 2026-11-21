@@ -272,7 +272,8 @@ class MainActivity : Activity(), Nav {
         if (applyLook(home)) { shownKey = "" }
         if (dockKeysSig != dockKeys().joinToString()) { dockKeysSig = dockKeys().joinToString(); buildDock() }
         val room = roomId?.let { id -> home.rooms.firstOrNull { it.id == id } }
-        val key = if (room != null) "room:${room.id}" else "tab:$tab:" + home.settings.optString("home_layout") + home.settings.optString("dock") + home.settings.optBoolean("home_people") + home.settings.optBoolean("show_summary", true) + home.settings.optBoolean("show_status", true) + home.settings.optBoolean("show_scenes", true) + home.settings.optBoolean("show_weather", true) + home.settings.optBoolean("clock_24h", true)
+        kit.list = home.settings.optString("layout", "grid") == "list"
+        val key = if (room != null) "room:${room.id}" else "tab:$tab:" + home.settings.optString("home_layout") + home.settings.optString("layout") + home.settings.optString("dock") + home.settings.optBoolean("home_people") + home.settings.optBoolean("show_summary", true) + home.settings.optBoolean("show_status", true) + home.settings.optBoolean("show_scenes", true) + home.settings.optBoolean("show_weather", true) + home.settings.optBoolean("clock_24h", true)
         if (shownHome === home && shownKey == key && page != null) { page?.update(); return }
         val p: Page = when {
             room != null -> RoomPage(kit, room, this)

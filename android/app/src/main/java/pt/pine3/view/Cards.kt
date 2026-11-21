@@ -47,6 +47,21 @@ class RoomCard(private val kit: Kit, private val room: Room, dense: Boolean, pri
         val pad = kit.dp(if (short || dense) 16 else 22)
         isClickable = true
         setOnClickListener { onOpen() }
+        if (kit.list) {
+            val row = LinearLayout(kit.ctx).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(kit.dp(16), kit.dp(12), kit.dp(16), kit.dp(12)) }
+            row.addView(ri, LinearLayout.LayoutParams(kit.dp(42), kit.dp(42)).apply { marginEnd = kit.dp(14) })
+            val tx = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL }
+            nm.maxLines = 1; tx.addView(nm); tx.addView(meta)
+            row.addView(tx, LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(tmp, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = kit.dp(12) })
+            row.addView(pw, LinearLayout.LayoutParams(kit.dp(46), kit.dp(46)))
+            addView(row, LayoutParams(-1, -2))
+            pw.setOnClickListener {
+                val sw = Fmt.switchables(ids)
+                Ha.call("homeassistant", if (sw.any { Fmt.isOn(it) }) "turn_off" else "turn_on", sw)
+            }
+            update()
+        } else {
         val col = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, pad) }
         val row1 = LinearLayout(kit.ctx).apply { gravity = Gravity.TOP }
         row1.addView(ri)
@@ -66,6 +81,7 @@ class RoomCard(private val kit: Kit, private val room: Room, dense: Boolean, pri
             Ha.call("homeassistant", if (sw.any { Fmt.isOn(it) }) "turn_off" else "turn_on", sw)
         }
         update()
+        }
     }
 
     override fun update() {
@@ -108,6 +124,18 @@ class Tile(private val kit: Kit, private val dev: Dev, private val secWatch: Boo
         val pad = kit.dp(18)
         isClickable = domain != "sensor"
         setOnClickListener { if (domain in setOf("light", "cover", "climate", "media_player", "fan", "vacuum")) onOpen(dev.id) else Fmt.tap(dev.id) }
+        if (kit.list) {
+            val row = LinearLayout(kit.ctx).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(kit.dp(16), kit.dp(12), kit.dp(16), kit.dp(12)) }
+            row.addView(ic, LinearLayout.LayoutParams(kit.dp(44), kit.dp(44)).apply { marginEnd = kit.dp(14) })
+            val tx = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL }
+            nm.maxLines = 1; tx.addView(nm); tx.addView(st); tx.addView(ex)
+            row.addView(tx, LinearLayout.LayoutParams(0, -2, 1f))
+            if (domain == "sensor") row.addView(value.apply { textSize = 24f }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = kit.dp(12) })
+            if (hasPower) row.addView(pw, LinearLayout.LayoutParams(kit.dp(46), kit.dp(46)).apply { marginStart = kit.dp(12) })
+            addView(row, LayoutParams(-1, -2))
+            pw.setOnClickListener { Fmt.tap(dev.id) }
+            update()
+        } else {
         val col = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, pad) }
         val row1 = LinearLayout(kit.ctx).apply { gravity = Gravity.TOP }
         row1.addView(ic)
@@ -121,6 +149,7 @@ class Tile(private val kit: Kit, private val dev: Dev, private val secWatch: Boo
         addView(col, LayoutParams(-1, -1))
         pw.setOnClickListener { Fmt.tap(dev.id) }
         update()
+        }
     }
 
     override fun update() {

@@ -265,8 +265,8 @@ class HomePage(kit: Kit, private val home: Home, private val nav: Nav) : Page(ki
     }
 
     private fun grid(): View {
-        val g = if (dense) Grid(kit.ctx, 0, kit.dp(kotlin.math.max(120f, kotlin.math.min(230f, (kit.hdp - 316f) / 3f)).toInt()), kit.dp(14), 4)
-        else Grid(kit.ctx, kit.dp(230), kit.dp(250), kit.dp(20))
+        val g = if (dense) Grid(kit.ctx, 0, kit.dp(kotlin.math.max(120f, kotlin.math.min(230f, (kit.hdp - 316f) / 3f)).toInt()), kit.dp(14), 4).also { it.list = kit.list }
+        else Grid(kit.ctx, kit.dp(230), kit.dp(250), kit.dp(20)).also { it.list = kit.list }
         val order = (0 until (s.optJSONArray("room_order")?.length() ?: 0)).map { s.optJSONArray("room_order")!!.getString(it) }
         val items = ArrayList<Pair<String, Card>>()
         home.rooms.filter { !it.hidden }.forEach { r -> items += r.id to RoomCard(kit, r, dense) { nav.openRoom(r) } }
@@ -401,8 +401,8 @@ class RoomsPage(kit: Kit, home: Home, nav: Nav) : Page(kit) {
         view = pageOf(kit) { w ->
             w.addView(hero(kit, Tr.pl(rooms.size, "divisão", "divisões", "room", "rooms"), Tr.t("Divisões")))
             val sh = kit.short
-            val g = if (sh) Grid(kit.ctx, kit.dp(210), kit.dp(kit.clamp(116f, (kit.hdp - 226f) / 3f, 250f).toInt()), kit.dp(14))
-            else Grid(kit.ctx, kit.dp(230), kit.dp(250), kit.dp(20))
+            val g = if (sh) Grid(kit.ctx, kit.dp(210), kit.dp(kit.clamp(116f, (kit.hdp - 226f) / 3f, 250f).toInt()), kit.dp(14)).also { it.list = kit.list }
+            else Grid(kit.ctx, kit.dp(230), kit.dp(250), kit.dp(20)).also { it.list = kit.list }
             rooms.forEach { r -> val c = RoomCard(kit, r, false, sh) { nav.openRoom(r) }; cards += c; g.addView(c) }
             w.addView(g, lp(kit, top = if (sh) 16 else 22))
         }
@@ -415,7 +415,7 @@ class RoomsPage(kit: Kit, home: Home, nav: Nav) : Page(kit) {
 class RoomPage(kit: Kit, private val room: Room, private val nav: Nav) : Page(kit) {
     private val tiles = ArrayList<Pair<Dev, Card>>()
     private val chips = LinearLayout(kit.ctx)
-    private val grid = Grid(kit.ctx, kit.dp(200), kit.dp(170), kit.dp(18))
+    private val grid = Grid(kit.ctx, kit.dp(200), kit.dp(170), kit.dp(18)).also { it.list = kit.list }
     private val meta = eyebrow(kit, "")
     private val status = kit.text("", kit.clamp(22f, kit.vw(2.3f), 30f), kit.fg, 300, display = true)
     private var filter: Set<String>? = null
@@ -496,7 +496,7 @@ class ClimatePage(kit: Kit, home: Home, nav: Nav) : Page(kit) {
             val onN = cl.count { Fmt.isOn(it.first.id) }
             w.addView(hero(kit, if (cl.isNotEmpty()) "$onN" + Tr.t(" de ") + "${cl.size}" + Tr.t(" ligados") else Tr.t("Clima"), Tr.t("Clima")))
             if (cl.isNotEmpty()) {
-                val g = Grid(kit.ctx, kit.dp(260), kit.dp(170), kit.dp(18))
+                val g = Grid(kit.ctx, kit.dp(260), kit.dp(170), kit.dp(18)).also { it.list = kit.list }
                 cl.forEach { (d, r) -> val c = ClimateCard(kit, d, r.name) { nav.openDevice(it) }; cards += c; g.addView(c) }
                 w.addView(g, lp(kit, top = 16))
             }
@@ -550,7 +550,7 @@ class SecurityPage(kit: Kit, home: Home, nav: Nav) : Page(kit) {
             w.addView(hero(kit, Tr.t("Segurança"), Tr.t("Portas, janelas e fechaduras"), chip))
             if (ids.isEmpty()) w.addView(kit.text(Tr.t("Nada para monitorizar."), 16f, kit.muted), lp(kit, top = 30))
             else {
-                val g = Grid(kit.ctx, kit.dp(200), kit.dp(170), kit.dp(18))
+                val g = Grid(kit.ctx, kit.dp(200), kit.dp(170), kit.dp(18)).also { it.list = kit.list }
                 ids.forEach { d ->
                     val c: Card = if (d.kind == "camera") CamTile(kit, d) { nav.openDevice(it) } else Tile(kit, d, secWatch = d.kind == "lock" || d.kind == "binary_sensor") { nav.openDevice(it) }
                     cards += c; g.addView(c)
@@ -574,7 +574,7 @@ class ScenesPage(kit: Kit, home: Home, nav: Nav) : Page(kit) {
             fun section(title: String, ids: List<String>) {
                 if (ids.isEmpty()) return
                 w.addView(eyebrow(kit, title), lp(kit, top = 28))
-                val g = Grid(kit.ctx, kit.dp(200), kit.dp(170), kit.dp(18))
+                val g = Grid(kit.ctx, kit.dp(200), kit.dp(170), kit.dp(18)).also { it.list = kit.list }
                 ids.forEach { id -> val c = Tile(kit, devOf(id)) { nav.openDevice(it) }; cards += c; g.addView(c) }
                 w.addView(g, lp(kit, top = 14))
             }

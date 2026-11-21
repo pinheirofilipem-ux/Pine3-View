@@ -103,6 +103,8 @@ class Kit(val ctx: Context) {
     /** @media (max-width:1280px),(max-height:820px): o painel web usa medidas mais compactas. */
     /** Tablets em horizontal com ecrã baixo (min-width:721px e max-height:920px): cartões mais densos, três filas acima da dock. */
     val short: Boolean get() = wdp >= 721f && hdp <= 920f
+    /** Disposição em lista (definição "layout"): lista em vez de grelha. */
+    var list = false
     val compact: Boolean get() = wdp <= 1280f || hdp <= 820f
 
     private val fonts = HashMap<String, Typeface>()
@@ -170,6 +172,8 @@ class Kit(val ctx: Context) {
  * Ignora os cartões escondidos (GONE).
  */
 class Grid(ctx: Context, private val minW: Int, private val childH: Int, private val gap: Int, private val fixedCols: Int = 0) : ViewGroup(ctx) {
+    /** Disposição em lista: uma coluna, cartões baixos e 10 dp entre eles (.as-list do painel web). */
+    var list = false
     private var cols = 1
     private var cw = 0
     private val pos = ArrayList<IntArray>() // x, y, w, h por filho visível (por ordem)
@@ -178,7 +182,9 @@ class Grid(ctx: Context, private val minW: Int, private val childH: Int, private
 
     override fun onMeasure(wSpec: Int, hSpec: Int) {
         val w = MeasureSpec.getSize(wSpec)
-        cols = if (fixedCols > 0) fixedCols else maxOf(1, (w + gap) / (minW + gap))
+        val gap = if (list) (10 * resources.displayMetrics.density).toInt() else this.gap
+        val childH = if (list) 0 else this.childH
+        cols = if (list) 1 else if (fixedCols > 0) fixedCols else maxOf(1, (w + gap) / (minW + gap))
         cw = (w - (cols - 1) * gap) / cols
         pos.clear()
         var col = 0; var y = 0; var rowH = 0
