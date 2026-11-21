@@ -277,7 +277,7 @@ class MainActivity : Activity(), Nav {
         val p: Page = when {
             room != null -> RoomPage(kit, room, this)
             tab == "rooms" -> RoomsPage(kit, home, this)
-            tab == "house" -> Placeholder(kit, Tr.t("Casa 3D"), Tr.t("A casa 3D desenhada em Canvas vem mais tarde."))
+            tab == "house" -> HousePage(kit, home, this)
             tab == "scenes" -> ScenesPage(kit, home, this)
             tab == "climate" -> ClimatePage(kit, home, this)
             tab == "security" -> SecurityPage(kit, home, this)

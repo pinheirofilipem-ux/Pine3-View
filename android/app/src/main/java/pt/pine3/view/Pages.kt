@@ -594,3 +594,63 @@ class Placeholder(kit: Kit, title: String, msg: String) : Page(kit) {
         addView(kit.text(msg, 16f, kit.muted), lp(kit, top = 10))
     }
 }
+
+/** Casa 3D: um bloco por divisão, empilhados por piso; as divisões com luzes acesas brilham. Arrasta para rodar, pinça para aproximar. */
+class HousePage(kit: Kit, private val home: Home, private val nav: Nav) : Page(kit) {
+    private val chips = LinearLayout(kit.ctx)
+    private val eyebrowView = eyebrow(kit, "")
+    private val houseView = HouseView(kit, { id -> Fmt.tap(id) }, { id -> home.rooms.firstOrNull { it.id == id }?.let { nav.openRoom(it) } }, { id -> nav.openDevice(id) })
+    override val view: View
+
+    init {
+        view = pageOf(kit) { w ->
+            val row = LinearLayout(kit.ctx).apply { gravity = Gravity.BOTTOM; setPadding(kit.dp(2), kit.dp(30), kit.dp(2), kit.dp(4)) }
+            val l = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL }
+            l.addView(eyebrowView)
+            l.addView(kit.text(Tr.t("Casa 3D"), kit.clamp(36f, kit.vw(5f), 52f), kit.fg, 400, display = true), lp(kit, top = 8))
+            row.addView(l, LinearLayout.LayoutParams(0, -2, 1f))
+            w.addView(row)
+            w.addView(HorizontalScrollView(kit.ctx).apply { isHorizontalScrollBarEnabled = false; addView(chips) }, lp(kit, top = 14))
+            val stage = FrameLayout(kit.ctx).apply {
+                background = kit.glass(32); clipToOutline = true
+                outlineProvider = object : android.view.ViewOutlineProvider() { override fun getOutline(v: View, o: android.graphics.Outline) { o.setRoundRect(0, 0, v.width, v.height, kit.dp(32).toFloat()) } }
+            }
+            stage.addView(houseView, FrameLayout.LayoutParams(-1, -1))
+            val ctl = LinearLayout(kit.ctx)
+            fun btn(icon: String, f: () -> Unit) = kit.roundButton(icon, 40, kit.soft, kit.fg) { f(); houseView.invalidate() }.also { ctl.addView(it, LinearLayout.LayoutParams(kit.dp(40), kit.dp(40)).apply { marginStart = kit.dp(8) }) }
+            btn("mdi:minus") { houseView.zoomBy(1 / 1.35f) }
+            btn("mdi:plus") { houseView.zoomBy(1.35f) }
+            btn("mdi:rotate-left") { House.rz -= 30f }
+            btn("mdi:crosshairs") { House.rx = 58f; House.rz = -38f; House.zoom = 1f; House.px = 0f; House.py = 0f }
+            btn("mdi:rotate-right") { House.rz += 30f }
+            btn("mdi:arrow-collapse-vertical") { wall(-6) }
+            btn("mdi:arrow-expand-vertical") { wall(6) }
+            stage.addView(ctl, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply { topMargin = kit.dp(14); rightMargin = kit.dp(14) })
+            stage.addView(kit.text(Tr.t("Arrasta para rodar · Dois dedos para aproximar · Toca numa divisão para a abrir ou numa luz para a ligar"), 13f, kit.muted).apply { gravity = Gravity.CENTER },
+                FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { bottomMargin = kit.dp(12); leftMargin = kit.dp(16); rightMargin = kit.dp(16) })
+            w.addView(stage, LinearLayout.LayoutParams(-1, kit.dp(kit.clamp(380f, minOf(kit.hdp * 0.68f, 640f), 640f))).apply { topMargin = kit.dp(16) })
+        }
+        update()
+    }
+
+    private fun wall(d: Int) {
+        val cur = home.settings.optInt("wall_height", House.WALL_DEFAULT)
+        val next = (cur + d).coerceIn(10, 100)
+        if (next != cur) Ha.saveSettings(org.json.JSONObject().put("wall_height", next))
+    }
+
+    private fun buildChips(m: House.HModel) {
+        chips.removeAllViews()
+        if (m.levels.size < 2) return
+        chips.addView(kit.pill(Tr.t("Todos os pisos"), null, House.floor == null) { House.floor = null; update() }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = kit.dp(10) })
+        m.levels.forEach { lv -> chips.addView(kit.pill(m.floorNames[lv] ?: "$lv", null, House.floor == lv) { House.floor = lv; update() }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = kit.dp(10) }) }
+    }
+
+    override fun update() {
+        val m = House.build(home)
+        buildChips(m)
+        val lit = home.rooms.filter { !it.hidden }.count { r -> Fmt.switchables(r.devices.filter { !it.hidden }.map { it.id }).any { Fmt.isOn(it) } }
+        eyebrowView.text = Tr.pl(lit, "divisão acesa", "divisões acesas", "room lit", "rooms lit").uppercase()
+        houseView.model = m
+    }
+}

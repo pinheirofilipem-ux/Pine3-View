@@ -11,6 +11,7 @@ import android.graphics.Shader
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowManager
 import android.view.ViewGroup
 import android.view.animation.LinearInterpolator
 import android.view.animation.PathInterpolator
@@ -107,7 +108,19 @@ fun immersive(d: android.app.Dialog) {
 /** Janela por cima da app: cada toque conta como atividade (reinicia o tempo para desligar o ecrã), tal como na janela principal. */
 class PokeDialog(act: android.app.Activity) : android.app.Dialog(act, android.R.style.Theme_Translucent_NoTitleBar) {
     // Com uma janela destas aberta a atividade não tem foco: a cortina preta do ecrã principal tem de levantar na mesma ao acordar.
-    override fun onStart() { super.onStart(); PanelState.dialogs++ }
-    override fun onStop() { PanelState.dialogs = maxOf(0, PanelState.dialogs - 1); super.onStop() }
+    private val onSleep: (Boolean) -> Unit = { s ->
+        window?.let { w ->
+            // sem permissão de administrador o ecrã só fica preto: a janela também tem de ficar preta (e sem brilho) de imediato
+            val lp = w.attributes
+            lp.screenBrightness = if (s) WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            w.attributes = lp
+            val v = w.decorView
+            v.animate().cancel()
+            if (s) { v.alpha = 0f; v.visibility = View.INVISIBLE }
+            else { v.visibility = View.VISIBLE; v.alpha = 0f; v.animate().alpha(1f).setDuration(350).start() }
+        }
+    }
+    override fun onStart() { super.onStart(); PanelState.dialogs++; PanelState.sleepListeners += onSleep; if (PanelState.sleeping) onSleep(true) }
+    override fun onStop() { PanelState.sleepListeners -= onSleep; PanelState.dialogs = maxOf(0, PanelState.dialogs - 1); super.onStop() }
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean { MotionService.poke(); return super.dispatchTouchEvent(ev) }
 }

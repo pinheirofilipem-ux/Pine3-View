@@ -12,7 +12,7 @@ class RoomEntity(val id: String, val name: String, val primary: Boolean, val cat
 class Room(
     val id: String, val name: String, val icon: String, val floor: String?,
     val devices: List<Dev>, val temperature: List<String>, val humidity: List<String>,
-    val scenes: List<String>, val hidden: Boolean, val entities: List<RoomEntity> = emptyList(),
+    val scenes: List<String>, val hidden: Boolean, val entities: List<RoomEntity> = emptyList(), val floorLevel: Int = 0,
 )
 
 /** O modelo `pine3_view/home`: divisões, dispositivos, cenas, tempo, pessoas e as definições guardadas no HA. */
@@ -61,6 +61,7 @@ class Home(
                         entities = r.optJSONArray("entities")?.let { e ->
                             (0 until e.length()).map { k -> e.getJSONObject(k).let { RoomEntity(it.optString("id"), it.optString("name"), it.optBoolean("primary"), it.optBoolean("category"), it.optBoolean("ha_hidden")) } }
                         } ?: emptyList(),
+                        floorLevel = r.optInt("floor_level", 0),
                     )
                 }
             } ?: emptyList()

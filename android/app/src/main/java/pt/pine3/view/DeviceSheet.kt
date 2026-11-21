@@ -266,32 +266,6 @@ class DeviceSheet(private val act: Activity, private val kit: Kit, private val i
         side.addView(mapImg, lp(4))
         Vac.mapImage(id, dev) { b -> mapImg.setImageBitmap(b); mapImg.visibility = View.VISIBLE }
 
-        // resto das entidades: o que se usa já (opções, comandos) e, dobrado, manutenção, definições e diagnóstico
-        val cats = Ha.home?.rooms.orEmpty().flatMap { it.entities }.filter { it.category }.map { it.id }.toSet()
-        val skip = listOf("battery", "status", "cleaning_area", "cleaning_time", "clean_percent", "cleaning_progress", "vacuum_error", "dock_error").mapNotNull { Vac.member(dev, "sensor", it) }.toSet() + routines.toSet()
-        val mem = dev?.members.orEmpty().filter { val st = Fmt.state(it); st != null && st.state != "unavailable" && Fmt.domain(it) != "image" && it !in skip }
-        fun isReading(e: String) = Fmt.domain(e) in setOf("sensor", "binary_sensor")
-        val maint = mem.filter { (isReading(it) && Regex("_(time_)?left$|_remaining$|consumable").containsMatchIn(it)) || (Fmt.domain(it) == "button" && it.contains("reset")) }
-        val mainL = mem.filter { it !in maint && !isReading(it) && (Fmt.domain(it) == "select" || it !in cats) }
-        val settings = mem.filter { it !in maint && it !in mainL && !isReading(it) }
-        val diag = mem.filter { it !in maint && isReading(it) }
-        fun fold(key: String, title: String, icon: String, list: List<String>) {
-            if (list.isEmpty()) return
-            val open = key in vacOpen
-            val hdr = LinearLayout(act).apply {
-                gravity = Gravity.CENTER_VERTICAL; background = kit.ripple(kit.rounded(Color.argb(24, 255, 255, 255), 16)); setPadding(kit.dp(14), kit.dp(12), kit.dp(14), kit.dp(12)); isClickable = true
-                setOnClickListener { if (open) vacOpen.remove(key) else vacOpen.add(key); render() }
-                addView(kit.icon(icon, kit.accent, 20), LinearLayout.LayoutParams(kit.dp(20), kit.dp(20)).apply { marginEnd = kit.dp(10) })
-                addView(kit.text(title, 15f, Color.WHITE, 500), LinearLayout.LayoutParams(0, -2, 1f))
-                addView(kit.text("${list.size}", 13f, muted), LinearLayout.LayoutParams(-2, -2).apply { marginEnd = kit.dp(8) })
-                addView(kit.icon(if (open) "mdi:chevron-up" else "mdi:chevron-down", muted, 18), LinearLayout.LayoutParams(kit.dp(18), kit.dp(18)))
-            }
-            side.addView(hdr, lp(10))
-            if (open) { val box = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }; deviceSection(list, box); side.addView(box, lp(0)) }
-        }
-        fold("maint", Tr.t("Manutenção"), "mdi:wrench-outline", maint)
-        fold("set", Tr.t("Definições do robô"), "mdi:tune-variant", settings)
-        fold("diag", Tr.t("Diagnóstico"), "mdi:chart-box-outline", diag)
     }
 
     private var firedRoutine: String? = null

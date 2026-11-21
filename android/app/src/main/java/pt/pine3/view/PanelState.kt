@@ -12,9 +12,13 @@ object PanelState {
     @Volatile var lastTouch = System.currentTimeMillis()
     var listener: ((Boolean) -> Unit)? = null // main thread
 
+    /** Janelas por cima do ecrã principal: escondem-se de imediato quando o ecrã vai desligar. */
+    val sleepListeners = java.util.concurrent.CopyOnWriteArrayList<(Boolean) -> Unit>()
+
     fun set(value: Boolean) {
         if (sleeping == value) return
         sleeping = value
         listener?.invoke(value)
+        sleepListeners.forEach { it(value) }
     }
 }
