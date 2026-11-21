@@ -52,5 +52,17 @@ object Tr {
         "Toca para ver ao vivo" to "Tap to watch live", "Dispositivo" to "Device", "Última imagem" to "Last picture",
         "Abrir a porta" to "Open the door", "toca duas vezes" to "tap twice", "mantém ao vivo" to "keep live",
         "Fechar para o vídeo." to "Closing stops the video.", "Em direto" to "LIVE", "fecha em " to "closes in ", "Escolher portas" to "Choose doors",
+        "Definições" to "Settings", "Guardar alterações" to "Save changes", "Alterações guardadas" to "Changes saved", "Aparência" to "Appearance",
+        "Início" to "Home", "Entidades" to "Entities", "Planta 3D" to "3D floor plan", "Navegação" to "Navigation", "Sistema" to "System",
+        "Idioma" to "Language", "Disposição" to "Layout", "Grelha" to "Grid", "Lista" to "List", "Animações" to "Animations",
+        "Cor dos cartões" to "Card color", "Cor de destaque" to "Accent color", "Fundo" to "Background", "Fixo" to "Fixed", "Automático" to "Auto",
+        "De dia" to "By day", "À noite" to "At night", "Ambiente" to "Ambient", "Vivos" to "Vivid", "Escuros" to "Dark", "Claros" to "Light",
+        "Ecrã inicial" to "Home screen", "Meteorologia" to "Weather", "Fonte do tempo" to "Weather source", "Pessoas" to "People",
+        "Disposição do início" to "Home layout", "Relógio grande" to "Big clock", "Duas colunas" to "Two columns", "Barra lateral" to "Sidebar", "Clássica" to "Classic",
+        "Estado da casa" to "Home status", "Cartões de resumo" to "Summary cards", "Relógio de 24 horas" to "24-hour clock", "Ecrã de descanso" to "Screensaver",
+        "Desligado" to "Off", "Dock" to "Dock", "Versão" to "Version", "Reconstruir agora" to "Rebuild now", "Procurar entidades…" to "Search entities…",
+        "Principal" to "Main", "Secundária" to "Secondary", "Diagnóstico" to "Diagnostic", "Escondida no HA" to "Hidden in HA", "Mostrar" to "Show",
+        "Dispositivos escondidos" to "Hidden devices", "Mostrar diagnóstico e escondidas no HA" to "Show diagnostic and HA-hidden",
+        "Ligação" to "Connection", "Endereço" to "Address", "Ecrã e campainha" to "Screen and doorbell", "Permissões" to "Permissions",
     )
 }

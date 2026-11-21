@@ -6,183 +6,372 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
+import android.text.Editable
 import android.text.InputType
+import android.text.TextUtils
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
-import android.widget.Switch
 import android.widget.TextView
+import org.json.JSONArray
+import org.json.JSONObject
 
-/** Definições: ligação ao Home Assistant, ecrã/movimento, campainha e permissões. */
+/** Miniatura de um tema (o mesmo fundo do painel, num quadrado arredondado). */
+private class Swatch(val kit: Kit, theme: Theme, val selected: Boolean) : View(kit.ctx) {
+    private val bg = ThemeBackground(theme)
+    private val clip = Path()
+    private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = kit.dp(3).toFloat(); color = kit.accent }
+    override fun onDraw(c: Canvas) {
+        val r = RectF(0f, 0f, width.toFloat(), height.toFloat())
+        clip.reset(); clip.addRoundRect(r, kit.dp(14).toFloat(), kit.dp(14).toFloat(), Path.Direction.CW)
+        val save = c.save(); c.clipPath(clip); bg.setBounds(0, 0, width, height); bg.draw(c); c.restoreToCount(save)
+        if (selected) { r.inset(stroke.strokeWidth / 2, stroke.strokeWidth / 2); c.drawRoundRect(r, kit.dp(13).toFloat(), kit.dp(13).toFloat(), stroke) }
+    }
+}
+
+/** Alternador (.tg do painel web). */
+private class Toggle(val kit: Kit, var on: Boolean, val onChange: (Boolean) -> Unit) : View(kit.ctx) {
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+    init { isClickable = true; setOnClickListener { on = !on; invalidate(); onChange(on) } }
+    override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(kit.dp(56), kit.dp(32))
+    override fun onDraw(c: Canvas) {
+        val w = width.toFloat(); val h = height.toFloat()
+        p.color = if (on) Color.parseColor("#34C759") else Color.argb(80, 128, 128, 128)
+        c.drawRoundRect(0f, 0f, w, h, h / 2, h / 2, p)
+        p.color = Color.WHITE
+        c.drawCircle(if (on) w - h / 2 else h / 2, h / 2, h / 2 - kit.dp(3), p)
+    }
+}
+
+/**
+ * Definições, com o mesmo formato do painel web (barra lateral e "Guardar alterações"), mais uma secção inicial "App"
+ * com o que é só deste dispositivo (ligação ao HA, ecrã, campainha, permissões).
+ */
 class SettingsActivity : Activity() {
 
     private lateinit var kit: Kit
     private lateinit var prefs: Prefs
-    private lateinit var url: EditText
-    private lateinit var token: EditText
-    private lateinit var timeout: EditText
-    private lateinit var sens: SeekBar
-    private lateinit var sensValue: TextView
-    private lateinit var ssl: Switch
-    private lateinit var boot: Switch
-    private lateinit var bellEntity: EditText
-    private lateinit var bellWhen: EditText
-    private lateinit var bellHold: EditText
-    private lateinit var statusDot: View
-    private lateinit var testOut: TextView
-    private lateinit var statusText: TextView
-    private val perms = ArrayList<Triple<View, TextView, () -> Boolean>>()
+    private lateinit var navBox: LinearLayout
+    private lateinit var mainBox: LinearLayout
+    private lateinit var mainScroll: ScrollView
+    private lateinit var saveBtn: TextView
+    private lateinit var toast: TextView
+    private lateinit var root: FrameLayout
     private val handler = Handler(Looper.getMainLooper())
+
+    private var section = "app"
+    private var draft = JSONObject()
+    private var saved = ""
+    private var saveApp: (() -> Unit)? = null
+    private var entQuery = ""
+    private var entAll = false
+    private var statusDot: View? = null
+    private var statusText: TextView? = null
+    private val perms = ArrayList<Triple<View, TextView, () -> Boolean>>()
+
+    private val listener = object : Ha.Listener { override fun onHome() { if (!dirty()) reloadDraft() } }
 
     private val refresh = object : Runnable {
         override fun run() {
-            (statusDot.background as android.graphics.drawable.GradientDrawable).setColor(if (Ha.connected) Color.parseColor("#8FD9A8") else Color.parseColor("#F2755C"))
-            statusText.text = Ha.homeError?.takeIf { Ha.connected } ?: Ha.status
-            refreshPerms()
+            statusDot?.let { (it.background as android.graphics.drawable.GradientDrawable).setColor(if (Ha.connected) Color.parseColor("#34C759") else Color.parseColor("#F2755C")) }
+            statusText?.text = Ha.homeError?.takeIf { Ha.connected } ?: Ha.status
+            perms.forEach { (dot, btn, check) ->
+                val ok = check()
+                (dot.background as android.graphics.drawable.GradientDrawable).setColor(if (ok) Color.parseColor("#34C759") else Color.parseColor("#F2755C"))
+                btn.visibility = if (ok) View.GONE else View.VISIBLE
+            }
             handler.postDelayed(this, 1000)
         }
     }
 
+    // ---------------------------------------------------------------- rascunho
+
+    private fun reloadDraft() {
+        draft = JSONObject(Ha.home?.settings?.toString() ?: "{}")
+        saved = draft.toString()
+        updateSave()
+    }
+    private fun dirty() = draft.toString() != saved
+    private fun updateSave() {
+        val d = dirty()
+        saveBtn.background = kit.ripple(kit.rounded(if (d) kit.cream else kit.soft, 40))
+        saveBtn.setTextColor(if (d) kit.ink else kit.muted)
+        saveBtn.alpha = if (d) 1f else 0.6f
+        saveBtn.isEnabled = d
+    }
+    private fun setD(k: String, v: Any) { draft.put(k, v); updateSave() }
+    private fun bool(k: String, def: Boolean) = draft.optBoolean(k, def)
+    private fun list(k: String): MutableList<String> = (0 until (draft.optJSONArray(k)?.length() ?: 0)).map { draft.optJSONArray(k)!!.getString(it) }.toMutableList()
+    private fun setList(k: String, l: List<String>) = setD(k, JSONArray(l))
+
+    private fun save() {
+        saveApp?.invoke()
+        val old = JSONObject(saved.ifBlank { "{}" })
+        val changes = JSONObject()
+        draft.keys().forEach { k -> if (!old.has(k) || old.get(k).toString() != draft.get(k).toString()) changes.put(k, draft.get(k)) }
+        if (changes.length() > 0 && Ha.connected) {
+            Ha.saveSettings(changes)
+            saved = draft.toString()
+            showToast(Tr.t("Alterações guardadas"))
+        }
+        updateSave()
+    }
+
+    private fun showToast(t: String) {
+        toast.text = t; toast.visibility = View.VISIBLE
+        handler.postDelayed({ toast.visibility = View.GONE }, 1800)
+    }
+
+    // ---------------------------------------------------------------- ciclo de vida
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         UiScale.apply(this)
-        kit = Kit(this); prefs = Prefs(this)
-        val d = kit::dp
+        prefs = Prefs(this)
+        kit = Kit(this)
+        reloadDraft0()
+        val theme = Themes.pick(draft, Ha.states["sun.sun"]?.state, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY))
+        kit.applyTheme(theme)
+        Tr.en = draft.optString("language", "pt") == "en"
 
-        fun card(title: String, sub: String): LinearLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = kit.rounded(Color.argb(255, 43, 26, 45), 20)
-            setPadding(d(18), d(16), d(18), d(18))
-            addView(kit.text(title, 17f, kit.fg, 500, display = true))
-            addView(kit.text(sub, 13f, kit.muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(2) })
-        }
-        fun input(v: String, hint: String, type: Int) = EditText(this).apply {
-            setText(v); this.hint = hint; setHintTextColor(Color.parseColor("#7C687A")); setTextColor(kit.fg)
-            textSize = 16f; inputType = type; setSingleLine(); typeface = kit.font(400, false)
-            background = kit.rounded(Color.parseColor("#3A2339"), 12); setPadding(d(16), d(13), d(16), d(13))
-        }
-        fun labeled(p: LinearLayout, label: String, v: View) {
-            p.addView(kit.text(label, 13f, Color.parseColor("#BFA9BB")), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(14); bottomMargin = d(6) })
-            p.addView(v, LinearLayout.LayoutParams(-1, -2))
-        }
-        fun switchRow(p: LinearLayout, label: String, on: Boolean): Switch {
-            val sw = Switch(this).apply { isChecked = on }
-            val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-            row.addView(kit.text(label, 15f, kit.fg), LinearLayout.LayoutParams(0, -2, 1f)); row.addView(sw)
-            p.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(14) })
-            return sw
-        }
+        root = FrameLayout(this).apply { background = ThemeBackground(theme) }
+        val page = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(kit.dp(40), kit.dp(24), kit.dp(40), kit.dp(20)) }
 
-        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        // cabeçalho
+        val hd = LinearLayout(this).apply { gravity = Gravity.BOTTOM }
         val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        titles.addView(kit.text("Definições", 26f, kit.fg, 500, display = true))
-        titles.addView(kit.text("Pine3 View (nativo)", 14f, kit.muted))
-        header.addView(titles, LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(kit.pill("Aspeto e idioma", "mdi:palette", false) { save(); startActivity(Intent(this, AppearanceActivity::class.java)) },
-            LinearLayout.LayoutParams(-2, -2).apply { marginEnd = d(10) })
-        header.addView(kit.pill("Guardar e voltar", null, true) { save(); finish() })
-        col.addView(header, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(16) })
+        titles.addView(kit.text("PINE3 VIEW", 13f, kit.muted, 600, spacing = 0.2f))
+        titles.addView(kit.text(Tr.t("Definições"), kit.clamp(32f, kit.vw(4.2f), 48f), kit.fg, 400, display = true), LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(6) })
+        hd.addView(titles, LinearLayout.LayoutParams(0, -2, 1f))
+        saveBtn = kit.text("✓  " + Tr.t("Guardar alterações"), 16f, kit.ink, 600).apply {
+            setPadding(kit.dp(22), kit.dp(13), kit.dp(22), kit.dp(13)); isClickable = true; setOnClickListener { save() }
+        }
+        hd.addView(saveBtn)
+        hd.addView(kit.roundButton("mdi:close", 48, kit.soft, kit.fg) { saveApp?.invoke(); finish() }, LinearLayout.LayoutParams(kit.dp(48), kit.dp(48)).apply { marginStart = kit.dp(12) })
+        page.addView(hd, LinearLayout.LayoutParams(-1, -2))
 
-        val cards = LinearLayout(this)
-        col.addView(cards, LinearLayout.LayoutParams(-1, -2))
-        fun add(c: LinearLayout, w: Float = 1f) = cards.addView(c, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, w).apply { marginEnd = d(14) })
+        // corpo: barra lateral + conteúdo
+        val body = LinearLayout(this).apply { setPadding(0, kit.dp(18), 0, 0) }
+        navBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        body.addView(ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(navBox) }, LinearLayout.LayoutParams(kit.dp(kit.clamp(200f, kit.vw(20f), 270f)), -1).apply { marginEnd = kit.dp(22) })
+        mainBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        mainScroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(mainBox) }
+        body.addView(mainScroll, LinearLayout.LayoutParams(0, -1, 1f))
+        page.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(page, FrameLayout.LayoutParams(-1, -1))
 
-        // Home Assistant
-        val ha = card("Home Assistant", "A app lê a casa do Pine3 View e acorda com as tuas entidades")
-        url = input(prefs.haUrl, "http://192.168.1.10:8123", InputType.TYPE_TEXT_VARIATION_URI)
-        labeled(ha, "Endereço", url)
-        token = input(prefs.haToken, "Token de acesso de longa duração", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
-        labeled(ha, "Token (perfil do HA, separador Segurança)", token)
-        ssl = switchRow(ha, "Aceitar certificado HTTPS auto-assinado", prefs.ignoreSsl)
+        toast = kit.text("", 15f, kit.ink, 600).apply { background = kit.rounded(kit.cream, 40); setPadding(kit.dp(20), kit.dp(12), kit.dp(20), kit.dp(12)); visibility = View.GONE }
+        root.addView(toast, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = kit.dp(26) })
+        setContentView(root)
+        updateSave()
+        showSection(section)
+    }
+
+    private fun reloadDraft0() { draft = JSONObject(Ha.home?.settings?.toString() ?: "{}"); saved = draft.toString() }
+
+    override fun onResume() { super.onResume(); Ha.listeners += listener; handler.post(refresh) }
+
+    override fun onPause() {
+        handler.removeCallbacks(refresh)
+        Ha.listeners -= listener
+        saveApp?.invoke()
+        super.onPause()
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean { MotionService.poke(); return super.dispatchTouchEvent(ev) }
+
+    // ---------------------------------------------------------------- navegação
+
+    private val sections = listOf(
+        Triple("app", "mdi:tablet", "App"), Triple("look", "mdi:palette-outline", "Aparência"), Triple("home", "mdi:home-outline", "Início"),
+        Triple("rooms", "mdi:view-grid-outline", "Divisões"), Triple("entities", "mdi:format-list-checks", "Entidades"),
+        Triple("plan", "mdi:floor-plan", "Planta 3D"), Triple("nav", "mdi:dock-bottom", "Navegação"), Triple("system", "mdi:cog-outline", "Sistema"),
+    )
+
+    private fun showSection(key: String, keepScroll: Boolean = false) {
+        saveApp?.invoke(); saveApp = null; statusDot = null; statusText = null; perms.clear()
+        val y = if (keepScroll) mainScroll.scrollY else 0
+        section = key
+        navBox.removeAllViews()
+        sections.forEach { (k, icon, label) ->
+            val act = k == key
+            navBox.addView(LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                background = if (act) kit.rounded(kit.cream, 40) else null
+                setPadding(kit.dp(12), kit.dp(10), kit.dp(16), kit.dp(10)); isClickable = true
+                setOnClickListener { if (k != section) showSection(k) }
+                addView(FrameLayout(this@SettingsActivity).apply {
+                    background = kit.circle(if (act) Color.argb(20, 42, 34, 31) else kit.soft)
+                    addView(kit.icon(icon, if (act) kit.ink else kit.fg, 22), FrameLayout.LayoutParams(kit.dp(22), kit.dp(22), Gravity.CENTER))
+                }, LinearLayout.LayoutParams(kit.dp(44), kit.dp(44)).apply { marginEnd = kit.dp(14) })
+                addView(kit.text(if (k == "app") "App" else Tr.t(label), 18f, if (act) kit.ink else kit.fg, 500))
+            }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = kit.dp(4) })
+        }
+        mainBox.removeAllViews()
+        when (key) {
+            "app" -> buildApp(); "look" -> buildLook(); "home" -> buildHome(); "rooms" -> buildRooms()
+            "entities" -> buildEntities(); "plan" -> buildPlan(); "nav" -> buildNav(); else -> buildSystem()
+        }
+        if (keepScroll) mainScroll.post { mainScroll.scrollTo(0, y) }
+    }
+
+    private fun redraw() = showSection(section, keepScroll = true)
+
+    // ---------------------------------------------------------------- blocos de interface
+
+    private fun d(v: Int) = kit.dp(v)
+
+    private fun panel(): LinearLayout {
+        val p = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; background = kit.glass(28); setPadding(d(26), d(22), d(26), d(22)) }
+        mainBox.addView(p, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(16) })
+        return p
+    }
+    private fun h3(p: LinearLayout, t: String, first: Boolean = false) = p.addView(kit.text(t, 19f, kit.fg, 500, display = true), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(if (first) 0 else 22) })
+    private fun para(p: LinearLayout, t: String) = p.addView(kit.text(t, 14f, kit.muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(4) })
+
+    private fun divider(p: LinearLayout) = p.addView(View(this).apply { setBackgroundColor(kit.soft) }, LinearLayout.LayoutParams(-1, d(1)).apply { topMargin = d(14) })
+
+    private fun titleBlock(title: String, sub: String?): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        addView(kit.text(title, 17f, kit.fg, 600))
+        if (sub != null) addView(kit.text(sub, 13f, kit.muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(2) })
+    }
+
+    private fun optToggle(p: LinearLayout, title: String, sub: String?, on: Boolean, onChange: (Boolean) -> Unit) {
+        if (p.childCount > 0) divider(p)
+        val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        row.addView(titleBlock(title, sub), LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = d(16) })
+        row.addView(Toggle(kit, on, onChange))
+        p.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(14) })
+    }
+
+    private fun optChoice(p: LinearLayout, title: String, sub: String?, options: List<Pair<String, String>>, cur: String, onPick: (String) -> Unit) {
+        if (p.childCount > 0) divider(p)
+        p.addView(titleBlock(title, sub), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(14) })
+        val g = Grid(this, d(110), d(42), d(8))
+        options.forEach { (v, l) ->
+            val sel = v == cur
+            g.addView(kit.text(l, 15f, if (sel) kit.ink else kit.fg, 600).apply {
+                gravity = Gravity.CENTER; background = kit.ripple(kit.rounded(if (sel) kit.cream else kit.soft, 40)); setSingleLine(); ellipsize = TextUtils.TruncateAt.END
+                isClickable = true; setOnClickListener { onPick(v) }
+            })
+        }
+        p.addView(g, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(10) })
+    }
+
+    private fun input(v: String, hint: String, type: Int) = EditText(this).apply {
+        setText(v); this.hint = hint; setHintTextColor(kit.muted); setTextColor(kit.fg); textSize = 16f; inputType = type; setSingleLine()
+        typeface = kit.font(400, false); background = kit.rounded(kit.soft, 14); setPadding(d(16), d(13), d(16), d(13))
+    }
+    private fun label(p: LinearLayout, t: String) = p.addView(kit.text(t, 13f, kit.muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(14); bottomMargin = d(6) })
+
+    private fun pillBtn(t: String, icon: String?, filled: Boolean = false, click: () -> Unit) = kit.pill(t, icon, filled, click)
+
+    // ---------------------------------------------------------------- App (só deste dispositivo)
+
+    private fun buildApp() {
+        // Ligação ao HA
+        val ha = panel()
+        h3(ha, Tr.t("Ligação"), true); para(ha, "A app lê a casa do Pine3 View e acorda com as tuas entidades.")
+        label(ha, Tr.t("Endereço"))
+        val url = input(prefs.haUrl, DEFAULT_HA_URL, InputType.TYPE_TEXT_VARIATION_URI); ha.addView(url)
+        label(ha, "Token (perfil do HA, separador Segurança)")
+        val token = input(prefs.haToken, "Token de acesso de longa duração", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD); ha.addView(token)
+        var ssl = prefs.ignoreSsl
+        optToggle(ha, "Aceitar certificado HTTPS auto-assinado", null, ssl) { ssl = it }
         val st = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         statusDot = View(this).apply { background = kit.circle(Color.parseColor("#F2755C")) }
         st.addView(statusDot, LinearLayout.LayoutParams(d(10), d(10)).apply { marginEnd = d(12) })
-        statusText = kit.text(Ha.status, 14f, kit.fg)
-        st.addView(statusText, LinearLayout.LayoutParams(0, -2, 1f))
+        statusText = kit.text(Ha.status, 14f, kit.fg); st.addView(statusText, LinearLayout.LayoutParams(0, -2, 1f))
         ha.addView(st, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(18) })
-        testOut = kit.text("", 12f, kit.muted)
-        ha.addView(kit.pill("Testar ligação", "mdi:wifi", false) { runTest() }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = d(14) })
+        val testOut = kit.text("", 12f, kit.muted)
+        fun commitHa() { prefs.haUrl = url.text.toString(); prefs.haToken = token.text.toString(); prefs.ignoreSsl = ssl }
+        ha.addView(pillBtn("Testar ligação", "mdi:wifi") {
+            commitHa(); testOut.text = ""
+            HaTest.run(prefs.wsUrl(), prefs.haToken, prefs.ignoreSsl,
+                line = { ok, t -> runOnUiThread { testOut.append((if (ok) "✔ " else "✘ ") + t + "\n") } },
+                done = { runOnUiThread { testOut.append("\n" + Ha.log.takeLast(4).joinToString("\n")) } })
+        }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = d(14) })
         ha.addView(testOut, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(10) })
-        add(ha)
 
         // Ecrã e campainha
-        val scr = card("Ecrã e campainha", "Acorda com movimento ou com a campainha")
-        timeout = input(prefs.timeoutSec.toString(), "15", InputType.TYPE_CLASS_NUMBER)
-        labeled(scr, "Desligar o ecrã após (segundos sem movimento)", timeout)
+        val scr = panel()
+        h3(scr, Tr.t("Ecrã e campainha"), true); para(scr, "Acorda com movimento ou com a campainha.")
+        label(scr, "Desligar o ecrã após (segundos sem movimento)")
+        val timeout = input(prefs.timeoutSec.toString(), "15", InputType.TYPE_CLASS_NUMBER); scr.addView(timeout)
         val sh = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        sh.addView(kit.text("Sensibilidade", 13f, Color.parseColor("#BFA9BB")), LinearLayout.LayoutParams(0, -2, 1f))
-        sensValue = kit.text("", 15f, kit.accent, 600); sh.addView(sensValue)
+        sh.addView(kit.text("Sensibilidade", 13f, kit.muted), LinearLayout.LayoutParams(0, -2, 1f))
+        val sensValue = kit.text("${prefs.sensitivity} / 10", 15f, kit.accent, 600); sh.addView(sensValue)
         scr.addView(sh, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(18) })
-        sens = SeekBar(this).apply {
+        val sens = SeekBar(this).apply {
             max = 9; progress = prefs.sensitivity - 1
-            progressTintList = android.content.res.ColorStateList.valueOf(kit.accent); thumbTintList = android.content.res.ColorStateList.valueOf(kit.accent)
+            progressTintList = ColorStateList.valueOf(kit.accent); thumbTintList = ColorStateList.valueOf(kit.accent)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar, p: Int, u: Boolean) { sensValue.text = "${p + 1} / 10" }
                 override fun onStartTrackingTouch(s: SeekBar) {}
                 override fun onStopTrackingTouch(s: SeekBar) {}
             })
         }
-        sensValue.text = "${prefs.sensitivity} / 10"
         scr.addView(sens, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(6) })
-        // tamanho da interface
-        val scaleHead = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        scaleHead.addView(kit.text(Tr.t("Tamanho da interface"), 13f, Color.parseColor("#BFA9BB")), LinearLayout.LayoutParams(0, -2, 1f))
-        val scaleValue = kit.text("${prefs.uiScale}%", 15f, kit.accent, 600); scaleHead.addView(scaleValue)
-        scr.addView(scaleHead, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(18) })
-        val scaleBar = SeekBar(this).apply {
+        val sc = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        sc.addView(kit.text(Tr.t("Tamanho da interface"), 13f, kit.muted), LinearLayout.LayoutParams(0, -2, 1f))
+        val scValue = kit.text("${prefs.uiScale}%", 15f, kit.accent, 600); sc.addView(scValue)
+        scr.addView(sc, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(18) })
+        scr.addView(SeekBar(this).apply {
             max = 70; progress = prefs.uiScale - 60
-            progressTintList = android.content.res.ColorStateList.valueOf(kit.accent); thumbTintList = android.content.res.ColorStateList.valueOf(kit.accent)
+            progressTintList = ColorStateList.valueOf(kit.accent); thumbTintList = ColorStateList.valueOf(kit.accent)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(s: SeekBar, p: Int, u: Boolean) { scaleValue.text = "${p + 60}%" }
+                override fun onProgressChanged(s: SeekBar, p: Int, u: Boolean) { scValue.text = "${p + 60}%" }
                 override fun onStartTrackingTouch(s: SeekBar) {}
-                override fun onStopTrackingTouch(s: SeekBar) { prefs.uiScale = s.progress + 60; recreate() }
+                override fun onStopTrackingTouch(s: SeekBar) { saveApp?.invoke(); prefs.uiScale = s.progress + 60; recreate() }
             })
-        }
-        scr.addView(scaleBar, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(6) })
-        scr.addView(kit.text("Se o painel web mostra mais coisas por ecrã, baixa este valor.", 12f, Color.parseColor("#BFA9BB")), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(4) })
+        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(6) })
+        para(scr, "Se o painel web mostra mais coisas por ecrã, baixa este valor.")
         val rule = prefs.wakeRules.firstOrNull() ?: DEFAULT_DOORBELL
-        bellEntity = input(rule.entity, "event.entry_hallway_comelit_intercom_doorbell", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
-        labeled(scr, "Campainha: entidade que acorda o ecrã", bellEntity)
-        bellWhen = input(rule.whenValue, "ring", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
-        labeled(scr, "Só quando (estado ou event_type)", bellWhen)
-        bellHold = input(rule.holdSec.toString(), "120", InputType.TYPE_CLASS_NUMBER)
-        labeled(scr, "Manter o ecrã ligado (segundos)", bellHold)
-        add(scr)
+        label(scr, "Campainha: entidade que acorda o ecrã")
+        val bellEntity = input(rule.entity, DEFAULT_DOORBELL.entity, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS); scr.addView(bellEntity)
+        label(scr, "Só quando (estado ou event_type)")
+        val bellWhen = input(rule.whenValue, "ring", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS); scr.addView(bellWhen)
+        label(scr, "Manter o ecrã ligado (segundos)")
+        val bellHold = input(rule.holdSec.toString(), "120", InputType.TYPE_CLASS_NUMBER); scr.addView(bellHold)
+        var boot = prefs.bootStart
+        optToggle(scr, "Abrir quando o tablet arranca", null, boot) { boot = it }
 
-        // Sistema
-        val sys = card("Sistema", "Para funcionar sempre, mesmo com o ecrã desligado")
+        // Permissões
+        val sys = panel()
+        h3(sys, Tr.t("Permissões"), true); para(sys, "Para funcionar sempre, mesmo com o ecrã desligado.")
         fun permRow(label: String, check: () -> Boolean, action: () -> Unit) {
             val dot = View(this).apply { background = kit.circle(Color.parseColor("#F2755C")) }
-            val btn = kit.text("Ativar", 13f, kit.accent, 600).apply {
-                background = kit.rounded(Color.parseColor("#44294A"), 10); setPadding(d(14), d(8), d(14), d(8)); setOnClickListener { action() }
-            }
+            val btn = kit.text("Ativar", 14f, kit.accent, 600).apply { background = kit.rounded(kit.soft, 12); setPadding(d(16), d(8), d(16), d(8)); setOnClickListener { action() } }
             val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
             row.addView(dot, LinearLayout.LayoutParams(d(10), d(10)).apply { marginEnd = d(14) })
-            row.addView(kit.text(label, 15f, kit.fg), LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(btn)
+            row.addView(kit.text(label, 16f, kit.fg), LinearLayout.LayoutParams(0, -2, 1f)); row.addView(btn)
             sys.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(14) })
             perms += Triple(dot, btn, check)
         }
-        permRow("Câmara", { checkSelfPermission(android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED }) {
-            requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 1)
-        }
+        permRow("Câmara", { checkSelfPermission(android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED }) { requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 1) }
         permRow("Desligar ecrã por completo (administrador)", { MotionService.isAdminActive(this) }) {
-            startActivity(Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
-                .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, ComponentName(this, AdminReceiver::class.java))
+            startActivity(Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, ComponentName(this, AdminReceiver::class.java))
                 .putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Necessário para desligar o ecrã por completo (sem luz)."))
         }
         permRow("Sem otimização de bateria", { (getSystemService(Context.POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName) }) {
@@ -192,49 +381,251 @@ class SettingsActivity : Activity() {
         permRow("Aparecer por cima (arranque automático)", { Settings.canDrawOverlays(this) }) {
             startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).setData(Uri.parse("package:$packageName")))
         }
-        boot = switchRow(sys, "Abrir quando o tablet arranca", prefs.bootStart)
-        add(sys)
 
-        val holder = FrameLayout(this).apply {
-            setPadding(d(24), d(18), d(10), d(18))
-            addView(col, FrameLayout.LayoutParams(-1, -2))
+        saveApp = {
+            commitHa()
+            prefs.timeoutSec = timeout.text.toString().toIntOrNull() ?: 15
+            prefs.sensitivity = sens.progress + 1
+            prefs.bootStart = boot
+            val entity = bellEntity.text.toString().trim().lowercase()
+            prefs.wakeRules = if (entity.isBlank()) emptyList() else listOf(WakeRule(entity, bellWhen.text.toString().trim(), (bellHold.text.toString().toIntOrNull() ?: 120).coerceIn(5, 3600)))
+            Ha.configure(this)
+            if (checkSelfPermission(android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) MotionService.start(this)
         }
-        setContentView(ScrollView(this).apply { setBackgroundColor(Color.parseColor("#1C0F1E")); isFillViewport = true; addView(holder) })
     }
 
-    override fun onResume() { super.onResume(); handler.post(refresh) }
+    // ---------------------------------------------------------------- Aparência
 
-    override fun onPause() {
-        handler.removeCallbacks(refresh)
-        save()
-        super.onPause()
+    private val CARD_COLORS = listOf("#f5efe1", "#efe3c8", "#e6dcc2", "#d6e2e8", "#c3d3da", "#d9d3e3", "#e6d3d6", "#cfe0cc", "#bccfc3", "#cbb9a8", "#bcc6d3", "#d8ccb4", "#cdc6d8", "#b9d3cd")
+    private val ACCENTS = listOf("#f6b83f", "#f5a524", "#ff9f43", "#ff7a59", "#ff6b81", "#f472b6", "#a78bfa", "#7c8cff", "#4aa8ff", "#2dd4bf", "#4ade80", "#a3e635")
+    private val AMBIENT = setOf("nebulosa", "floresta", "ardosia", "vinho", "meia_noite", "brasa")
+    private val VIVID = setOf("ambar", "coral", "lima", "azul", "violeta", "magenta", "turquesa", "por_do_sol")
+
+    private fun swatchRow(p: LinearLayout, colors: List<String>, cur: String, key: String) {
+        val g = Grid(this, d(44), d(44), d(10))
+        colors.forEach { c ->
+            val sel = c.equals(cur, true)
+            g.addView(View(this).apply {
+                background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(Color.parseColor(c)); setStroke(d(if (sel) 3 else 1), if (sel) kit.fg else kit.soft) }
+                isClickable = true; setOnClickListener { setD(key, c); redraw() }
+            })
+        }
+        p.addView(g, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(10) })
     }
 
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean { MotionService.poke(); return super.dispatchTouchEvent(ev) }
-
-    private fun runTest() {
-        save()
-        testOut.text = ""
-        HaTest.run(prefs.wsUrl(), prefs.haToken, prefs.ignoreSsl,
-            line = { ok, t -> runOnUiThread { testOut.append((if (ok) "✔ " else "✘ ") + t + "\n") } },
-            done = { runOnUiThread { testOut.append("\n" + Ha.log.takeLast(4).joinToString("\n")) } })
+    private fun themeGrid(p: LinearLayout, title: String, keys: List<String>, cur: String, key: String) {
+        if (keys.isEmpty()) return
+        h3(p, title)
+        val g = Grid(this, d(86), d(92), d(12))
+        keys.forEach { k ->
+            val t = Themes.get(k)
+            g.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; isClickable = true
+                setOnClickListener { setD(key, k); redraw() }
+                addView(Swatch(kit, t, k == cur), LinearLayout.LayoutParams(d(64), d(64)))
+                addView(kit.text(Tr.t(t.name), 12f, kit.fg).apply { setSingleLine() }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = d(5) })
+            })
+        }
+        p.addView(g, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(10) })
     }
 
-    private fun refreshPerms() = perms.forEach { (dot, btn, check) ->
-        val ok = check()
-        (dot.background as android.graphics.drawable.GradientDrawable).setColor(if (ok) Color.parseColor("#8FD9A8") else Color.parseColor("#F2755C"))
-        btn.visibility = if (ok) View.GONE else View.VISIBLE
+    private fun buildLook() {
+        val a = panel()
+        optChoice(a, Tr.t("Idioma"), "Idioma de todo o painel.", listOf("pt" to "Português", "en" to "English"), draft.optString("language", "pt")) { setD("language", it); redraw() }
+        optChoice(a, Tr.t("Disposição"), "Como as divisões e os dispositivos aparecem.", listOf("grid" to Tr.t("Grelha"), "list" to Tr.t("Lista")), draft.optString("layout", "grid")) { setD("layout", it); redraw() }
+        optToggle(a, Tr.t("Animações"), "Transições ao mudar de ecrã, a lente da dock e a abertura dos cartões. Desliga para um painel mais leve.", bool("animations", true)) { setD("animations", it) }
+
+        val c = panel()
+        h3(c, Tr.t("Cor dos cartões"), true); para(c, "Superfície suave dos cartões ligados.")
+        swatchRow(c, CARD_COLORS, draft.optString("card_color", "#f5efe1"), "card_color")
+        h3(c, Tr.t("Cor de destaque")); para(c, "Ícones acesos, pontos das luzes, sliders e contadores.")
+        swatchRow(c, ACCENTS, draft.optString("accent_color", "#f6b83f"), "accent_color")
+
+        val f = panel()
+        h3(f, Tr.t("Fundo"), true); para(f, "O ambiente por trás dos cartões. Os fundos claros põem todo o painel em modo claro.")
+        val auto = draft.optString("appearance", "fixed") == "auto"
+        optChoice(f, Tr.t("Modo"), if (auto) "Usa o fundo de dia entre o nascer e o pôr do sol (sun.sun) e o de noite no resto do tempo." else "Um fundo sempre igual, ou um para o dia e outro para a noite.",
+            listOf("fixed" to Tr.t("Fixo"), "auto" to Tr.t("Automático")), if (auto) "auto" else "fixed") { setD("appearance", it); redraw() }
+        val all = Themes.all.map { it.key }
+        val light = Themes.all.filter { it.light }.map { it.key }.toSet()
+        val dark = all.filter { it !in light && it !in VIVID && it !in AMBIENT }
+        val amb = all.filter { it in AMBIENT }; val viv = all.filter { it in VIVID }; val lig = all.filter { it in light }
+        if (auto) {
+            themeGrid(f, Tr.t("De dia"), lig + viv + amb + dark, draft.optString("theme_day", "linho"), "theme_day")
+            themeGrid(f, Tr.t("À noite"), amb + dark + viv + lig, draft.optString("theme_night", "ameixa"), "theme_night")
+        } else {
+            val cur = draft.optString("theme", "ameixa")
+            themeGrid(f, Tr.t("Ambiente"), amb, cur, "theme"); themeGrid(f, Tr.t("Vivos"), viv, cur, "theme")
+            themeGrid(f, Tr.t("Escuros"), dark, cur, "theme"); themeGrid(f, Tr.t("Claros"), lig, cur, "theme")
+        }
     }
 
-    private fun save() {
-        prefs.haUrl = url.text.toString(); prefs.haToken = token.text.toString(); prefs.ignoreSsl = ssl.isChecked
-        prefs.timeoutSec = timeout.text.toString().toIntOrNull() ?: 15
-        prefs.sensitivity = sens.progress + 1
-        prefs.bootStart = boot.isChecked
-        val entity = bellEntity.text.toString().trim().lowercase()
-        prefs.wakeRules = if (entity.isBlank()) emptyList()
-        else listOf(WakeRule(entity, bellWhen.text.toString().trim(), (bellHold.text.toString().toIntOrNull() ?: 120).coerceIn(5, 3600)))
-        Ha.configure(this) // (re)liga ao HA se mudou o endereço/token; atualiza as regras
-        if (checkSelfPermission(android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) MotionService.start(this)
+    // ---------------------------------------------------------------- Início
+
+    private fun buildHome() {
+        val p = panel()
+        h3(p, Tr.t("Ecrã inicial"), true); para(p, "O que aparece no início.")
+        optToggle(p, Tr.t("Meteorologia"), "Pílula com a temperatura e o estado do tempo. Toca nela para ver a previsão.", bool("show_weather", true)) { setD("show_weather", it) }
+        val wx = Ha.states.keys.filter { it.startsWith("weather.") }.sorted()
+        optChoice(p, Tr.t("Fonte do tempo"), "Automático usa a primeira entidade de tempo do Home Assistant ou, se não houver, a Open-Meteo para a localização da casa.",
+            listOf("" to Tr.t("Automático")) + wx.map { it to Fmt.name(it) } + listOf("open-meteo" to "Open-Meteo"), draft.optString("weather_entity", "")) { setD("weather_entity", it); redraw() }
+        optToggle(p, Tr.t("Pessoas"), "Quem está em casa, ao lado da data.", bool("home_people", false)) { setD("home_people", it) }
+        optChoice(p, Tr.t("Disposição do início"), "Relógio grande com o estado da casa ao lado; duas colunas; barra lateral de vidro; ou a disposição original.",
+            listOf("top" to Tr.t("Relógio grande"), "columns" to Tr.t("Duas colunas"), "sidebar" to Tr.t("Barra lateral"), "classic" to Tr.t("Clássica")), draft.optString("home_layout", "top")) { setD("home_layout", it); redraw() }
+        optToggle(p, Tr.t("Estado da casa"), "Luzes acesas, outros aparelhos ligados e botões Acender/Apagar luzes.", bool("show_status", true)) { setD("show_status", it) }
+        optToggle(p, Tr.t("Cenas"), "Faixa de cenas no início.", bool("show_scenes", true)) { setD("show_scenes", it) }
+        optToggle(p, Tr.t("Cartões de resumo"), "Clima, Segurança e A tocar.", bool("show_summary", true)) { setD("show_summary", it) }
+        optToggle(p, Tr.t("Relógio de 24 horas"), "Desliga para mostrar AM/PM.", bool("clock_24h", true)) { setD("clock_24h", it) }
+        val s = panel()
+        optChoice(s, Tr.t("Ecrã de descanso"), "Relógio grande e escurecido depois de algum tempo sem toques. Ideal para tablets na parede.",
+            listOf(0, 1, 5, 10, 30).map { it.toString() to if (it == 0) Tr.t("Desligado") else "$it min" }, draft.optInt("screensaver", 0).toString()) { setD("screensaver", it.toInt()); redraw() }
+    }
+
+    // ---------------------------------------------------------------- Divisões
+
+    private fun buildRooms() {
+        val rooms = Ha.home?.rooms
+        val p = panel()
+        h3(p, Tr.t("Divisões"), true); para(p, "Criadas automaticamente a partir das áreas do Home Assistant. Ordena, esconde e escolhe o tamanho de cada uma na Casa 3D.")
+        if (rooms == null) { para(p, "Liga primeiro ao Home Assistant (secção App)."); return }
+        val byId = rooms.associateBy { it.id }
+        val order = (list("room_order").filter { it in byId } + rooms.map { it.id }.filter { it !in list("room_order") }).toMutableList()
+        val sizes = draft.optJSONObject("house_size") ?: JSONObject()
+        val hiddenRooms = list("hidden_rooms")
+        order.forEachIndexed { k, id ->
+            val r = byId[id]!!
+            val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, d(8), 0, d(8)) }
+            row.addView(FrameLayout(this).apply {
+                background = kit.circle(kit.soft); addView(kit.icon(r.icon, kit.fg, 20), FrameLayout.LayoutParams(d(20), d(20), Gravity.CENTER))
+            }, LinearLayout.LayoutParams(d(40), d(40)).apply { marginEnd = d(14) })
+            row.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(kit.text(r.name, 16f, kit.fg, 500)); addView(kit.text(Tr.pl(r.devices.size, "dispositivo", "dispositivos", "device", "devices"), 12f, kit.muted))
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            val seg = LinearLayout(this).apply { background = kit.rounded(kit.soft, 14); setPadding(d(3), d(3), d(3), d(3)) }
+            listOf(0 to "A", 1 to "P", 2 to "M", 3 to "G").forEach { (v, l) ->
+                val sel = sizes.optInt(id, 0) == v
+                seg.addView(kit.text(l, 13f, if (sel) kit.ink else kit.fg, 600).apply {
+                    gravity = Gravity.CENTER; background = if (sel) kit.rounded(kit.cream, 11) else null; isClickable = true
+                    setOnClickListener { val o = JSONObject(sizes.toString()); if (v == 0) o.remove(id) else o.put(id, v); setD("house_size", o); redraw() }
+                }, LinearLayout.LayoutParams(d(34), d(32)))
+            }
+            row.addView(seg, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = d(12) })
+            fun move(dir: Int) { val i = order.indexOf(id); val j = i + dir; if (j in order.indices) { order.removeAt(i); order.add(j, id); setList("room_order", order); redraw() } }
+            row.addView(kit.roundButton("mdi:chevron-up", 36, kit.soft, kit.fg) { move(-1) }.apply { alpha = if (k == 0) 0.3f else 1f })
+            row.addView(kit.roundButton("mdi:chevron-down", 36, kit.soft, kit.fg) { move(1) }.apply { alpha = if (k == order.size - 1) 0.3f else 1f }, LinearLayout.LayoutParams(d(36), d(36)).apply { marginStart = d(6); marginEnd = d(14) })
+            row.addView(Toggle(kit, id !in hiddenRooms) { on -> val l = list("hidden_rooms"); if (on) l.remove(id) else if (id !in l) l.add(id); setList("hidden_rooms", l) })
+            p.addView(row, LinearLayout.LayoutParams(-1, -2))
+            if (k < order.size - 1) p.addView(View(this).apply { setBackgroundColor(kit.soft) }, LinearLayout.LayoutParams(-1, d(1)))
+        }
+        para(p, "Tamanho na Casa 3D: A = automático, P = pequeno, M = médio, G = grande. Os pisos vêm dos pisos do Home Assistant.")
+
+        val hidden = list("hidden")
+        val hiddenDevs = rooms.flatMap { r -> r.devices.filter { it.id in hidden }.map { it to r.name } }
+        if (hiddenDevs.isNotEmpty()) {
+            val h = panel()
+            h3(h, Tr.t("Dispositivos escondidos"), true)
+            hiddenDevs.forEach { (dev, room) ->
+                val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, d(8), 0, d(8)) }
+                row.addView(LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; addView(kit.text(dev.name, 16f, kit.fg, 500)); addView(kit.text(room, 12f, kit.muted)) }, LinearLayout.LayoutParams(0, -2, 1f))
+                row.addView(pillBtn(Tr.t("Mostrar"), null) { val l = list("hidden"); l.remove(dev.id); setList("hidden", l); redraw() })
+                h.addView(row, LinearLayout.LayoutParams(-1, -2))
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- Entidades
+
+    private fun shown(e: RoomEntity): Boolean { val hidden = list("hidden"); return if (e.primary) e.id !in hidden else e.id in list("shown") && e.id !in hidden }
+
+    private fun buildEntities() {
+        val rooms = Ha.home?.rooms
+        val p = panel()
+        h3(p, Tr.t("Entidades"), true)
+        para(p, "Escolhe o que aparece no painel. As entidades principais são os mosaicos criados automaticamente; as secundárias podes mostrá-las como mosaicos próprios.")
+        if (rooms == null) { para(p, "Esta secção precisa da integração Pine3 View e da ligação ao HA."); return }
+        val q = input(entQuery, Tr.t("Procurar entidades…"), InputType.TYPE_CLASS_TEXT)
+        p.addView(q, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(14) })
+        optToggle(p, Tr.t("Mostrar diagnóstico e escondidas no HA"), "Inclui entidades de diagnóstico, de configuração e as escondidas no Home Assistant.", entAll) { entAll = it; redraw() }
+        val groups = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        mainBox.addView(groups, LinearLayout.LayoutParams(-1, -2))
+        fun fill() {
+            groups.removeAllViews()
+            val query = entQuery.trim().lowercase()
+            rooms.forEach { r ->
+                val list = r.entities.filter { e -> (entAll || (!e.category && !e.haHidden) || shown(e)) && (query.isEmpty() || e.name.lowercase().contains(query) || e.id.contains(query)) }
+                if (list.isEmpty()) return@forEach
+                val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; background = kit.glass(28); setPadding(d(26), d(20), d(26), d(14)) }
+                val hd = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+                hd.addView(kit.icon(r.icon, kit.fg, 22), LinearLayout.LayoutParams(d(22), d(22)).apply { marginEnd = d(10) })
+                hd.addView(kit.text(r.name, 19f, kit.fg, 500, display = true))
+                hd.addView(kit.text("   " + r.entities.count { shown(it) } + Tr.t(" de ") + r.entities.size, 14f, kit.muted))
+                box.addView(hd)
+                list.forEach { e ->
+                    val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, d(9), 0, d(9)); alpha = if (shown(e)) 1f else 0.55f }
+                    row.addView(kit.icon(Fmt.icon(e.id, Fmt.domain(e.id)), kit.fg, 20), LinearLayout.LayoutParams(d(20), d(20)).apply { marginEnd = d(14) })
+                    row.addView(LinearLayout(this).apply { orientation = LinearLayout.VERTICAL
+                        addView(kit.text(e.name, 15f, kit.fg, 500).apply { setSingleLine(); ellipsize = TextUtils.TruncateAt.END }); addView(kit.text(e.id, 12f, kit.muted).apply { setSingleLine(); ellipsize = TextUtils.TruncateAt.END })
+                    }, LinearLayout.LayoutParams(0, -2, 1f))
+                    row.addView(kit.text(Tr.t(if (e.primary) "Principal" else if (e.category) "Diagnóstico" else if (e.haHidden) "Escondida no HA" else "Secundária"), 12f, if (e.primary) kit.accent else kit.muted, 600).apply {
+                        background = kit.rounded(kit.soft, 20); setPadding(d(10), d(3), d(10), d(3))
+                    }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = d(14) })
+                    row.addView(Toggle(kit, shown(e)) { on ->
+                        val hidden = list("hidden"); val sh = list("shown")
+                        if (e.primary) { if (on) hidden.remove(e.id) else if (e.id !in hidden) hidden.add(e.id) }
+                        else { if (on) { if (e.id !in sh) sh.add(e.id); hidden.remove(e.id) } else sh.remove(e.id) }
+                        setList("hidden", hidden); setList("shown", sh); row.alpha = if (on) 1f else 0.55f
+                    })
+                    box.addView(row)
+                }
+                groups.addView(box, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(16) })
+            }
+        }
+        fill()
+        q.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) { entQuery = s?.toString().orEmpty(); fill() }
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+        })
+    }
+
+    // ---------------------------------------------------------------- Planta 3D, Navegação, Sistema
+
+    private fun buildPlan() {
+        val p = panel()
+        h3(p, Tr.t("Planta 3D"), true)
+        para(p, "A casa 3D e o editor de planta ainda não estão na app nativa. Edita a planta no painel web: as alterações aparecem aqui quando a casa 3D for acrescentada.")
+    }
+
+    private fun buildNav() {
+        val p = panel()
+        h3(p, "Dock", true); para(p, "Botões da barra de navegação. A Casa está sempre presente.")
+        val dock = list("dock").ifEmpty { mutableListOf("home", "rooms", "house", "scenes") }
+        listOf("rooms" to ("Divisões" to "Todas as divisões numa grelha."), "house" to ("Casa 3D" to "Vista 3D da casa, por pisos."), "scenes" to ("Cenas" to "Cenas e scripts."),
+            "climate" to ("Clima" to "Ar condicionado, termóstatos e temperatura por divisão."), "security" to ("Segurança" to "Portas, janelas, fechaduras e câmaras.")).forEach { (k, v) ->
+            optToggle(p, Tr.t(v.first), v.second, k in dock) { on ->
+                val l = list("dock").ifEmpty { mutableListOf("home", "rooms", "house", "scenes") }
+                if (on && k !in l) l.add(k) else if (!on) l.remove(k)
+                if ("home" !in l) l.add(0, "home")
+                setList("dock", listOf("home", "rooms", "house", "scenes", "climate", "security").filter { it in l })
+            }
+        }
+    }
+
+    private fun buildSystem() {
+        val home = Ha.home
+        val p = panel()
+        h3(p, Tr.t("Sistema"), true)
+        val facts = Grid(this, d(180), d(70), d(14))
+        fun fact(k: String, v: String) = facts.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; background = kit.rounded(kit.soft, 18); setPadding(d(16), d(12), d(16), d(12))
+            addView(kit.text(k, 12f, kit.muted)); addView(kit.text(v, 20f, kit.fg, 500, display = true))
+        })
+        fact(Tr.t("Versão"), "nativa 0.1"); fact("Modo", if (home != null) "Integração" else "Sem ligação")
+        fact(Tr.t("Divisões"), "${home?.rooms?.size ?: "—"}"); fact("Dispositivos", "${home?.rooms?.sumOf { it.devices.size } ?: "—"}")
+        p.addView(facts, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(16) })
+        val row = LinearLayout(this)
+        row.addView(pillBtn(Tr.t("Reconstruir agora"), "mdi:refresh") { Ha.configure(this); showToast("A atualizar…") })
+        p.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(20) })
     }
 }

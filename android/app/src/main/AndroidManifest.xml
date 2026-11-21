@@ -43,12 +43,6 @@
             android:screenOrientation="sensorLandscape"
             android:showWhenLocked="true" />
 
-        <activity
-            android:name=".AppearanceActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:showWhenLocked="true" />
-
         <service
             android:name=".MotionService"
             android:exported="false"

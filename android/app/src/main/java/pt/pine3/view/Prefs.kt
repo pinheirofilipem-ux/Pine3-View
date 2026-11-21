@@ -7,6 +7,9 @@ import org.json.JSONObject
 /** Quando [entity] muda de estado (e o novo estado ou event_type é [whenValue]), o ecrã acorda [holdSec] segundos. */
 data class WakeRule(val entity: String, val whenValue: String, val holdSec: Int)
 
+/** Endereço inicial do Home Assistant (só a origem conta para a ligação; o /pine3-view é o painel web). */
+const val DEFAULT_HA_URL = "http://homeassistant.local:8123/pine3-view"
+
 /** Campainha da integração Comelit: acorda o ecrã 120 s quando o evento é "ring". */
 val DEFAULT_DOORBELL = WakeRule("event.entry_hallway_comelit_intercom_doorbell", "ring", 120)
 
@@ -15,7 +18,7 @@ class Prefs(ctx: Context) {
 
     /** Endereço do Home Assistant (ex.: http://192.168.1.10:8123). */
     var haUrl: String
-        get() = sp.getString("haUrl", "") ?: ""
+        get() = sp.getString("haUrl", null) ?: DEFAULT_HA_URL
         set(v) = sp.edit().putString("haUrl", v.trim()).apply()
 
     /** Token de acesso de longa duração. Fica só neste dispositivo. */
