@@ -42,6 +42,8 @@ class SaverView(private val kit: Kit, private val h24: Boolean, private val vide
             for (t in listOf(clock, date)) t.setShadowLayer(kit.dp(10).toFloat(), 0f, kit.dp(2).toFloat(), Color.argb(170, 0, 0, 0))
             clock.textSize = kit.clamp(64f, kit.vw(9f), 120f)
             clock.includeFontPadding = false; clock.setPadding(0, 0, kit.dp(28), 0); clock.setSingleLine(true); clock.ellipsize = null
+            // a largura medida pelo tipo de letra variável fica curta e corta o último algarismo: reserva sempre largura de sobra (alinhado à esquerda, não se nota)
+            clock.minWidth = (clock.textSize * (if (h24) 3.6f else 5.4f)).toInt()
             inner.gravity = Gravity.START
             inner.addView(clock); inner.addView(date, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(2) })
             addView(inner, LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply { leftMargin = kit.dp(56); bottomMargin = kit.dp(44) })
