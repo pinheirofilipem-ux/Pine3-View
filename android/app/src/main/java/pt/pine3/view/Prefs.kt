@@ -31,6 +31,26 @@ class Prefs(ctx: Context) {
         get() = sp.getInt("uiScale", 100)
         set(v) = sp.edit().putInt("uiScale", v.coerceIn(60, 130)).apply()
 
+    /** Ecrã de descanso com os vídeos da Apple TV (em vez do relógio escuro). */
+    var saverVideo: Boolean
+        get() = sp.getBoolean("saverVideo", false)
+        set(v) = sp.edit().putBoolean("saverVideo", v).apply()
+
+    /** Qualidade dos vídeos: "1080" (H.264) ou "4k". */
+    var saverQuality: String
+        get() = sp.getString("saverQuality", "1080") ?: "1080"
+        set(v) = sp.edit().putString("saverQuality", v).apply()
+
+    /** Endereço do ficheiro de recursos da Apple (o tar com o entries.json). */
+    var saverSource: String
+        get() = sp.getString("saverSource", null) ?: Aerials.DEFAULT_SOURCE
+        set(v) = sp.edit().putString("saverSource", v.trim()).apply()
+
+    /** Vídeos extra (um endereço por linha, .mp4/.mov), misturados com os da Apple. */
+    var saverExtra: String
+        get() = sp.getString("saverExtra", "") ?: ""
+        set(v) = sp.edit().putString("saverExtra", v.trim()).apply()
+
     var ignoreSsl: Boolean
         get() = sp.getBoolean("ssl", false)
         set(v) = sp.edit().putBoolean("ssl", v).apply()

@@ -113,8 +113,16 @@ class MainActivity : Activity(), Nav {
             handler.postDelayed(this, 5_000)
         }
     }
+    /** Se os vídeos não carregarem, o ecrã de descanso volta ao relógio escuro (sem insistir). */
+    private var saverVideoFailed = false
+
     private fun showSaver() {
-        val s = SaverView(kit, Ha.home?.settings?.optBoolean("clock_24h", true) ?: true) { hideSaver() }
+        val video = prefs.saverVideo && !saverVideoFailed
+        Aerials.setExtra(prefs.saverExtra)
+        val s = SaverView(kit, Ha.home?.settings?.optBoolean("clock_24h", true) ?: true, video) { hideSaver() }
+        if (video) Aerials.load(this, prefs.saverSource, prefs.saverQuality) { n ->
+            if (n > 0 || Aerials.count > 0) s.startVideo() else { saverVideoFailed = true; if (saver === s) { hideSaver(); showSaver() } }
+        }
         saver = s
         root.addView(s, root.indexOfChild(blackout), FrameLayout.LayoutParams(-1, -1))
         s.alpha = 0f; s.animate().alpha(1f).setDuration(600).start()
@@ -200,6 +208,7 @@ class MainActivity : Activity(), Nav {
     override fun onResume() {
         super.onResume()
         resumed = true
+        saverVideoFailed = false
         cover()
         hideSystemBars()
         (getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager).requestDismissKeyguard(this, null)
@@ -402,6 +411,7 @@ class MainActivity : Activity(), Nav {
 
     private fun applySleeping(sleeping: Boolean) {
         if (!sleeping) hideSaver()
+        else saver?.let { root.removeView(it); saver = null } // pára o vídeo (e a rede) assim que o ecrã vai desligar
         if (sleeping) {
             // desvanece para preto com a mesma duração do acordar; o brilho só desce no fim (e o serviço só bloqueia o ecrã depois)
             handler.removeCallbacks(reveal)
