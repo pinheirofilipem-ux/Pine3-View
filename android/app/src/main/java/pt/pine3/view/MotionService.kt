@@ -140,7 +140,10 @@ class MotionService : Service() {
         sleptAt = SystemClock.elapsedRealtime()
         PanelState.set(true)
         if (isAdminActive(this)) {
-            try { (getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager).lockNow() } catch (_: Exception) {}
+            // deixa o ecrã desvanecer para preto antes de o bloquear (mesma duração do acordar)
+            main.postDelayed({
+                if (PanelState.sleeping) try { (getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager).lockNow() } catch (_: Exception) {}
+            }, PanelState.FADE_MS + 60)
         }
     }
 

@@ -110,17 +110,20 @@ class PokeDialog(act: android.app.Activity) : android.app.Dialog(act, android.R.
     // Com uma janela destas aberta a atividade não tem foco: a cortina preta do ecrã principal tem de levantar na mesma ao acordar.
     private val onSleep: (Boolean) -> Unit = { s ->
         window?.let { w ->
-            // sem permissão de administrador o ecrã só fica preto: a janela também tem de ficar preta (e sem brilho) de imediato
-            val lp = w.attributes
-            lp.screenBrightness = if (s) WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-            w.attributes = lp
             val v = w.decorView
             v.animate().cancel()
-            if (s) { v.alpha = 0f; v.visibility = View.INVISIBLE }
-            else { v.visibility = View.VISIBLE; v.alpha = 0f; v.animate().alpha(1f).setDuration(350).start() }
+            fun brightness(off: Boolean) {
+                val lp = w.attributes
+                lp.screenBrightness = if (off) WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                w.attributes = lp
+            }
+            if (s) {
+                // desvanece na mesma velocidade que o ecrã principal; sem permissão de administrador o brilho desce no fim
+                v.animate().alpha(0f).setDuration(PanelState.FADE_MS).withEndAction { if (PanelState.sleeping) { v.visibility = View.INVISIBLE; brightness(true) } }.start()
+            } else { brightness(false); v.visibility = View.VISIBLE; v.alpha = 0f; v.animate().alpha(1f).setDuration(PanelState.FADE_MS).start() }
         }
     }
-    override fun onStart() { super.onStart(); PanelState.dialogs++; PanelState.sleepListeners += onSleep; if (PanelState.sleeping) onSleep(true) }
+    override fun onStart() { super.onStart(); PanelState.dialogs++; PanelState.sleepListeners += onSleep; if (PanelState.sleeping) { window?.decorView?.alpha = 0f; window?.decorView?.visibility = View.INVISIBLE } }
     override fun onStop() { PanelState.sleepListeners -= onSleep; PanelState.dialogs = maxOf(0, PanelState.dialogs - 1); super.onStop() }
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean { MotionService.poke(); return super.dispatchTouchEvent(ev) }
 }

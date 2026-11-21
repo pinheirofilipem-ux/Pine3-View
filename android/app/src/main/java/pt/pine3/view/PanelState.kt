@@ -2,6 +2,8 @@ package pt.pine3.view
 
 /** Estado do ecrã partilhado entre o serviço (decide) e a atividade (mostra). */
 object PanelState {
+    /** Duração do fade ao desligar e ao acordar. */
+    const val FADE_MS = 300L
     @Volatile var sleeping = false
         private set
     /** As definições estão à frente: o serviço acorda o ecrã mas não troca de ecrã. */

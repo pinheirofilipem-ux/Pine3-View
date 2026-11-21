@@ -25,7 +25,7 @@ class MainActivity : Activity(), Nav {
 
     private companion object {
         const val SETTLE_MS = 250L
-        const val FADE_MS = 300L
+        const val FADE_MS = PanelState.FADE_MS
         const val UPDATE_DEBOUNCE_MS = 120L
         /** Os ecrãs da dock, pela ordem do painel web: chave, ícone, nome. */
         val DOCK_ITEMS = listOf(
@@ -357,12 +357,24 @@ class MainActivity : Activity(), Nav {
     }
 
     /** Sem permissão de administrador: ecrã preto + brilho no mínimo. */
+    private fun setBrightnessOff(off: Boolean) {
+        val lp = window.attributes
+        lp.screenBrightness = if (off) WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+        window.attributes = lp
+    }
+
     private fun applySleeping(sleeping: Boolean) {
         if (!sleeping) hideSaver()
-        if (sleeping) cover() else scheduleReveal()
-        val lp = window.attributes
-        lp.screenBrightness = if (sleeping) WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-        window.attributes = lp
+        if (sleeping) {
+            // desvanece para preto com a mesma duração do acordar; o brilho só desce no fim (e o serviço só bloqueia o ecrã depois)
+            handler.removeCallbacks(reveal)
+            blackout.animate().cancel()
+            if (blackout.visibility != View.VISIBLE) { blackout.alpha = 0f; blackout.visibility = View.VISIBLE }
+            blackout.animate().alpha(1f).setDuration(FADE_MS).withEndAction { if (PanelState.sleeping) setBrightnessOff(true) }.start()
+            return
+        }
+        scheduleReveal()
+        setBrightnessOff(false)
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
