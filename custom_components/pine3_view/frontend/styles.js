@@ -711,6 +711,9 @@ a.pill{color:inherit;text-decoration:none}
 @media (max-width:720px){.tile.camt{grid-column:1/-1}}
 /* live camera window */
 .camov .sheet.cam{width:min(1040px,calc(100vw - 48px));max-height:calc(100vh - 32px);display:grid;grid-template-columns:minmax(0,1fr) 240px;grid-template-rows:auto minmax(0,1fr);gap:16px 20px;overflow:hidden}
+/* live video: no frosted glass (re-blurring the page under a playing video flickers on tablets) */
+.camov{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(6,3,8,.86)}
+.camov .sheet.cam{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--sheen),rgb(30,24,36)}
 .sheet.cam>.hd{grid-column:1/-1}.sheet.cam .hd .ic{background:#5ac8fa;color:#06202a}
 .sheet.cam .st{display:flex;align-items:center;gap:8px}
 .live{display:inline-flex;align-items:center;gap:6px;background:#ff453a;color:#fff;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;border-radius:999px;padding:3px 9px}
