@@ -86,6 +86,8 @@ class Pine3ViewPanel extends HTMLElement {
     if (this._camOv) this._camUpdate();
     if (this._bellOv) this._bellSide();
     if (this._drag) return; // don't redraw under a finger
+    // a camera or doorbell window covers the screen: redraw what's behind it once it closes
+    if (this._camOv || this._bellOv) { this._behind = true; return; }
     // Home Assistant pushes a new hass object whenever *any* entity changes; only redraw
     // when something this screen shows has changed (redraws restart animations and flicker).
     if (prev && !this._affects(prev, h)) return;
@@ -540,6 +542,7 @@ class Pine3ViewPanel extends HTMLElement {
     this._camOv.remove();
     this._camOv = null;
     this._camDone = null;
+    this._redrawBehind();
     // the session is still open for a few seconds: keep one picture for the camera's card
     if (keep) this._camKeep(id);
   }
@@ -666,12 +669,18 @@ class Pine3ViewPanel extends HTMLElement {
       ${b.cam ? `<button class="cam-b" data-bellcam><ha-icon icon="mdi:cctv"></ha-icon><b>${t("Ver câmara")}</b><small>${t("liga o vídeo")}</small></button>` : ""}
       <button class="cam-b" data-bellx><ha-icon icon="mdi:bell-off-outline"></ha-icon><b>${t("Ignorar")}</b><small>${t("fecha esta janela")}</small></button>`;
   }
+  _redrawBehind() {
+    if (!this._behind || this._camOv || this._bellOv) return;
+    this._behind = false;
+    this._render();
+  }
   _closeBell() {
     if (!this._bellOv) return;
     clearInterval(this._bellTimer);
     window.removeEventListener("keydown", this._bellKeyFn);
     this._bellOv.remove();
     this._bellOv = null;
+    this._redrawBehind();
     try { window.Pine3Wallpanel?.keepAwake?.(0); } catch { /* not the app */ }
   }
 
@@ -1358,25 +1367,39 @@ class Pine3ViewPanel extends HTMLElement {
       let limit = nav && !nav.hidden ? nav.getBoundingClientRect().top - 16 : window.innerHeight - 16;
       if (sb) {
         const st = sb.querySelector(".sbst");
-        limit = sb.getBoundingClientRect().bottom - 18 - (st ? st.offsetHeight + 12 : 0);
+        limit = this._top(sb) + sb.offsetHeight - 18 - (st ? st.offsetHeight + 12 : 0);
       }
-      for (let n = rows.length - 1; n >= 3 && card.getBoundingClientRect().bottom > limit; n--) rows[n].hidden = true;
+      const top = this._top(card);
+      for (let n = rows.length - 1; n >= 3 && top + card.offsetHeight > limit; n--) rows[n].hidden = true;
     });
+  }
+  /**
+   * An element's top on screen as laid out, ignoring transforms: the view slides and scales in for half a
+   * second, and measuring during it gave sizes that changed a moment later (the cards "stretched").
+   */
+  _top(el) {
+    let y = 0, e = el;
+    while (e && e !== this) { y += e.offsetTop; e = e.offsetParent; }
+    if (e !== this) return el.getBoundingClientRect().top; // laid out some other way: measure as drawn
+    for (let p = el.parentElement; p; p = p.parentElement) y -= p.scrollTop;
+    return this.getBoundingClientRect().top + this.clientTop + y;
   }
   /** Home on a wide screen: the cards grow to fill the space down to the dock (no needless empty band, no scroll). */
   _fillHome() {
     const g = this.shadowRoot?.querySelector(".hgrid");
     if (!g) return;
-    g.classList.remove("fill");
-    if (this._view !== "home" || window.innerWidth <= 720) return;
+    const off = () => g.classList.remove("fill");
+    if (this._view !== "home" || window.innerWidth <= 720) return off();
     const cards = [...g.children].filter((x) => x.offsetParent);
-    if (!cards.length) return;
+    if (!cards.length) return off();
     const rows = new Set(cards.map((x) => x.offsetTop)).size;
     const nav = this._dockEl, bottom = nav && !nav.hidden ? nav.getBoundingClientRect().top - 16 : window.innerHeight - 16;
     const gap = parseFloat(getComputedStyle(g).rowGap) || 14;
-    const h = Math.floor((bottom - g.getBoundingClientRect().top - (rows - 1) * gap) / rows);
-    if (h < 110) return; // too little room: keep the normal height and scroll
-    g.style.setProperty("--rch", `${Math.min(h, 280)}px`);
+    const h = Math.floor((bottom - this._top(g) - (rows - 1) * gap) / rows);
+    if (h < 110) return off(); // too little room: keep the normal height and scroll
+    // the same height as last time is set straight away, so a redraw never shows the cards short first
+    this._rch = `${Math.min(h, 280)}px`;
+    if (g.style.getPropertyValue("--rch") !== this._rch) g.style.setProperty("--rch", this._rch);
     g.classList.add("fill");
   }
 
