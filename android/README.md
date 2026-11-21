@@ -5,38 +5,27 @@ fluidez com o WebView e junta o que o *Pine3 Wallpanel* já faz num tablet de pa
 
 O código desta pasta é **independente** da integração (`custom_components/`): a instalação por HACS não é afetada.
 
-## O que faz agora
-- Liga-se ao Home Assistant por WebSocket (token de acesso de longa duração) e lê o **mesmo modelo da casa** que o painel web
-  (`pine3_view/home` e `pine3_view/subscribe`): divisões, dispositivos, cenas, tempo, pessoas e as definições (cores, o que mostrar).
-  Não edita nada: os editores continuam no painel web.
-- **Casa** (relógio, estado da casa com *Acender/Apagar luzes*, tempo, pessoas, cenas e cartões das divisões), **Divisões**,
-  **uma divisão** (filtros por tipo e cartões dos dispositivos) e **Cenas**. Tocar nos cartões liga/desliga.
-- **Todos os ícones** do Material Design Icons (7447, os mesmos do Home Assistant), desenhados nativamente; respeita o ícone que cada
-  entidade define no HA.
-- **Aspeto e idioma** (Definições → Aspeto e idioma): os 26 temas do painel web (fixo, ou um de dia e outro de noite pelo sol), português
-  ou inglês, cores dos cartões e de destaque, e o que mostrar no início. As escolhas são gravadas no HA e valem também para o painel web.
-- **Dock "Liquid Glass"**: a lente de vidro desliza por baixo do separador ativo com mola e estica como uma gota (como no painel
-  web); as páginas entram com fade, subida e desfoque. Respeita a opção "Animações" do painel.
-- **Cartões de resumo** no início: Clima, Segurança, Aspirador e A tocar.
-- **Testar ligação** (Definições): diz em que passo falha (DNS, WebSocket, token, Pine3 View) e o que fazer.
-- Os cartões atualizam-se sozinhos quando os estados mudam, sem reconstruir a página.
-- **Ecrã de parede**: a câmara frontal deteta movimento e acorda o ecrã, que desliga sem luz (administrador de dispositivo) depois
-  de X segundos; a ligação ao HA fica viva com o ecrã desligado; arranque automático; fade suave ao acordar.
-- **Campainha**: uma entidade que acorda o ecrã (por omissão `event.entry_hallway_comelit_intercom_doorbell`, só quando `ring`,
-  120 s), da integração Comelit.
-- Atalho para as definições: dois dedos premidos 2 s, ou o botão da engrenagem no início.
+## O que faz
+- **Ligação ao Home Assistant** por WebSocket (token de acesso de longa duração). Lê o mesmo modelo da casa do painel web
+  (`pine3_view/home`, `pine3_view/subscribe`) e grava as definições de volta (`pine3_view/settings`), por isso o que mudas aqui vale
+  também no painel web. O endereço por omissão é `http://homeassistant.local:8123/pine3-view`.
+- **Ecrãs**: Início (as 4 disposições), Divisões, uma divisão, Cenas, Clima, Segurança e **Casa 3D** (canvas, com a planta desenhada no
+  painel web). Disposição em grelha ou em lista, divisões e dispositivos de tamanho duplo.
+- **Cartões e janelas**: luzes (cor e luminosidade), estores, clima (anel), multimédia, ventoinha, fechadura, **aspirador** (comandos, rotinas,
+  potência, divisões a limpar e mapa), **câmara** (o cartão mostra a última imagem; o vídeo só corre dentro da janela), tempo com previsão
+  (entidade do HA ou Open-Meteo) e **avisos do IPMA**.
+- **Campainha**: janela com a última imagem da câmara e a foto do toque, "Ver câmara" e abrir a porta (2 toques). A entidade que acorda o
+  ecrã é configurável (por omissão `event.entry_hallway_comelit_intercom_doorbell`, `ring`, 120 s).
+- **Modo de edição** (menu ⋮): arrastar para ordenar, esconder, tamanho duplo e repor o que foi escondido.
+- **Definições**: o mesmo formato do painel web (Aparência, Início, Divisões, Entidades, Navegação, Sistema) mais uma secção **App** com o
+  que é só do dispositivo (ligação, ecrã, campainha, permissões, escala da interface). As alterações de aspeto aplicam-se na hora.
+- **Aspeto**: 26 temas, português/inglês, todos os ícones do Material Design Icons (7447), dock "Liquid Glass" com lente elástica,
+  animações elásticas por toda a app (desligam-se com "Animações") e **ecrã de descanso**.
+- **Ecrã de parede**: a câmara frontal deteta movimento e acorda o ecrã, que desliga sem luz (administrador de dispositivo) depois de X
+  segundos, com fade para preto e de volta; toques em qualquer janela contam como atividade; arranque automático; a ligação fica viva com
+  o ecrã desligado. Atalho para as definições: dois dedos premidos 2 s.
 
-**Paridade com o painel web (em curso)**
-- Feito: as 4 disposições do início (clássica, topo, colunas, barra lateral) com as medidas do CSS (px = dp, `vw` e `clamp`),
-  cartões de divisão, de dispositivo, de clima (com anel) e de resumo, ecrãs **Clima** e **Segurança**, dock configurável (e que se
-  adapta ao espaço), painel de detalhes dos dispositivos (luz, estore, clima, multimédia, ventoinha, aspirador, fechadura), tempo com
-  previsão (horas e dias), pessoas só quando ativas.
-- Também: cartão e visualizador de **câmara** (imagem atualizada ~1 vez por segundo, abrir porta com 2 toques, +2 min), painel de detalhes em duas colunas com leituras e controlos, previsão com barras de temperatura e **escala da interface** (Definições) para igualar o tamanho do painel web.
-- Falta: casa 3D e editor de planta, modo de edição (arrastar e esconder), ecrã de descanso, avisos do IPMA, câmaras e pop-up da campainha,
-  detalhe do aspirador (mapa e divisões), disposição em lista, formato estreito/telemóvel, divisões e dispositivos "grandes".
-
-Ainda não tem: casa 3D e planta (fase 2), ecrã nativo da campainha com câmara (fase 3), previsão do tempo, detalhe dos dispositivos
-(luminosidade, cor, clima...), disposições do início diferentes de "top", e a edição (cartões, ordem, esconder).
+**Fora do âmbito por agora**: editor de planta (continua no painel web), formato estreito/telemóvel, vídeo MJPEG, modos 3D leve e planta 2D.
 
 ## Compilar
 ```bash
