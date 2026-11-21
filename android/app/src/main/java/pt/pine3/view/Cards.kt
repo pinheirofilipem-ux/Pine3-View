@@ -18,6 +18,32 @@ import org.json.JSONObject
 abstract class Card(ctx: Context) : FrameLayout(ctx) {
     init { Elastic.press(this, 0.96f) }
     abstract fun update()
+
+    /** Chave para ordenar no modo de edição (id da divisão, do dispositivo ou "@climate"...). */
+    var key: String? = null
+    private var chromeView: View? = null
+
+    /** Os botões do modo de edição: − (esconder) e duplicar/repor o tamanho, no canto de baixo à direita. */
+    fun setupEdit(kit: Kit, kind: String, id: String, big: Boolean, canHide: Boolean = true) {
+        if (Lay.edit == null) return
+        val bar = LinearLayout(context)
+        fun b(icon: String, onClick: () -> Unit) = FrameLayout(context).apply {
+            background = kit.circle(Color.argb(210, 20, 12, 24)); isClickable = true; setOnClickListener { onClick() }
+            addView(kit.icon(icon, Color.WHITE, 18), LayoutParams(kit.dp(18), kit.dp(18), Gravity.CENTER))
+            bar.addView(this, LinearLayout.LayoutParams(kit.dp(38), kit.dp(38)).apply { marginStart = kit.dp(8) })
+        }
+        if (canHide) b("mdi:minus") { Lay.hide(kind, id) }
+        b(if (big) "mdi:arrow-collapse" else "mdi:arrow-expand") { Lay.toggleBig(kind, id) }
+        addView(bar, LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, kit.dp(10), kit.dp(10)) })
+        chromeView = bar
+        foreground = android.graphics.drawable.GradientDrawable().apply { cornerRadius = kit.dp(26).toFloat(); setStroke(kit.dp(2), Color.argb(90, 255, 255, 255)); setColor(Color.TRANSPARENT) }
+    }
+
+    /** Toque (em coordenadas do cartão) num dos botões de edição? Então a grelha não pega nele para arrastar. */
+    fun chromeHit(x: Float, y: Float): Boolean {
+        val v = chromeView ?: return false
+        return x >= v.left && x <= v.right && y >= v.top && y <= v.bottom
+    }
 }
 
 /** Círculo com um ícone (as bolinhas `.ri`, `.ic` e `.pw` do painel web). */
@@ -42,6 +68,8 @@ class RoomCard(private val kit: Kit, private val room: Room, dense: Boolean, pri
     private val meta = kit.text("", if (short) 14f else 16f, kit.ink).oneLine()
     private val dots = Dots(kit.ctx, kit)
     private val tmp = kit.text("", if (short) 14f else 16f, kit.ink)
+    private val big = !kit.list && Ha.home?.let { Lay.isBigRoom(it, room.id) } == true
+    private val quick = Grid(kit.ctx, kit.dp(120), kit.dp(38), kit.dp(8))
 
     init {
         val pad = kit.dp(if (short || dense) 16 else 22)
@@ -68,6 +96,7 @@ class RoomCard(private val kit: Kit, private val room: Room, dense: Boolean, pri
         row1.addView(View(kit.ctx), LinearLayout.LayoutParams(0, 1, 1f))
         row1.addView(pw)
         col.addView(row1, LinearLayout.LayoutParams(-1, -2))
+        if (big) { tag = 2; col.addView(quick, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(12) }) }
         col.addView(View(kit.ctx), LinearLayout.LayoutParams(-1, 0, 1f))
         col.addView(nm, LinearLayout.LayoutParams(-1, -2))
         col.addView(meta, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(if (short) 2 else 4) })
@@ -105,6 +134,18 @@ class RoomCard(private val kit: Kit, private val room: Room, dense: Boolean, pri
         dots.offColor = if (active) Color.argb(41, 42, 34, 31) else Color.argb(71, 255, 255, 255)
         dots.on = sw.take(8).map { Fmt.isOn(it) }
         tmp.text = Fmt.roomClimate(room).first?.replace(Regex("[,.]\\d"), "")?.replace("°C", "°") ?: ""
+        if (big) {
+            quick.removeAllViews()
+            sw.take(6).forEach { id ->
+                val isOn = Fmt.isOn(id)
+                quick.addView(LinearLayout(kit.ctx).apply {
+                    gravity = Gravity.CENTER_VERTICAL; background = kit.ripple(kit.rounded(if (isOn) kit.accent else if (active) Color.argb(20, 42, 34, 31) else kit.soft, 40)); setPadding(kit.dp(12), 0, kit.dp(12), 0)
+                    isClickable = true; setOnClickListener { Fmt.tap(id) }
+                    addView(kit.icon(Fmt.icon(id, Fmt.domain(id)), if (isOn || active) kit.ink else kit.fg, 18), LinearLayout.LayoutParams(kit.dp(18), kit.dp(18)).apply { marginEnd = kit.dp(8) })
+                    addView(kit.text(Fmt.name(id), 14f, if (isOn || active) kit.ink else kit.fg, 500).apply { setSingleLine(); ellipsize = TextUtils.TruncateAt.END })
+                })
+            }
+        }
     }
 }
 
@@ -121,6 +162,7 @@ class Tile(private val kit: Kit, private val dev: Dev, private val secWatch: Boo
         (Fmt.isTv(dev.id, dev.name) && ((Fmt.state(dev.id)?.attrs?.optInt("supported_features", 0) ?: 0) and 384) != 0)
 
     init {
+        if (!kit.list && Ha.home?.let { Lay.isBigDev(it, dev.id) } == true) tag = 2
         val pad = kit.dp(18)
         isClickable = domain != "sensor"
         setOnClickListener { if (domain in setOf("light", "cover", "climate", "media_player", "fan", "vacuum")) onOpen(dev.id) else Fmt.tap(dev.id) }
@@ -477,4 +519,19 @@ class CamTile(private val kit: Kit, private val dev: Dev, private val onOpen: (S
         }
         st.text = if (saved > 0) Tr.t("Última imagem") + " · " + java.text.SimpleDateFormat("d MMM HH:mm", Tr.locale).format(java.util.Date(saved)) else Tr.t("Toca para ver ao vivo")
     }
+}
+
+/** "Mostrar N escondidas": cartão tracejado do modo de edição que volta a mostrar o que foi escondido. */
+class RestoreCard(private val kit: Kit, text: String, onClick: () -> Unit) : Card(kit.ctx) {
+    init {
+        isClickable = true; setOnClickListener { onClick() }
+        background = kit.ripple(android.graphics.drawable.GradientDrawable().apply { cornerRadius = kit.dp(26).toFloat(); setColor(Color.TRANSPARENT); setStroke(kit.dp(2), Color.argb(80, 255, 255, 255), kit.dp(8).toFloat(), kit.dp(6).toFloat()) })
+        val col = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+        col.addView(FrameLayout(kit.ctx).apply {
+            background = kit.circle(kit.soft); addView(kit.icon("mdi:plus", kit.fg, 28), LayoutParams(kit.dp(28), kit.dp(28), Gravity.CENTER))
+        }, LinearLayout.LayoutParams(kit.dp(56), kit.dp(56)))
+        col.addView(kit.text(text, 15f, kit.muted, 600).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(10) })
+        addView(col, LayoutParams(-1, -1, Gravity.CENTER))
+    }
+    override fun update() {}
 }

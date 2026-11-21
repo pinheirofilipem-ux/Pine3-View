@@ -233,7 +233,7 @@ class HomePage(kit: Kit, private val home: Home, private val nav: Nav) : Page(ki
     }
 
     private fun stat(): View? {
-        if (!s.optBoolean("show_status", true)) return null
+        if (!s.optBoolean("show_status", true) || Lay.edit != null) return null
         val c = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL }
         c.addView(eyebrow(kit, Tr.t("Estado da casa")))
         c.addView(status, lp(kit, top = 6))
@@ -242,7 +242,7 @@ class HomePage(kit: Kit, private val home: Home, private val nav: Nav) : Page(ki
     }
 
     private fun scenes(): View? {
-        if (!s.optBoolean("show_scenes", true) || home.scenes.isEmpty()) return null
+        if (!s.optBoolean("show_scenes", true) || home.scenes.isEmpty() || Lay.edit != null) return null
         val c = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL }
         val head = LinearLayout(kit.ctx).apply { gravity = Gravity.CENTER_VERTICAL }
         head.addView(eyebrow(kit, Tr.t("Cenas")))
@@ -267,9 +267,9 @@ class HomePage(kit: Kit, private val home: Home, private val nav: Nav) : Page(ki
     private fun grid(): View {
         val g = if (dense) Grid(kit.ctx, 0, kit.dp(kotlin.math.max(120f, kotlin.math.min(230f, (kit.hdp - 316f) / 3f)).toInt()), kit.dp(14), 4).also { it.list = kit.list }
         else Grid(kit.ctx, kit.dp(230), kit.dp(250), kit.dp(20)).also { it.list = kit.list }
-        val order = (0 until (s.optJSONArray("room_order")?.length() ?: 0)).map { s.optJSONArray("room_order")!!.getString(it) }
+        val order = Lay.roomOrder(home)
         val items = ArrayList<Pair<String, Card>>()
-        home.rooms.filter { !it.hidden }.forEach { r -> items += r.id to RoomCard(kit, r, dense) { nav.openRoom(r) } }
+        Lay.rooms(home).forEach { r -> items += r.id to RoomCard(kit, r, dense) { nav.openRoom(r) }.also { c -> c.key = r.id; c.setupEdit(kit, "room", r.id, Lay.isBigRoom(home, r.id)) } }
         if (s.optBoolean("show_summary", true)) {
             items += "@climate" to SummaryCard(kit, "climate", null, home, nav, dense)
             items += "@security" to SummaryCard(kit, "security", null, home, nav, dense)
@@ -277,7 +277,12 @@ class HomePage(kit: Kit, private val home: Home, private val nav: Nav) : Page(ki
             items += "@media" to SummaryCard(kit, "media", null, home, nav, dense)
         }
         fun pos(k: String, i: Int) = order.indexOf(k).let { if (it < 0) 10000 + i else it }
+        items.forEach { (k, c) -> if (c.key == null && Lay.edit != null) c.key = k }
         items.mapIndexed { i, p -> Triple(pos(p.first, i), p.first, p.second) }.sortedBy { it.first }.forEach { cards += it.third; g.addView(it.third) }
+        if (Lay.edit != null) {
+            Lay.hiddenRoomCount(home).takeIf { it > 0 }?.let { n -> g.addView(RestoreCard(kit, Tr.pl(n, "escondida", "escondidas", "hidden", "hidden")) { Lay.restoreRooms() }) }
+            g.onReorder = { keys -> Lay.reorderRooms(keys) }
+        }
         return g
     }
 
@@ -397,13 +402,17 @@ class RoomsPage(kit: Kit, home: Home, nav: Nav) : Page(kit) {
     override val view: View
 
     init {
-        val rooms = home.rooms.filter { !it.hidden }
+        val rooms = Lay.rooms(home)
         view = pageOf(kit) { w ->
             w.addView(hero(kit, Tr.pl(rooms.size, "divisão", "divisões", "room", "rooms"), Tr.t("Divisões")))
             val sh = kit.short
             val g = if (sh) Grid(kit.ctx, kit.dp(210), kit.dp(kit.clamp(116f, (kit.hdp - 226f) / 3f, 250f).toInt()), kit.dp(14)).also { it.list = kit.list }
             else Grid(kit.ctx, kit.dp(230), kit.dp(250), kit.dp(20)).also { it.list = kit.list }
-            rooms.forEach { r -> val c = RoomCard(kit, r, false, sh) { nav.openRoom(r) }; cards += c; g.addView(c) }
+            rooms.forEach { r -> val c = RoomCard(kit, r, false, sh) { nav.openRoom(r) }; c.key = r.id; c.setupEdit(kit, "room", r.id, Lay.isBigRoom(home, r.id)); cards += c; g.addView(c) }
+            if (Lay.edit != null) {
+                Lay.hiddenRoomCount(home).takeIf { it > 0 }?.let { n -> g.addView(RestoreCard(kit, Tr.pl(n, "escondida", "escondidas", "hidden", "hidden")) { Lay.restoreRooms() }) }
+                g.onReorder = { keys -> Lay.reorderRooms(keys) }
+            }
             w.addView(g, lp(kit, top = if (sh) 16 else 22))
         }
     }
@@ -420,7 +429,7 @@ class RoomPage(kit: Kit, private val room: Room, private val nav: Nav) : Page(ki
     private val status = kit.text("", kit.clamp(22f, kit.vw(2.3f), 30f), kit.fg, 300, display = true)
     private var filter: Set<String>? = null
     override val view: View
-    private val devs = room.devices.filter { !it.hidden }
+    private val devs = Ha.home?.let { Lay.devs(it, room) } ?: room.devices.filter { !it.hidden }
 
     private fun cat(d: Dev) = Fmt.SECTIONS.indexOfFirst { (if (d.kind == "outlet") "outlet" else Fmt.domain(d.id)) in it.third }.let { if (it < 0) 99 else it }
 
@@ -443,7 +452,12 @@ class RoomPage(kit: Kit, private val room: Room, private val nav: Nav) : Page(ki
             w.addView(HorizontalScrollView(kit.ctx).apply { isHorizontalScrollBarEnabled = false; addView(chips) }, lp(kit, top = 18))
             sorted.forEach { d ->
                 val card: Card = if (d.kind == "climate" && Fmt.state(d.id) != null) ClimateCard(kit, d, null) { nav.openDevice(it) } else if (d.kind == "vacuum" && Fmt.state(d.id) != null) VacCard(kit, d, room) { nav.openDevice(it) } else Tile(kit, d) { nav.openDevice(it) }
+                card.key = d.id; card.setupEdit(kit, "dev", d.id, Ha.home?.let { Lay.isBigDev(it, d.id) } == true)
                 tiles += d to card; grid.addView(card)
+            }
+            if (Lay.edit != null) {
+                Ha.home?.let { h -> Lay.hiddenDevCount(h, room).takeIf { it > 0 }?.let { n -> grid.addView(RestoreCard(kit, Tr.pl(n, "escondido", "escondidos", "hidden", "hidden")) { Lay.restoreDevs(room) }) } }
+                grid.onReorder = { keys -> Lay.reorderDevs(room, keys) }
             }
             w.addView(grid, lp(kit, top = 16))
         }

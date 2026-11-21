@@ -77,6 +77,31 @@ class MainActivity : Activity(), Nav {
     }
 
     private var bell: BellDialog? = null
+    private lateinit var gear: View
+    private lateinit var editBar: LinearLayout
+
+    /** O menu "⋮": editar o ecrã (início, divisões ou uma divisão) e as definições. */
+    private fun showMenu() {
+        val canEdit = Ha.home != null && (tab == "home" || tab == "rooms" || roomId != null)
+        android.widget.PopupMenu(this, gear).apply {
+            if (canEdit) menu.add(Tr.t("Editar ecrã")).setOnMenuItemClickListener { startEdit(); true }
+            menu.add(Tr.t("Definições")).setOnMenuItemClickListener { openSettings(); true }
+        }.show()
+    }
+
+    private fun startEdit() {
+        val home = Ha.home ?: return
+        Lay.begin(home)
+        dockHost.visibility = View.GONE; gear.visibility = View.GONE; editBar.visibility = View.VISIBLE
+        rebuild()
+    }
+
+    private fun finishEdit(save: Boolean) {
+        if (Lay.edit == null) return
+        Lay.finish(Ha.home, save)
+        dockHost.visibility = View.VISIBLE; gear.visibility = View.VISIBLE; editBar.visibility = View.GONE
+        rebuild()
+    }
 
     // ecrã de descanso
     private var saver: SaverView? = null
@@ -84,7 +109,7 @@ class MainActivity : Activity(), Nav {
     private val saverTick = object : Runnable {
         override fun run() {
             val mins = Ha.home?.settings?.optInt("screensaver", 0) ?: 0
-            if (mins > 0 && saver == null && resumed && !PanelState.sleeping && bell?.isShowing != true && System.currentTimeMillis() - maxOf(lastActivity, PanelState.lastTouch) > mins * 60_000L) showSaver()
+            if (mins > 0 && Lay.edit == null && saver == null && resumed && !PanelState.sleeping && bell?.isShowing != true && System.currentTimeMillis() - maxOf(lastActivity, PanelState.lastTouch) > mins * 60_000L) showSaver()
             handler.postDelayed(this, 5_000)
         }
     }
@@ -150,8 +175,18 @@ class MainActivity : Activity(), Nav {
         }
         root.addView(banner, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = kit.dp(10) })
 
-        root.addView(kit.roundButton("mdi:dots-vertical", 44, kit.soft, kit.fg) { openSettings() },
-            FrameLayout.LayoutParams(kit.dp(44), kit.dp(44), Gravity.TOP or Gravity.END).apply { topMargin = kit.dp(16); rightMargin = kit.dp(18) })
+        gear = kit.roundButton("mdi:dots-vertical", 44, kit.soft, kit.fg) { showMenu() }
+        root.addView(gear, FrameLayout.LayoutParams(kit.dp(44), kit.dp(44), Gravity.TOP or Gravity.END).apply { topMargin = kit.dp(16); rightMargin = kit.dp(18) })
+
+        // barra do modo de edição (substitui a dock enquanto se edita)
+        editBar = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; visibility = View.GONE }
+        editBar.addView(kit.text(Tr.t("Arrasta para mover. Toca em − para esconder e nas setas para duplicar o tamanho."), 13f, kit.muted).apply { gravity = Gravity.CENTER })
+        val eb = LinearLayout(this)
+        eb.addView(kit.pill(Tr.t("Cancelar"), null, false) { finishEdit(false) })
+        eb.addView(kit.pill(Tr.t("Concluído"), "mdi:check", true) { finishEdit(true) }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = kit.dp(12) })
+        editBar.addView(eb, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(10) })
+        root.addView(editBar, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = kit.dp(22) })
+        Lay.onChange = { rebuild() }
 
         blackout = View(this).apply { setBackgroundColor(Color.BLACK); isClickable = true }
         root.addView(blackout, FrameLayout.LayoutParams(-1, -1))
@@ -205,7 +240,7 @@ class MainActivity : Activity(), Nav {
     }
 
     @Deprecated("Deprecated in Java")
-    override fun onBackPressed() { if (roomId != null) back() }
+    override fun onBackPressed() { if (Lay.edit != null) finishEdit(false) else if (roomId != null) back() }
 
     // --- Navegação
 
@@ -220,6 +255,7 @@ class MainActivity : Activity(), Nav {
     }
 
     private fun showTab(key: String) {
+        if (Lay.edit != null) finishEdit(false)
         tab = key; roomId = null
         dockView?.setActive(dockKeys().indexOf(key).coerceAtLeast(0), animate = true)
         rebuild()
@@ -273,7 +309,7 @@ class MainActivity : Activity(), Nav {
         if (dockKeysSig != dockKeys().joinToString()) { dockKeysSig = dockKeys().joinToString(); buildDock() }
         val room = roomId?.let { id -> home.rooms.firstOrNull { it.id == id } }
         kit.list = home.settings.optString("layout", "grid") == "list"
-        val key = if (room != null) "room:${room.id}" else "tab:$tab:" + home.settings.optString("home_layout") + home.settings.optString("layout") + home.settings.optString("dock") + home.settings.optBoolean("home_people") + home.settings.optBoolean("show_summary", true) + home.settings.optBoolean("show_status", true) + home.settings.optBoolean("show_scenes", true) + home.settings.optBoolean("show_weather", true) + home.settings.optBoolean("clock_24h", true)
+        val key = (if (Lay.edit != null) "edit${Lay.version}:" else "") + if (room != null) "room:${room.id}" else "tab:$tab:" + home.settings.optString("home_layout") + home.settings.optString("layout") + home.settings.optString("dock") + home.settings.optBoolean("home_people") + home.settings.optBoolean("show_summary", true) + home.settings.optBoolean("show_status", true) + home.settings.optBoolean("show_scenes", true) + home.settings.optBoolean("show_weather", true) + home.settings.optBoolean("clock_24h", true)
         if (shownHome === home && shownKey == key && page != null) { page?.update(); return }
         val p: Page = when {
             room != null -> RoomPage(kit, room, this)

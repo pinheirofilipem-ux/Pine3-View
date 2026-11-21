@@ -16,6 +16,7 @@ import android.content.res.ColorStateList
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.MotionEvent
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -174,11 +175,63 @@ class Kit(val ctx: Context) {
 class Grid(ctx: Context, private val minW: Int, private val childH: Int, private val gap: Int, private val fixedCols: Int = 0) : ViewGroup(ctx) {
     /** Disposição em lista: uma coluna, cartões baixos e 10 dp entre eles (.as-list do painel web). */
     var list = false
+    /** Modo de edição: arrastar um cartão troca-o de lugar; no fim chama [onReorder] com as chaves pela nova ordem. */
+    var onReorder: ((List<String>) -> Unit)? = null
+    private var drag: View? = null
+    private var dox = 0f; private var doy = 0f; private var fx = 0f; private var fy = 0f; private var downX = 0f; private var downY = 0f
+    private var dragging = false
     private var cols = 1
     private var cw = 0
     private val pos = ArrayList<IntArray>() // x, y, w, h por filho visível (por ordem)
 
     private fun span(c: View) = if (c.tag == 2) minOf(2, cols) else 1
+
+    private fun childAt(x: Float, y: Float): View? {
+        for (i in childCount - 1 downTo 0) { val c = getChildAt(i); if (c.visibility == GONE) continue; if (x >= c.left && x <= c.right && y >= c.top && y <= c.bottom) return c }
+        return null
+    }
+
+    override fun onInterceptTouchEvent(e: MotionEvent): Boolean {
+        if (Lay.edit == null || onReorder == null) return false
+        if (e.actionMasked == MotionEvent.ACTION_DOWN) {
+            val c = childAt(e.x, e.y) as? Card ?: return false
+            if (c.key == null || c.chromeHit(e.x - c.left, e.y - c.top)) return false
+            drag = c; downX = e.x; downY = e.y; dragging = false
+            return true
+        }
+        return false
+    }
+
+    override fun onTouchEvent(e: MotionEvent): Boolean {
+        val d = drag ?: return false
+        when (e.actionMasked) {
+            MotionEvent.ACTION_MOVE -> {
+                fx = e.x; fy = e.y
+                if (!dragging && Math.hypot((e.x - downX).toDouble(), (e.y - downY).toDouble()) > 8 * resources.displayMetrics.density) {
+                    dragging = true; dox = downX - d.left; doy = downY - d.top
+                    d.elevation = 14 * resources.displayMetrics.density; d.scaleX = 1.04f; d.scaleY = 1.04f
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                }
+                if (dragging) {
+                    val over = childAt(e.x, e.y)?.takeIf { it !== d }
+                    if (over != null) {
+                        val to = indexOfChild(over)
+                        detachViewFromParent(d); attachViewToParent(d, to, d.layoutParams ?: generateDefaultLayoutParams())
+                        requestLayout()
+                    }
+                    d.translationX = e.x - dox - d.left; d.translationY = e.y - doy - d.top
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                parent?.requestDisallowInterceptTouchEvent(false)
+                val was = dragging
+                d.animate().translationX(0f).translationY(0f).scaleX(1f).scaleY(1f).setDuration(220).withEndAction { d.elevation = 0f }.start()
+                drag = null; dragging = false
+                if (was && e.actionMasked == MotionEvent.ACTION_UP) onReorder?.invoke((0 until childCount).mapNotNull { (getChildAt(it) as? Card)?.key })
+            }
+        }
+        return true
+    }
 
     override fun onMeasure(wSpec: Int, hSpec: Int) {
         val w = MeasureSpec.getSize(wSpec)
@@ -224,6 +277,7 @@ class Grid(ctx: Context, private val minW: Int, private val childH: Int, private
             val p = pos[k++]
             c.layout(p[0], p[1], p[0] + p[2], p[1] + p[3])
         }
+        drag?.let { d -> if (dragging) { d.translationX = fx - dox - d.left; d.translationY = fy - doy - d.top } }
     }
 }
 
