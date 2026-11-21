@@ -747,7 +747,10 @@ a.pill{color:inherit;text-decoration:none}
 .bell-play{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#fff;font-size:18px;text-shadow:0 1px 8px rgba(0,0,0,.6)}
 .bell-play span{width:92px;height:92px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.22);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:2px solid rgba(255,255,255,.7);transition:transform .12s}
 .bell-play ha-icon{--mdc-icon-size:48px}.bell-v:active .bell-play span{transform:scale(.94)}
-.bell-when{left:12px;right:auto;z-index:3}.bell-none{z-index:2;top:auto;bottom:16%}
+.bell-when{left:12px;right:auto;z-index:3}
+.bell-snap{transition:opacity .35s}.bell-new{opacity:0}
+.bell-wait::before{content:"";position:absolute;left:12px;top:12px;z-index:3;width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}.bell-none{z-index:2;top:auto;bottom:16%}
 .bellov.nocam .sheet.cam{width:min(460px,calc(100vw - 48px));grid-template-columns:1fr}
 .bellov.nocam .cam-side{flex-direction:row;flex-wrap:wrap}.bellov.nocam .cam-b{flex:1 1 150px}
 @media (max-width:720px),(orientation:portrait){.camov .sheet.cam{grid-template-columns:1fr;overflow:auto}.cam-side{flex-direction:row;flex-wrap:wrap}.cam-b{flex:1 1 140px}.cam-note{width:100%}}

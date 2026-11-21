@@ -84,7 +84,7 @@ class Pine3ViewPanel extends HTMLElement {
     if (!this._connecting) this._connect();
     if (prev) this._bellCheck(prev, h);
     if (this._camOv) this._camUpdate();
-    if (this._bellOv) this._bellSide();
+    if (this._bellOv) { this._bellSide(); this._bellPic(); }
     if (this._drag) return; // don't redraw under a finger
     // a camera or doorbell window covers the screen: redraw what's behind it once it closes
     if (this._camOv || this._bellOv) { this._behind = true; return; }
@@ -604,7 +604,9 @@ class Pine3ViewPanel extends HTMLElement {
     if (cam && this._camOv && this._camId === cam) return; // already watching that door
     this._closeBell(false);
     this._closeCam(false);
-    this._bell = { id, type, call, cam, at: Date.now(), status: "" };
+    // the call's own picture (image entity of Comelit Intercom Doorbell); it arrives a few seconds after the ring
+    const snap = type === "ring" ? [a.snapshot_entity, ...Object.keys(this._hass.states).filter((i) => i.startsWith("image.") && /doorbell_snapshot/.test(i))].find((i) => this._s(i)) || "" : "";
+    this._bell = { id, type, call, cam, snap, at: Date.now(), status: "" };
     this._bellEnd = Date.now() + 90000;
     const shot = cam ? this._camShot(cam) : null;
     const lang = this._hass?.locale?.language || this._hass?.language;
@@ -612,14 +614,14 @@ class Pine3ViewPanel extends HTMLElement {
     const when = shot ? (new Date(shot.t).toDateString() === new Date().toDateString() ? hhmm(shot.t) : new Date(shot.t).toLocaleDateString(lang, { day: "numeric", month: "short" })) : "";
     const title = type === "floor_call" ? t("Tocaram à porta de casa") : t("Tocaram à porta");
     const ov = document.createElement("div");
-    ov.className = `ov enter camov bellov ${cam ? "" : "nocam"}`;
+    ov.className = `ov enter camov bellov ${cam || snap ? "" : "nocam"}`;
     ov.innerHTML = `<div class="sheet cam bell">
       <div class="hd"><div class="ic bell-ic"><ha-icon icon="mdi:bell-ring"></ha-icon></div><div style="flex:1;min-width:0"><div class="nm">${esc(title)}</div>
         <div class="st"><span class="bell-st"></span></div></div>
         <button class="sh-x" data-bellx title="${t("Fechar")}" aria-label="${t("Fechar")}"><ha-icon icon="mdi:close"></ha-icon></button></div>
-      ${cam ? `<div class="cam-v bell-v" data-bellcam>${shot ? `<img class="cam-s bell-shot" alt="" src="${shot.d}">` : `<div class="cam-wait bell-none"><ha-icon icon="mdi:doorbell-video"></ha-icon>${t("Ainda não há imagem desta câmara")}</div>`}
-        <div class="bell-play"><span><ha-icon icon="mdi:play"></ha-icon></span><b>${t("Ver câmara")}</b></div>
-        ${shot ? `<div class="cam-bar bell-when"><span><ha-icon icon="mdi:image-outline"></ha-icon>${esc(t("Última imagem · {t}", { t: when }))}</span></div>` : ""}</div>` : ""}
+      ${cam || snap ? `<div class="cam-v bell-v" ${cam ? "data-bellcam" : ""}>${shot ? `<img class="cam-s bell-shot" alt="" src="${shot.d}">` : `<div class="cam-wait bell-none"><ha-icon icon="mdi:doorbell-video"></ha-icon><span>${snap ? t("À espera da foto do toque…") : t("Ainda não há imagem desta câmara")}</span></div>`}
+        ${cam ? `<div class="bell-play"><span><ha-icon icon="mdi:play"></ha-icon></span><b>${t("Ver câmara")}</b></div>` : ""}
+        <div class="cam-bar bell-when" ${shot ? "" : "hidden"}><span><ha-icon icon="mdi:image-outline"></ha-icon><b>${esc(t("Última imagem · {t}", { t: when }))}</b></span></div></div>` : ""}
       <div class="cam-side"></div></div>`;
     ov.addEventListener("click", (ev) => {
       this._bellWake(90);
@@ -633,7 +635,46 @@ class Pine3ViewPanel extends HTMLElement {
     this.shadowRoot.appendChild(ov);
     this._bellOv = ov;
     this._bellSide();
-    this._bellTimer = setInterval(() => { if (Date.now() >= this._bellEnd) this._closeBell(); else this._bellSide(true); }, 1000);
+    this._bellPic();
+    this._bellTimer = setInterval(() => { if (Date.now() >= this._bellEnd) this._closeBell(); else { this._bellSide(true); this._bellPic(); } }, 1000);
+  }
+  /**
+   * The call's own picture: shown in place of the camera's last picture as soon as the image entity
+   * holds this call's snapshot (same call_id). Until then the window says it is on its way.
+   */
+  _bellPic() {
+    const b = this._bell, v = this._bellOv?.querySelector(".bell-v");
+    if (!v || !b.snap) return;
+    const s = this._s(b.snap), url = s?.attributes.entity_picture;
+    const mine = !!url && s.state !== "unavailable" && (b.call ? String(s.attributes.call_id ?? "") === String(b.call) : true);
+    const bar = v.querySelector(".bell-when"), txt = bar?.querySelector("b"), ic = bar?.querySelector("ha-icon");
+    if (mine && b.picKey !== s.state) {
+      b.picKey = s.state;
+      const img = new Image();
+      img.alt = "";
+      img.className = "cam-s bell-shot bell-snap";
+      img.onload = () => {
+        if (!this._bellOv || this._bell !== b) return;
+        v.querySelectorAll(".bell-shot:not(.bell-new), .bell-none").forEach((e) => { if (e !== img) e.remove(); });
+        img.classList.remove("bell-new");
+        const lang = this._hass?.locale?.language || this._hass?.language, at = Date.parse(s.state);
+        const hhmm = isNaN(at) ? "" : new Date(at).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
+        b.gotPic = true;
+        v.classList.remove("bell-wait");
+        if (bar) { bar.hidden = false; ic.setAttribute("icon", "mdi:doorbell-video"); txt.textContent = hhmm ? t("Foto do toque · {t}", { t: hhmm }) : t("Foto do toque"); }
+      };
+      img.classList.add("bell-new");
+      v.prepend(img);
+      img.src = url;
+      return;
+    }
+    if (b.gotPic || !bar) return;
+    const waiting = Date.now() - b.at < 30000; // the snapshot comes within seconds, or not at all
+    v.classList.toggle("bell-wait", waiting);
+    b.label ??= bar.hidden ? "" : txt.textContent;
+    if (b.label) txt.textContent = waiting ? `${b.label} · ${t("a foto do toque vem a caminho")}` : b.label;
+    const none = v.querySelector(".bell-none span");
+    if (none && !waiting) none.textContent = b.cam ? t("Ainda não há imagem desta câmara") : t("Sem foto deste toque");
   }
   /** Doors beside the doorbell: its door release, else the doors of its camera. Not for the flat's own bell. */
   _bellDoors() {
