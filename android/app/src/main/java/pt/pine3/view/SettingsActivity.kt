@@ -108,12 +108,13 @@ class SettingsActivity : Activity() {
 
     private fun reloadDraft() {
         draft = JSONObject(Ha.home?.settings?.toString() ?: "{}")
-        saved = draft.toString()
+        saved = draft.toString(); changed = false
         updateSave()
     }
     private var appDirty = false
     private fun markApp() { if (!appDirty) { appDirty = true; updateSave() } }
-    private fun dirty() = draft.toString() != saved || appDirty
+    private var changed = false
+    private fun dirty() = changed || draft.toString() != saved || appDirty
     private fun updateSave() {
         val d = dirty()
         saveBtn.background = kit.ripple(kit.rounded(if (d) kit.cream else kit.soft, 40))
@@ -121,7 +122,7 @@ class SettingsActivity : Activity() {
         saveBtn.alpha = if (d) 1f else 0.6f
         saveBtn.isEnabled = d
     }
-    private fun setD(k: String, v: Any) { draft.put(k, v); if (k in LOOK_KEYS) relook() else updateSave() }
+    private fun setD(k: String, v: Any) { draft.put(k, v); changed = true; if (k in LOOK_KEYS) relook() else updateSave() }
     private fun bool(k: String, def: Boolean) = draft.optBoolean(k, def)
     private fun list(k: String): MutableList<String> = (0 until (draft.optJSONArray(k)?.length() ?: 0)).map { draft.optJSONArray(k)!!.getString(it) }.toMutableList()
     private fun setList(k: String, l: List<String>) = setD(k, JSONArray(l))
@@ -135,7 +136,7 @@ class SettingsActivity : Activity() {
         draft.keys().forEach { k -> if (!old.has(k) || old.get(k).toString() != draft.get(k).toString()) changes.put(k, draft.get(k)) }
         if (changes.length() > 0 && Ha.connected) {
             Ha.saveSettings(changes)
-            saved = draft.toString()
+            saved = draft.toString(); changed = false
             showToast(Tr.t("Alterações guardadas"))
         } else if (appChanged) showToast(Tr.t("Alterações guardadas"))
         updateSave()
@@ -164,6 +165,7 @@ class SettingsActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         UiScale.apply(this)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         prefs = Prefs(this)
         reloadDraft0()
         buildUi(0)
@@ -246,9 +248,10 @@ class SettingsActivity : Activity() {
 
     private fun reloadDraft0() { draft = JSONObject(Ha.home?.settings?.toString() ?: "{}"); saved = draft.toString() }
 
-    override fun onResume() { super.onResume(); Ha.listeners += listener; handler.post(refresh) }
+    override fun onResume() { super.onResume(); PanelState.settingsVisible = true; Ha.listeners += listener; handler.post(refresh) }
 
     override fun onPause() {
+        PanelState.settingsVisible = false
         handler.removeCallbacks(refresh)
         Ha.listeners -= listener
         saveApp?.invoke()

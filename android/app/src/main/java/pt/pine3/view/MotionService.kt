@@ -97,7 +97,9 @@ class MotionService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun onActivity() {
-        if (PanelState.sleeping) {
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        // também acorda se o próprio Android apagou o ecrã (ex.: tempo limite do sistema nas definições)
+        if (PanelState.sleeping || !pm.isInteractive) {
             if (SystemClock.elapsedRealtime() - sleptAt < IGNORE_AFTER_SLEEP_MS) return
             wake()
         }
@@ -124,6 +126,7 @@ class MotionService : Service() {
         pm.newWakeLock(
             PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE, "pine3:wake",
         ).acquire(5000)
+        if (PanelState.settingsVisible) return // as definições já estão à frente: só liga o ecrã
         try {
             startActivity(
                 Intent(this, MainActivity::class.java)
