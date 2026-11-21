@@ -14,7 +14,8 @@ import java.net.URL
  * com os endereços dos vídeos por qualidade. O tar é lido em fluxo e pára-se assim que o `entries.json` aparece; a lista fica em cache.
  */
 object Aerials {
-    const val DEFAULT_SOURCE = "https://sylvan.apple.com/itunes-assets/Aerials126/v4/c0/45/d9/c045d9d0-9606-1535-62fe-189edb4f79eb/resources-atv-23J-2.tar"
+    /** Sem fonte da Apple por omissão: só se usa se colares o endereço de um ficheiro de recursos. */
+    const val DEFAULT_SOURCE = ""
     private const val TTL_MS = 7L * 24 * 3600 * 1000
 
     class Clip(val id: String, val label: String, val url: String)
@@ -86,13 +87,14 @@ object Aerials {
         if (!force && f.exists() && System.currentTimeMillis() - f.lastModified() < TTL_MS) {
             try { clips = parse(f.readText(), quality); if (clips.isNotEmpty()) { error = null; done(clips.size); return } } catch (_: Exception) {}
         }
+        if (source.isBlank()) { clips = emptyList(); error = null; done(0); return }
         if (loading) return
         loading = true
         val h = android.os.Handler(android.os.Looper.getMainLooper())
         Thread {
             var n = 0
             try {
-                val c = (URL(source.ifBlank { DEFAULT_SOURCE }).openConnection() as HttpURLConnection).apply { connectTimeout = 15_000; readTimeout = 30_000 }
+                val c = (URL(source).openConnection() as HttpURLConnection).apply { connectTimeout = 15_000; readTimeout = 30_000 }
                 val data = c.inputStream.use { readTarEntry(it, "entries.json") } ?: throw java.io.IOException("entries.json não encontrado no ficheiro da Apple")
                 val json = String(data, Charsets.UTF_8)
                 val list = parse(json, quality)
@@ -107,6 +109,41 @@ object Aerials {
     fun reparse(ctx: Context, quality: String) { try { cache(ctx).takeIf { it.exists() }?.let { clips = parse(it.readText(), quality) } } catch (_: Exception) {} }
 
     @Volatile private var extra: List<Clip> = emptyList()
+    @Volatile private var listed: List<Clip> = emptyList()
+
+    /** Uma lista de vídeos num ficheiro: JSON (["url",...] ou {"videos":[{"url":...}]}) ou texto com um endereço por linha. Guarda-se em cache. */
+    fun loadList(ctx: Context, url: String, done: (Int) -> Unit) {
+        if (url.isBlank()) { listed = emptyList(); done(0); return }
+        val f = File(ctx.filesDir, "aerials-list.txt")
+        fun parseList(t: String): List<Clip> {
+            val urls = ArrayList<String>()
+            val s = t.trim()
+            if (s.startsWith("[") || s.startsWith("{")) {
+                fun walk(v: Any?) {
+                    when (v) {
+                        is String -> if (v.startsWith("http")) urls += v
+                        is org.json.JSONArray -> for (i in 0 until v.length()) walk(v.opt(i))
+                        is JSONObject -> v.keys().forEach { k -> walk(v.opt(k)) }
+                    }
+                }
+                try { walk(if (s.startsWith("[")) org.json.JSONArray(s) else JSONObject(s)) } catch (_: Exception) {}
+            } else s.lines().map { it.trim() }.filter { it.startsWith("http") }.forEach { urls += it }
+            return urls.distinct().mapIndexed { i, u -> Clip("list$i", "", u) }
+        }
+        if (f.exists() && System.currentTimeMillis() - f.lastModified() < TTL_MS) { listed = parseList(f.readText()); if (listed.isNotEmpty()) { done(listed.size); return } }
+        val h = android.os.Handler(android.os.Looper.getMainLooper())
+        Thread {
+            var n = 0
+            try {
+                val c = (URL(url).openConnection() as HttpURLConnection).apply { connectTimeout = 15_000; readTimeout = 30_000 }
+                val text = c.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
+                val l = parseList(text)
+                if (l.isEmpty()) throw java.io.IOException("a lista não tem endereços de vídeo")
+                f.writeText(text); listed = l; error = null; n = l.size
+            } catch (e: Exception) { error = e.message ?: e.javaClass.simpleName }
+            h.post { done(n) }
+        }.start()
+    }
 
     /** Vídeos próprios (um endereço por linha), por exemplo os clipes do Snoopy alojados no teu servidor. */
     fun setExtra(text: String) {
@@ -114,6 +151,6 @@ object Aerials {
     }
 
     /** Os vídeos pela ordem do sorteio. */
-    fun shuffled(): List<Clip> = (clips + extra).shuffled()
-    val count get() = clips.size + extra.size
+    fun shuffled(): List<Clip> = (clips + listed + extra).shuffled()
+    val count get() = clips.size + listed.size + extra.size
 }

@@ -120,8 +120,13 @@ class MainActivity : Activity(), Nav {
         val video = prefs.saverVideo && !saverVideoFailed
         Aerials.setExtra(prefs.saverExtra)
         val s = SaverView(kit, Ha.home?.settings?.optBoolean("clock_24h", true) ?: true, video) { hideSaver() }
-        if (video) Aerials.load(this, prefs.saverSource, prefs.saverQuality) { n ->
-            if (n > 0 || Aerials.count > 0) s.startVideo() else { saverVideoFailed = true; if (saver === s) { hideSaver(); showSaver() } }
+        if (video) {
+            val begin = { if (Aerials.count > 0) s.startVideo() else if (saver === s) { saverVideoFailed = true; hideSaver(); showSaver() } }
+            // a lista própria e a fonte da Apple (se houver) carregam em paralelo; começa quando a primeira trouxer vídeos
+            var pending = 2
+            val done = { if (--pending == 0) begin() else if (Aerials.count > 0) s.startVideo() }
+            Aerials.loadList(this, prefs.saverList) { done() }
+            Aerials.load(this, prefs.saverSource, prefs.saverQuality) { done() }
         }
         saver = s
         root.addView(s, root.indexOfChild(blackout), FrameLayout.LayoutParams(-1, -1))

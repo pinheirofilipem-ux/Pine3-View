@@ -490,13 +490,15 @@ class SettingsActivity : Activity() {
         // Ecrã de descanso com vídeos
         val vid = panel()
         h3(vid, Tr.t("Vídeos no ecrã de descanso"), true)
-        para(vid, "Os vídeos aéreos da Apple TV, sem som, com a hora e a data por cima. Quando aparecem define-se em Início → Ecrã de descanso.")
+        para(vid, "Vídeos sem som em ecrã inteiro, com a hora e a data por cima. Quando aparecem define-se em Início → Ecrã de descanso.")
         var saverVideo = prefs.saverVideo
-        optToggle(vid, "Usar vídeos da Apple TV", null, saverVideo) { saverVideo = it; markApp() }
+        optToggle(vid, "Usar vídeos no ecrã de descanso", null, saverVideo) { saverVideo = it; markApp() }
         var quality = prefs.saverQuality
         optChoice(vid, "Qualidade", "1080p gasta menos dados; 4K só em tablets potentes.", listOf("1080" to "1080p (H.264)", "4k" to "4K"), quality) { quality = it; markApp(); redraw() }
-        label(vid, "Fonte (ficheiro de recursos da Apple)")
-        val src = input(prefs.saverSource, Aerials.DEFAULT_SOURCE, InputType.TYPE_TEXT_VARIATION_URI, app = true); vid.addView(src)
+        label(vid, "Lista de vídeos (endereço de um ficheiro .json ou .txt)")
+        val listIn = input(prefs.saverList, "https://…/videos.json", InputType.TYPE_TEXT_VARIATION_URI, app = true); vid.addView(listIn)
+        label(vid, "Fonte Apple TV (opcional: endereço do resources-atv….tar)")
+        val src = input(prefs.saverSource, "", InputType.TYPE_TEXT_VARIATION_URI, app = true); vid.addView(src)
         label(vid, "Vídeos extra (um endereço por linha)")
         val extraIn = input(prefs.saverExtra, "https://…/clip.mp4", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_VARIATION_URI, app = true).apply { setSingleLine(false); minLines = 3; gravity = Gravity.TOP }
         vid.addView(extraIn)
@@ -505,7 +507,8 @@ class SettingsActivity : Activity() {
         vid.addView(pillBtn("Atualizar lista", "mdi:refresh") {
             prefs.saverSource = src.text.toString(); prefs.saverQuality = quality
             vstatus.text = "A descarregar…"
-            Aerials.load(this, prefs.saverSource, quality, force = true) { n -> vstatus.text = if (n > 0) "$n vídeos" else "✘ " + (Aerials.error ?: "falhou") }
+            prefs.saverList = listIn.text.toString()
+            Aerials.loadList(this, prefs.saverList) { Aerials.load(this, prefs.saverSource, quality, force = true) { _ -> vstatus.text = if (Aerials.count > 0) "${Aerials.count} vídeos" else "✘ " + (Aerials.error ?: "sem vídeos") } }
         }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = d(14) })
         vid.addView(vstatus, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(8) })
 
@@ -539,7 +542,7 @@ class SettingsActivity : Activity() {
             prefs.timeoutSec = timeout.text.toString().toIntOrNull() ?: 15
             prefs.sensitivity = sens.progress + 1
             prefs.bootStart = boot
-            prefs.saverVideo = saverVideo; prefs.saverQuality = quality; prefs.saverSource = src.text.toString().ifBlank { Aerials.DEFAULT_SOURCE }; prefs.saverExtra = extraIn.text.toString()
+            prefs.saverVideo = saverVideo; prefs.saverQuality = quality; prefs.saverSource = src.text.toString(); prefs.saverList = listIn.text.toString(); prefs.saverExtra = extraIn.text.toString()
             Aerials.reparse(this, quality)
             val entity = bellEntity.text.toString().trim().lowercase()
             prefs.wakeRules = if (entity.isBlank()) emptyList() else listOf(WakeRule(entity, bellWhen.text.toString().trim(), (bellHold.text.toString().toIntOrNull() ?: 120).coerceIn(5, 3600)))

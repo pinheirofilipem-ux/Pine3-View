@@ -46,6 +46,11 @@ class Prefs(ctx: Context) {
         get() = sp.getString("saverSource", null) ?: Aerials.DEFAULT_SOURCE
         set(v) = sp.edit().putString("saverSource", v.trim()).apply()
 
+    /** Endereço de um ficheiro com a lista de vídeos (JSON ou texto). */
+    var saverList: String
+        get() = sp.getString("saverList", "") ?: ""
+        set(v) = sp.edit().putString("saverList", v.trim()).apply()
+
     /** Vídeos extra (um endereço por linha, .mp4/.mov), misturados com os da Apple. */
     var saverExtra: String
         get() = sp.getString("saverExtra", "") ?: ""
