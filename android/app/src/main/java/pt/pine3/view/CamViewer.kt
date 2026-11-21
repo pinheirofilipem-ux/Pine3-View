@@ -16,7 +16,7 @@ import android.widget.TextView
 
 /** Câmara ao vivo (imagem atualizada cerca de 1 vez por segundo), com botão para abrir a porta e "+2 min". */
 class CamViewer(private val act: Activity, private val kit: Kit, private val camId: String, private val name: String, private val doors: List<String>) {
-    private val dialog = Dialog(act, android.R.style.Theme_Translucent_NoTitleBar)
+    private val dialog = PokeDialog(act)
     private val h = Handler(Looper.getMainLooper())
     private val img = ImageView(act).apply { scaleType = ImageView.ScaleType.FIT_CENTER; setBackgroundColor(Color.argb(70, 0, 0, 0)) }
     private val timer = kit.text("", 13f, Color.WHITE, 600).apply { background = kit.rounded(Color.argb(170, 20, 16, 24), 20); setPadding(kit.dp(12), kit.dp(6), kit.dp(12), kit.dp(6)) }
@@ -34,6 +34,7 @@ class CamViewer(private val act: Activity, private val kit: Kit, private val cam
             if (!open) return
             val now = System.currentTimeMillis()
             if (now >= until) { dismiss(); return }
+            MotionService.poke() // a ver o vídeo conta como atividade: o ecrã não desliga
             val s = ((now - started) / 1000).toInt(); elapsed.text = "${s / 60}:${"%02d".format(s % 60)}"
             val left = ((until - now) / 1000).toInt(); timer.text = Tr.t("fecha em ") + "${left / 60}:${"%02d".format(left % 60)}"
             val pic = Fmt.state(camId)?.attrs?.optString("entity_picture").orEmpty()

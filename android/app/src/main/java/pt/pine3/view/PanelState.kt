@@ -6,6 +6,8 @@ object PanelState {
         private set
     /** As definições estão à frente: o serviço acorda o ecrã mas não troca de ecrã. */
     @Volatile var settingsVisible = false
+    /** Último toque ou atividade, em qualquer janela da app. */
+    @Volatile var lastTouch = System.currentTimeMillis()
     var listener: ((Boolean) -> Unit)? = null // main thread
 
     fun set(value: Boolean) {

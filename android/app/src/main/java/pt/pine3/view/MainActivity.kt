@@ -84,7 +84,7 @@ class MainActivity : Activity(), Nav {
     private val saverTick = object : Runnable {
         override fun run() {
             val mins = Ha.home?.settings?.optInt("screensaver", 0) ?: 0
-            if (mins > 0 && saver == null && resumed && !PanelState.sleeping && bell?.isShowing != true && System.currentTimeMillis() - lastActivity > mins * 60_000L) showSaver()
+            if (mins > 0 && saver == null && resumed && !PanelState.sleeping && bell?.isShowing != true && System.currentTimeMillis() - maxOf(lastActivity, PanelState.lastTouch) > mins * 60_000L) showSaver()
             handler.postDelayed(this, 5_000)
         }
     }

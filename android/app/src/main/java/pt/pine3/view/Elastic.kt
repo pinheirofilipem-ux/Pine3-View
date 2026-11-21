@@ -103,3 +103,8 @@ fun immersive(d: android.app.Dialog) {
         setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
     }
 }
+
+/** Janela por cima da app: cada toque conta como atividade (reinicia o tempo para desligar o ecrã), tal como na janela principal. */
+class PokeDialog(act: android.app.Activity) : android.app.Dialog(act, android.R.style.Theme_Translucent_NoTitleBar) {
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean { MotionService.poke(); return super.dispatchTouchEvent(ev) }
+}

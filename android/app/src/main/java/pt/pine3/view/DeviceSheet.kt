@@ -19,7 +19,7 @@ import org.json.JSONObject
  * transporte), à direita os modos, as leituras e os controlos das outras entidades do dispositivo.
  */
 class DeviceSheet(private val act: Activity, private val kit: Kit, private val id: String, private val dev: Dev?) {
-    private val dialog = Dialog(act, android.R.style.Theme_Translucent_NoTitleBar)
+    private val dialog = PokeDialog(act)
     private val content = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
     private var main = LinearLayout(act)
     private var side = LinearLayout(act)
@@ -204,7 +204,11 @@ class DeviceSheet(private val act: Activity, private val kit: Kit, private val i
 
     /** As outras entidades do dispositivo: leituras (sensores), alternadores, opções e controlos. */
     private fun deviceSection() {
+        // Como a secção "Entidades" do painel: configuração e diagnóstico (reiniciar, velocidade do efeito, tipo de fita...) ficam escondidos, a não ser que os tenhas ativado.
+        val allEnts = Ha.home?.rooms.orEmpty().flatMap { it.entities }.associateBy { it.id }
+        val shownIds = Ha.home?.settings?.optJSONArray("shown")?.let { a -> (0 until a.length()).map { a.getString(it) }.toSet() }.orEmpty()
         val all = dev?.members.orEmpty().filter {
+            val ent = allEnts[it]; if (ent != null && (ent.category || ent.haHidden) && it !in shownIds) return@filter false
             val st = Fmt.state(it); st != null && st.state != "unavailable" && Fmt.domain(it) != "image" &&
                 !(Fmt.domain(it) == "button" && st.attrs.optString("device_class") == "identify") &&
                 !Regex("power[_ ]?on[_ ]?(behaviou?r|state)|startup[_ ]?on[_ ]?off", RegexOption.IGNORE_CASE).containsMatchIn((it + " " + st.attrs.optString("friendly_name")).replace("-", "_"))

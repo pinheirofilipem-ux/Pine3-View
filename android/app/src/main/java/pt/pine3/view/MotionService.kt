@@ -38,7 +38,7 @@ class MotionService : Service() {
         }
 
         /** Toque ou atividade do utilizador. */
-        fun poke() { instance?.main?.post { instance?.onActivity() } }
+        fun poke() { PanelState.lastTouch = System.currentTimeMillis(); instance?.main?.post { instance?.onActivity() } }
 
         fun isAdminActive(ctx: Context): Boolean {
             val dpm = ctx.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager

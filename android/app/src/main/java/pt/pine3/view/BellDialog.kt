@@ -24,7 +24,7 @@ class BellDialog(
     private val act: Activity, private val kit: Kit, private val id: String, private val type: String, private val attrs: JSONObject,
     private val doors: List<String>, private val onWatch: (cam: String, name: String) -> Unit,
 ) {
-    private val dialog = Dialog(act, android.R.style.Theme_Translucent_NoTitleBar)
+    private val dialog = PokeDialog(act)
     private val h = Handler(Looper.getMainLooper())
     private val cam = attrs.optString("camera_entity").takeIf { type == "ring" && Ha.states.containsKey(it) } ?: ""
     private val call = attrs.optString("call_id")
@@ -47,6 +47,7 @@ class BellDialog(
         override fun run() {
             if (!open) return
             if (System.currentTimeMillis() >= end) { dismiss(); return }
+            MotionService.poke()
             val s = ((System.currentTimeMillis() - started) / 1000).toInt()
             st.text = when (status) { "answered" -> Tr.t("Atendida"); "missed" -> Tr.t("Chamada perdida"); else -> Tr.t("A tocar") + " · ${s / 60}:${"%02d".format(s % 60)}" }
             pic()
