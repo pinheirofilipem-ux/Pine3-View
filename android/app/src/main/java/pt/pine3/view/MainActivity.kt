@@ -118,7 +118,7 @@ class MainActivity : Activity(), Nav {
 
     private fun showSaver() {
         val video = prefs.saverVideo && !saverVideoFailed
-        Aerials.setExtra(prefs.saverExtra)
+        Aerials.setExtra(prefs.saverExtra); Aerials.setLocal(this)
         val s = SaverView(kit, Ha.home?.settings?.optBoolean("clock_24h", true) ?: true, video) { hideSaver() }
         if (video) {
             val begin = { if (Aerials.count > 0) s.startVideo() else if (saver === s) { saverVideoFailed = true; hideSaver(); showSaver() } }

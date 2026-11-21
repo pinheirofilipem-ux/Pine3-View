@@ -46,6 +46,11 @@ class Prefs(ctx: Context) {
         get() = sp.getString("saverSource", null) ?: Aerials.DEFAULT_SOURCE
         set(v) = sp.edit().putString("saverSource", v.trim()).apply()
 
+    /** Endereço do zip com os clipes a guardar no tablet. */
+    var packUrl: String
+        get() = sp.getString("packUrl", null) ?: Pack.DEFAULT_URL
+        set(v) = sp.edit().putString("packUrl", v.trim()).apply()
+
     /** Endereço de um ficheiro com a lista de vídeos (JSON ou texto). */
     var saverList: String
         get() = sp.getString("saverList", "") ?: ""

@@ -85,6 +85,7 @@ class SettingsActivity : Activity() {
     private var saveApp: (() -> Unit)? = null
     private var entQuery = ""
     private var entAll = false
+    private var packStatus: TextView? = null
     private var statusDot: View? = null
     private var statusText: TextView? = null
     private val perms = ArrayList<Triple<View, TextView, () -> Boolean>>()
@@ -95,6 +96,7 @@ class SettingsActivity : Activity() {
         override fun run() {
             statusDot?.let { (it.background as android.graphics.drawable.GradientDrawable).setColor(if (Ha.connected) Color.parseColor("#34C759") else Color.parseColor("#F2755C")) }
             statusText?.text = Ha.homeError?.takeIf { Ha.connected } ?: Ha.status
+            packStatus?.text = Pack.describe(this@SettingsActivity)
             perms.forEach { (dot, btn, check) ->
                 val ok = check()
                 (dot.background as android.graphics.drawable.GradientDrawable).setColor(if (ok) Color.parseColor("#34C759") else Color.parseColor("#F2755C"))
@@ -348,7 +350,7 @@ class SettingsActivity : Activity() {
     }
 
     private fun showSection(key: String, keepScroll: Boolean = false, animateNav: Boolean = true) {
-        saveApp?.invoke(); saveApp = null; statusDot = null; statusText = null; perms.clear()
+        saveApp?.invoke(); saveApp = null; statusDot = null; statusText = null; packStatus = null; perms.clear()
         val y = if (keepScroll) mainScroll.scrollY else 0
         section = key
         val prev = navActive
@@ -503,6 +505,19 @@ class SettingsActivity : Activity() {
         val extraIn = input(prefs.saverExtra, "https://…/clip.mp4", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_VARIATION_URI, app = true).apply { setSingleLine(false); minLines = 3; gravity = Gravity.TOP }
         vid.addView(extraIn)
         para(vid, "Para juntares os teus clipes (por exemplo os do Snoopy) aloja os ficheiros num servidor teu ou na pasta /local do Home Assistant e cola aqui os endereços.")
+        label(vid, "Clipes guardados no tablet")
+        para(vid, "Descarrega o pacote uma vez (cerca de 530 MB, melhor com Wi-Fi) e os clipes ficam no tablet: depois passam sem rede. O pacote por omissão é o snoopy.saver.zip do repositório hitnology/snoopy.")
+        val packUrl = input(prefs.packUrl, Pack.DEFAULT_URL, InputType.TYPE_TEXT_VARIATION_URI, app = true); vid.addView(packUrl)
+        packStatus = kit.text(Pack.describe(this), 13f, kit.muted)
+        val prow = LinearLayout(this)
+        prow.addView(pillBtn("Descarregar clipes", "mdi:download") {
+            prefs.packUrl = packUrl.text.toString().ifBlank { Pack.DEFAULT_URL }
+            Pack.download(this, prefs.packUrl) { packStatus?.text = Pack.describe(this) }
+            packStatus?.text = Pack.describe(this)
+        })
+        prow.addView(pillBtn("Apagar clipes", "mdi:delete-outline") { Pack.delete(this); packStatus?.text = Pack.describe(this) }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = d(10) })
+        vid.addView(prow, LinearLayout.LayoutParams(-2, -2).apply { topMargin = d(14) })
+        vid.addView(packStatus, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(8) })
         val vstatus = kit.text(if (Aerials.count > 0) "${Aerials.count} vídeos" else "", 13f, kit.muted)
         vid.addView(pillBtn("Atualizar lista", "mdi:refresh") {
             prefs.saverSource = src.text.toString(); prefs.saverQuality = quality
@@ -542,7 +557,7 @@ class SettingsActivity : Activity() {
             prefs.timeoutSec = timeout.text.toString().toIntOrNull() ?: 15
             prefs.sensitivity = sens.progress + 1
             prefs.bootStart = boot
-            prefs.saverVideo = saverVideo; prefs.saverQuality = quality; prefs.saverSource = src.text.toString(); prefs.saverList = listIn.text.toString(); prefs.saverExtra = extraIn.text.toString()
+            prefs.saverVideo = saverVideo; prefs.saverQuality = quality; prefs.saverSource = src.text.toString(); prefs.saverList = listIn.text.toString(); prefs.packUrl = packUrl.text.toString().ifBlank { Pack.DEFAULT_URL }; prefs.saverExtra = extraIn.text.toString()
             Aerials.reparse(this, quality)
             val entity = bellEntity.text.toString().trim().lowercase()
             prefs.wakeRules = if (entity.isBlank()) emptyList() else listOf(WakeRule(entity, bellWhen.text.toString().trim(), (bellHold.text.toString().toIntOrNull() ?: 120).coerceIn(5, 3600)))

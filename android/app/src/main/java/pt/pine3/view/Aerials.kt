@@ -110,6 +110,10 @@ object Aerials {
 
     @Volatile private var extra: List<Clip> = emptyList()
     @Volatile private var listed: List<Clip> = emptyList()
+    @Volatile private var local: List<Clip> = emptyList()
+
+    /** Os clipes já guardados no tablet. */
+    fun setLocal(ctx: Context) { local = Pack.files(ctx).map { Clip("local:" + it.name, "", it.absolutePath) } }
 
     /** Uma lista de vídeos num ficheiro: JSON (["url",...] ou {"videos":[{"url":...}]}) ou texto com um endereço por linha. Guarda-se em cache. */
     fun loadList(ctx: Context, url: String, done: (Int) -> Unit) {
@@ -151,6 +155,6 @@ object Aerials {
     }
 
     /** Os vídeos pela ordem do sorteio. */
-    fun shuffled(): List<Clip> = (clips + listed + extra).shuffled()
-    val count get() = clips.size + listed.size + extra.size
+    fun shuffled(): List<Clip> = (clips + listed + extra + local).shuffled()
+    val count get() = clips.size + listed.size + extra.size + local.size
 }
