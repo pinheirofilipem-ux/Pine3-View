@@ -71,6 +71,12 @@ object Ha {
         val newRules = prefs.wakeRules.filter { it.entity.isNotBlank() }
         val newSig = if (url == null || token.isBlank()) "" else "$url|$token|${prefs.ignoreSsl}"
         rules = newRules
+        httpToken = token
+        httpTrust = prefs.ignoreSsl
+        httpBase = try {
+            var b = prefs.haUrl.trim(); if (!b.contains("://")) b = "http://$b"
+            val u = java.net.URI(b); u.scheme + "://" + u.host + (if (u.port != -1) ":${u.port}" else "")
+        } catch (_: Exception) { "" }
         recomputeWatched()
         if (newSig == sig && (newSig.isEmpty() || running)) return
         sig = newSig
@@ -103,6 +109,37 @@ object Ha {
             try { ws?.send(payload.put("id", id).toString()) } catch (_: Exception) { pending.remove(id)?.let { f -> main.post { f(null) } } }
         }.start()
         main.postDelayed({ pending.remove(id)?.let { f -> f(null) } }, 15_000)
+    }
+
+    @Volatile private var httpBase = ""
+    @Volatile private var httpToken = ""
+    @Volatile private var httpTrust = false
+
+    /** Descarrega uma imagem do HA (ex.: /api/camera_proxy/camera.x) com o token; devolve o bitmap na main thread (null se falhar). */
+    fun fetchImage(path: String, cb: (android.graphics.Bitmap?) -> Unit) {
+        val base = httpBase; val token = httpToken; val trust = httpTrust
+        if (base.isEmpty()) { main.post { cb(null) }; return }
+        Thread {
+            var bmp: android.graphics.Bitmap? = null
+            try {
+                val url = java.net.URL(if (path.startsWith("http")) path else base + path)
+                val c = url.openConnection() as java.net.HttpURLConnection
+                if (c is javax.net.ssl.HttpsURLConnection && trust) {
+                    val tm = object : javax.net.ssl.X509TrustManager {
+                        override fun checkClientTrusted(chain: Array<out java.security.cert.X509Certificate>?, a: String?) {}
+                        override fun checkServerTrusted(chain: Array<out java.security.cert.X509Certificate>?, a: String?) {}
+                        override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = emptyArray()
+                    }
+                    c.sslSocketFactory = javax.net.ssl.SSLContext.getInstance("TLS").apply { init(null, arrayOf(tm), java.security.SecureRandom()) }.socketFactory
+                    c.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
+                }
+                c.connectTimeout = 6000; c.readTimeout = 10000
+                c.setRequestProperty("Authorization", "Bearer $token")
+                if (c.responseCode == 200) bmp = android.graphics.BitmapFactory.decodeStream(c.inputStream)
+                c.disconnect()
+            } catch (_: Exception) {}
+            main.post { cb(bmp) }
+        }.start()
     }
 
     /** Guarda definições do Pine3 View no HA (partilhadas com o painel web). O HA devolve o modelo atualizado. */
@@ -255,6 +292,7 @@ object Ha {
     private fun setHome(o: JSONObject) {
         try {
             home = Home.parse(o)
+            Fmt.names = home!!.rooms.flatMap { it.devices }.associate { it.id to it.name }
             log("Modelo da casa: ${home?.rooms?.size ?: 0} divisões")
             homeError = null
             recomputeWatched()

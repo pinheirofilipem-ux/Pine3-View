@@ -31,6 +31,7 @@ O código desta pasta é **independente** da integração (`custom_components/`)
   cartões de divisão, de dispositivo, de clima (com anel) e de resumo, ecrãs **Clima** e **Segurança**, dock configurável (e que se
   adapta ao espaço), painel de detalhes dos dispositivos (luz, estore, clima, multimédia, ventoinha, aspirador, fechadura), tempo com
   previsão (horas e dias), pessoas só quando ativas.
+- Também: cartão e visualizador de **câmara** (imagem atualizada ~1 vez por segundo, abrir porta com 2 toques, +2 min), painel de detalhes em duas colunas com leituras e controlos, previsão com barras de temperatura e **escala da interface** (Definições) para igualar o tamanho do painel web.
 - Falta: casa 3D e editor de planta, modo de edição (arrastar e esconder), ecrã de descanso, avisos do IPMA, câmaras e pop-up da campainha,
   detalhe do aspirador (mapa e divisões), disposição em lista, formato estreito/telemóvel, divisões e dispositivos "grandes".
 

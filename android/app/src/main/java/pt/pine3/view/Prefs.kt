@@ -23,6 +23,11 @@ class Prefs(ctx: Context) {
         get() = sp.getString("haToken", "") ?: ""
         set(v) = sp.edit().putString("haToken", v.trim()).apply()
 
+    /** Escala da interface em % (60–130): menor = cabe mais por ecrã, como um painel web com a janela mais larga. */
+    var uiScale: Int
+        get() = sp.getInt("uiScale", 100)
+        set(v) = sp.edit().putInt("uiScale", v.coerceIn(60, 130)).apply()
+
     var ignoreSsl: Boolean
         get() = sp.getBoolean("ssl", false)
         set(v) = sp.edit().putBoolean("ssl", v).apply()

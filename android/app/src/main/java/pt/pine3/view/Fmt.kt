@@ -48,12 +48,16 @@ object Fmt {
 
     fun domain(id: String) = id.substringBefore('.')
     fun state(id: String): Ha.State? = Ha.states[id]
-    fun name(id: String): String = state(id)?.attrs?.optString("friendly_name")?.ifBlank { null } ?: id
+    fun name(id: String): String = names[id] ?: state(id)?.attrs?.optString("friendly_name")?.ifBlank { null } ?: id
 
+    /** Número no formato local sem zeros inúteis: 58 (e não 58.0), 21,7. */
     fun num(v: Double, decimals: Int = 1): String {
-        val s = String.format(Tr.locale, "%.${decimals}f", v)
-        return if (s.contains(',')) s.trimEnd('0').trimEnd(',') else s
+        val df = java.text.DecimalFormat(if (decimals <= 0) "0" else "0." + "#".repeat(decimals), java.text.DecimalFormatSymbols(Tr.locale))
+        return df.format(v)
     }
+
+    /** Nomes dos dispositivos do modelo (já sem o prefixo da divisão), como o painel web mostra. */
+    @Volatile var names: Map<String, String> = emptyMap()
 
     fun isTv(id: String, name: String = ""): Boolean {
         if (domain(id) != "media_player") return false
@@ -104,7 +108,7 @@ object Fmt {
         val st = state(id) ?: return null
         val v = st.state.toDoubleOrNull() ?: return Tr.t(STATE_PT[st.state] ?: st.state)
         val unit = st.attrs.optString("unit_of_measurement")
-        return num(v) + (if (unit.isNotEmpty()) (if (unit == "°C" || unit == "%") unit else " $unit") else "")
+        return (if (Math.abs(v) >= 100) num(v, 0) else num(v)) + (if (unit.isNotEmpty()) (if (unit == "°C" || unit == "%") unit else " $unit") else "")
     }
 
     /** O texto pequeno de um cartão de dispositivo. */

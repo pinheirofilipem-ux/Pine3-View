@@ -40,5 +40,17 @@ object Tr {
         // resumo
         "Segurança" to "Security", "Tudo seguro" to "All secure", "itens monitorizados" to "items monitored", "Aspirador" to "Vacuum",
         "A TOCAR" to "NOW PLAYING", " abertos" to " open", " destrancados" to " unlocked", " ligados · " to " on · ",
+        "Tudo desligado" to "All off", "Todas as luzes apagadas" to "All lights off", "Tudo tranquilo em casa" to "All quiet at home",
+        "Amanhã" to "Tomorrow", "Máx. " to "High ", "Mín. " to "Low ", "A carregar o tempo…" to "Loading weather…",
+        "Frio" to "Cool", "Calor" to "Heat", "Seco" to "Dry", "Ventilar" to "Fan", "Desligar" to "Turn off", "Atual" to "Current",
+        "Temperatura por divisão" to "Temperature by room", "Nada para monitorizar." to "Nothing to monitor.",
+        "Portas, janelas e fechaduras" to "Doors, windows and locks", "Toca para executar" to "Tap to run", "Cenas e scripts" to "Scenes and scripts",
+        "Não há cenas nem scripts." to "No scenes or scripts.", "Modo" to "Mode", "Leituras" to "Readings", "Controlos" to "Controls",
+        "Velocidade" to "Speed", "Oscilação" to "Swing", "Perfil" to "Profile", "Entrada" to "Input", "Luminosidade" to "Brightness",
+        "Cor" to "Color", "Posição" to "Position", "Abrir" to "Open", "Parar" to "Stop", "Fechar" to "Close", "Iniciar" to "Start",
+        "Pausar" to "Pause", "Base" to "Dock", "Destrancar" to "Unlock", "Trancar" to "Lock", "Executar" to "Run",
+        "Toca para ver ao vivo" to "Tap to watch live", "Dispositivo" to "Device", "Última imagem" to "Last picture",
+        "Abrir a porta" to "Open the door", "toca duas vezes" to "tap twice", "mantém ao vivo" to "keep live",
+        "Fechar para o vídeo." to "Closing stops the video.", "Em direto" to "LIVE", "fecha em " to "closes in ", "Escolher portas" to "Choose doors",
     )
 }

@@ -82,6 +82,7 @@ class MainActivity : Activity(), Nav {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        UiScale.apply(this)
         prefs = Prefs(this)
         kit = Kit(this)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -170,10 +171,20 @@ class MainActivity : Activity(), Nav {
         rebuild()
     }
 
+    /** Câmara ao vivo + portas associadas (definição cam_doors do Pine3 View, ou as fechaduras da casa). */
+    private fun camViewer(id: String, name: String) {
+        val home = Ha.home
+        val cfg = home?.settings?.optJSONObject("cam_doors")?.optJSONArray(id)
+        val chosen = if (cfg != null) (0 until cfg.length()).map { cfg.getString(it) } else emptyList()
+        val locks = home?.rooms?.flatMap { it.devices }?.filter { it.kind == "lock" || (it.kind == "button" && Regex("lock|door|gate|entrance|porta|port[aã]o|fecha", RegexOption.IGNORE_CASE).containsMatchIn(it.id + it.name)) }?.map { it.id }.orEmpty()
+        CamViewer(this, kit, id, name, chosen.ifEmpty { locks.take(1) }).show()
+    }
+
     override fun openScreen(key: String) { if (key in DOCK_ITEMS.map { it.first }) showTab(key) }
 
     override fun openDevice(id: String) {
         val dev = Ha.home?.rooms?.flatMap { it.devices }?.firstOrNull { it.id == id } ?: devOf(id)
+        if (Fmt.domain(id) == "camera") { camViewer(id, dev.name); return }
         DeviceSheet(this, kit, id, dev).show()
     }
 

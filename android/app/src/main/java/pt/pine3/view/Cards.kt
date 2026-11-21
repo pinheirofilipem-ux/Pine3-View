@@ -37,7 +37,7 @@ class RoomCard(private val kit: Kit, private val room: Room, dense: Boolean, pri
     private val ids = room.devices.filter { !it.hidden }.map { it.id }
     private val ri = IconCircle(kit, if (dense) 38 else 52, if (dense) 22 else 26, room.icon)
     private val pw = IconCircle(kit, if (dense) 44 else 64, if (dense) 24 else 28, "mdi:power")
-    private val nm = kit.text(room.name, 22f, kit.ink, 500, display = true).oneLine()
+    private val nm = kit.text(room.name, 22f, kit.ink, 500, display = true).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END }
     private val meta = kit.text("", 16f, kit.ink).oneLine()
     private val dots = Dots(kit.ctx, kit)
     private val tmp = kit.text("", 16f, kit.ink)
@@ -91,7 +91,7 @@ class RoomCard(private val kit: Kit, private val room: Room, dense: Boolean, pri
 }
 
 /** Cartão de um dispositivo (.tile): creme se ligado, vidro se desligado. */
-class Tile(private val kit: Kit, private val dev: Dev, private val onOpen: (String) -> Unit) : Card(kit.ctx) {
+class Tile(private val kit: Kit, private val dev: Dev, private val secWatch: Boolean = false, private val onOpen: (String) -> Unit) : Card(kit.ctx) {
     private val domain = Fmt.domain(dev.id)
     private val ic = IconCircle(kit, 48, 24, "mdi:circle-medium")
     private val pw = IconCircle(kit, 54, 24, "mdi:power")
@@ -128,6 +128,10 @@ class Tile(private val kit: Kit, private val dev: Dev, private val onOpen: (Stri
         val tint = Fmt.accent(dev.id, kit.accent)
         ic.setIcon(Fmt.icon(dev.id, dev.kind))
         ic.paint(if (on) tint else kit.soft, if (on) kit.ink else kit.fg)
+        if (secWatch && Fmt.state(dev.id)?.state != "unavailable") {
+            val bad = if (domain == "lock") Fmt.state(dev.id)?.state != "locked" else Fmt.state(dev.id)?.state == "on"
+            if (!bad && !on) ic.paint(Color.parseColor("#30D158"), Color.parseColor("#06210F"))
+        }
         pw.paint(if (on) Color.argb(20, 42, 34, 31) else kit.soft, fg)
         nm.setTextColor(fg); value.setTextColor(fg)
         st.setTextColor(if (on) kit.inkSoft else kit.muted); ex.setTextColor(if (on) kit.inkSoft else kit.muted)
@@ -139,26 +143,38 @@ class Tile(private val kit: Kit, private val dev: Dev, private val onOpen: (Stri
     }
 }
 
-/** O anel do cartão de clima: 270° de arco (o valor sobre a pista), começa a 135° como no SVG do painel web. */
-private class RingView(private val kit: Kit) : View(kit.ctx) {
+/** O anel do cartão de clima: 270° de arco com a abertura em baixo, o número ao centro com o "°" e a legenda por baixo. */
+internal class RingView(private val kit: Kit) : View(kit.ctx) {
     var frac = 0f; var color = Color.WHITE; var track = Color.argb(31, 255, 255, 255)
+    var bigText = ""; var bigSp = 40f; var smallText = ""; var textColor = Color.WHITE; var smallColor = Color.WHITE
     private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
+    private val tp = Paint(Paint.ANTI_ALIAS_FLAG)
     private val r = RectF()
     override fun onDraw(c: Canvas) {
         val s = width.toFloat(); val k = s / 100f
         p.strokeWidth = 7f * k
-        r.set(6f * k, 6f * k, 94f * k, 94f * k) // r = 44 em 100 -> margem 6
+        r.set(6f * k, 6f * k, 94f * k, 94f * k)
         p.color = track; c.drawArc(r, 135f, 270f, false, p)
         if (frac > 0f) { p.color = color; c.drawArc(r, 135f, 270f * frac, false, p) }
+        val sp = resources.displayMetrics.scaledDensity
+        tp.typeface = kit.font(300, true); tp.color = textColor; tp.textSize = bigSp * sp
+        val degW = 18f * sp * 0.45f
+        val w = tp.measureText(bigText) + degW
+        val cy = s / 2f + (if (smallText.isEmpty()) 0f else -6f * kit.density)
+        val x = (s - w) / 2f
+        val base = cy + tp.textSize * 0.35f
+        c.drawText(bigText, x, base, tp)
+        tp.textSize = 18f * sp; c.drawText("°", x + w - degW * 1.6f + degW * 0.35f, base - bigSp * sp * 0.55f + 18f * sp * 0.55f, tp)
+        if (smallText.isNotEmpty()) {
+            tp.typeface = kit.font(400, false); tp.color = smallColor; tp.textSize = 12f * sp
+            c.drawText(smallText, (s - tp.measureText(smallText)) / 2f, base + 16f * kit.density, tp)
+        }
     }
 }
 
 /** Cartão de clima com controlo direto (.tile.clx): anel com o alvo, temperatura atual, modos e − / +. */
 class ClimateCard(private val kit: Kit, private val dev: Dev, private val roomName: String?, private val onOpen: (String) -> Unit) : Card(kit.ctx) {
     private val ring = RingView(kit)
-    private val big = kit.text("", 44f, kit.ink, 300, display = true)
-    private val sup = kit.text("°", 18f, kit.ink)
-    private val small = kit.text("", 12f, kit.ink)
     private val nm = kit.text(dev.name, 19f, kit.ink, 500, display = true).oneLine()
     private val st = kit.text("", 15f, kit.ink).oneLine()
     private val seg = LinearLayout(kit.ctx)
@@ -172,14 +188,7 @@ class ClimateCard(private val kit: Kit, private val dev: Dev, private val roomNa
         val pad = kit.dp(18)
         val row = LinearLayout(kit.ctx).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(pad, pad, pad, pad) }
         val rs = kit.dp(kit.clamp(96f, kit.vw(10f), 128f))
-        val ringBox = FrameLayout(kit.ctx)
-        ringBox.addView(ring, FrameLayout.LayoutParams(rs, rs))
-        val t = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
-        val bl = LinearLayout(kit.ctx).apply { gravity = Gravity.TOP }
-        bl.addView(big); bl.addView(sup, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(2) })
-        t.addView(bl); t.addView(small)
-        ringBox.addView(t, FrameLayout.LayoutParams(rs, rs, Gravity.CENTER))
-        row.addView(ringBox, LinearLayout.LayoutParams(rs, rs).apply { marginEnd = kit.dp(18) })
+        row.addView(ring, LinearLayout.LayoutParams(rs, rs).apply { marginEnd = kit.dp(18) })
         val right = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL }
         right.addView(nm); right.addView(st, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(2) })
         right.addView(seg, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(10) })
@@ -220,18 +229,17 @@ class ClimateCard(private val kit: Kit, private val dev: Dev, private val roomNa
         ring.frac = if (on && !value.isNaN()) ((value - min) / (max - min).coerceAtLeast(1.0)).coerceIn(0.04, 1.0).toFloat() else 0f
         ring.color = col
         ring.track = if (on) Color.argb(31, 42, 34, 31) else Color.argb(31, 255, 255, 255)
-        ring.invalidate()
         val bigText = when {
             on && tgt != null -> Fmt.num(tgt)
             range && on -> Fmt.num(lo) + "–" + Fmt.num(hi)
             !cur.isNaN() -> Fmt.num(Math.round(cur).toDouble(), 0)
             else -> "–"
         }
-        big.text = bigText
-        big.textSize = if (range && on) 22f else if (bigText.length > 3) kit.clamp(26f, kit.vw(2.6f), 34f) else kit.clamp(34f, kit.vw(3.4f), 44f)
-        big.setTextColor(fg); sup.setTextColor(fg); small.setTextColor(if (on) kit.inkSoft else kit.muted)
-        small.text = if (!on && !cur.isNaN()) Tr.t("Atual") else ""
-        small.visibility = if (small.text.isEmpty()) View.GONE else View.VISIBLE
+        ring.bigText = bigText
+        ring.bigSp = if (range && on) 22f else if (bigText.length > 3) kit.clamp(26f, kit.vw(2.6f), 34f) else kit.clamp(34f, kit.vw(3.4f), 44f)
+        ring.textColor = fg; ring.smallColor = if (on) kit.inkSoft else kit.muted
+        ring.smallText = if (!on && !cur.isNaN()) Tr.t("Atual") else ""
+        ring.invalidate()
         nm.setTextColor(fg)
         st.setTextColor(if (on) kit.inkSoft else kit.muted)
         st.text = listOfNotNull(
@@ -274,10 +282,12 @@ class ClimateCard(private val kit: Kit, private val dev: Dev, private val roomNa
 }
 
 /** Cartões de resumo do início (Clima, Segurança, Aspirador, A tocar), com as cores e textos do painel web. */
-class SummaryCard(private val kit: Kit, private val kind: String, private val id: String?, private val home: Home, private val nav: Nav) : Card(kit.ctx) {
-    private val ri = IconCircle(kit, 52, 26, "mdi:thermometer")
-    private val eyebrow = kit.text("", 13f, kit.fg, 600, spacing = 0.2f)
-    private val big = kit.text("", 46f, kit.fg, 300, display = true).oneLine()
+class SummaryCard(private val kit: Kit, private val kind: String, private val id: String?, private val home: Home, private val nav: Nav, private val dense: Boolean = false) : Card(kit.ctx) {
+    private val ri = IconCircle(kit, if (dense) 38 else 52, if (dense) 22 else 26, "mdi:thermometer")
+    private val eyebrow = kit.text("", 13f, kit.fg, 600, spacing = if (dense) 0.12f else 0.2f).apply { setSingleLine() }
+    private val numSp = if (dense) 32f else 46f
+    private val txtSp = if (dense) 20f else 30f
+    private val big = kit.text("", numSp, kit.fg, 300, display = true).oneLine()
     private val meta = kit.text("", 16f, kit.fg).oneLine()
     private val bar = View(kit.ctx)
     private val barBox = FrameLayout(kit.ctx)
@@ -285,12 +295,12 @@ class SummaryCard(private val kit: Kit, private val kind: String, private val id
     private val devices get() = home.rooms.filter { !it.hidden }.flatMap { it.devices }.filter { !it.hidden }
 
     init {
-        val pad = kit.dp(22)
+        val pad = kit.dp(if (dense) 16 else 22)
         isClickable = true
         val col = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, pad) }
         val row1 = LinearLayout(kit.ctx).apply { gravity = Gravity.TOP }
         if (kind != "media") row1.addView(ri)
-        row1.addView(eyebrow, LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = kit.dp(14); marginStart = if (kind != "media") kit.dp(14) else 0 })
+        row1.addView(eyebrow, LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = kit.dp(if (dense) 10 else 14); marginStart = if (kind != "media") kit.dp(if (dense) 10 else 14) else 0 })
         col.addView(row1, LinearLayout.LayoutParams(-1, -2))
         col.addView(View(kit.ctx), LinearLayout.LayoutParams(-1, 0, 1f))
         col.addView(big, LinearLayout.LayoutParams(-1, -2))
@@ -335,7 +345,7 @@ class SummaryCard(private val kit: Kit, private val kind: String, private val id
                 eyebrow.text = Tr.t("Segurança").uppercase()
                 ri.setIcon(if (bad > 0) "mdi:shield-alert-outline" else "mdi:shield-check-outline")
                 if (bad > 0) ok(Color.parseColor("#FF9F0A"), Color.parseColor("#2A1500")) else ok(Color.parseColor("#30D158"), Color.parseColor("#06210F"))
-                big.textSize = 30f; big.typeface = kit.font(300, true)
+                big.textSize = txtSp; big.typeface = kit.font(300, true)
                 big.text = if (bad > 0) Tr.pl(bad, "item aberto", "itens abertos", "item open", "items open") else Tr.t("Tudo seguro")
                 meta.text = Tr.pl(sec.size, "item monitorizado", "itens monitorizados", "item monitored", "items monitored")
                 setOnClickListener { nav.openScreen("security") }
@@ -346,7 +356,7 @@ class SummaryCard(private val kit: Kit, private val kind: String, private val id
                 if (st != null && id != null) {
                     on = Fmt.isOn(id)
                     eyebrow.text = Tr.t("Aspirador").uppercase(); ri.setIcon("mdi:robot-vacuum"); ok(Color.parseColor("#30D158"), Color.parseColor("#06210F"))
-                    big.textSize = 30f; big.typeface = kit.font(300, true)
+                    big.textSize = txtSp; big.typeface = kit.font(300, true)
                     big.text = Tr.t(Fmt.STATE_PT[st.state] ?: st.state)
                     val bat = st.attrs.optInt("battery_level", -1)
                     meta.text = listOfNotNull(if (bat >= 0) "🔋 $bat%" else null, Fmt.name(id)).joinToString(" · ")
@@ -362,7 +372,7 @@ class SummaryCard(private val kit: Kit, private val kind: String, private val id
                     val room = home.rooms.firstOrNull { r -> r.devices.any { it.id == p.id } }?.name
                     eyebrow.setTextColor(Color.parseColor("#5EE08A"))
                     eyebrow.text = listOf(Tr.t("A tocar"), room.orEmpty(), a.optString("app_name")).filter { it.isNotBlank() }.joinToString(" · ").uppercase()
-                    big.textSize = 24f; big.typeface = kit.font(400, true)
+                    big.textSize = if (dense) 16f else 24f; big.typeface = kit.font(400, true)
                     big.text = a.optString("media_title").ifBlank { p.name }
                     meta.text = a.optString("media_artist")
                     val dur = a.optDouble("media_duration", 0.0); val pos = a.optDouble("media_position", 0.0)
@@ -387,9 +397,49 @@ class SummaryCard(private val kit: Kit, private val kind: String, private val id
     }
 }
 
-/** Cartão de segurança: igual ao Tile, com o círculo verde quando tudo está seguro (.tile.secok). */
-class SecTile(private val kit: Kit, private val dev: Dev, private val onOpen: (String) -> Unit) : Card(kit.ctx) {
-    private val inner = Tile(kit, dev, onOpen)
-    init { addView(inner, LayoutParams(-1, -1)); update() }
-    override fun update() { inner.update() }
+/** Cartão de câmara (.camt): imagem da última captura, botão de reproduzir e "Toca para ver ao vivo". Ocupa duas colunas. */
+class CamTile(private val kit: Kit, private val dev: Dev, private val onOpen: (String) -> Unit) : Card(kit.ctx) {
+    private val shot = ImageView(kit.ctx).apply { scaleType = ImageView.ScaleType.CENTER_CROP; visibility = View.GONE }
+    private val ic = IconCircle(kit, 48, 24, "mdi:cctv")
+    private val nm = kit.text(dev.name, 19f, Color.WHITE, 500, display = true).oneLine()
+    private val st = kit.text("", 15f, Color.argb(210, 255, 255, 255)).oneLine()
+    private var at = 0L
+
+    init {
+        tag = 2
+        isClickable = true
+        setOnClickListener { onOpen(dev.id) }
+        clipToOutline = true
+        outlineProvider = object : android.view.ViewOutlineProvider() {
+            override fun getOutline(v: View, o: android.graphics.Outline) { o.setRoundRect(0, 0, v.width, v.height, kit.dp(26).toFloat()) }
+        }
+        addView(shot, LayoutParams(-1, -1))
+        addView(View(kit.ctx).apply { background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.argb(20, 0, 0, 0), Color.argb(150, 0, 0, 0))) }, LayoutParams(-1, -1))
+        val pad = kit.dp(18)
+        val col = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, pad) }
+        col.addView(ic)
+        col.addView(View(kit.ctx), LinearLayout.LayoutParams(-1, 0, 1f))
+        col.addView(nm); col.addView(st, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(3) })
+        addView(col, LayoutParams(-1, -1))
+        val play = FrameLayout(kit.ctx).apply {
+            background = kit.circle(Color.argb(150, 20, 16, 24))
+            addView(kit.icon("mdi:play", Color.WHITE, 28), LayoutParams(kit.dp(28), kit.dp(28), Gravity.CENTER))
+        }
+        addView(play, LayoutParams(kit.dp(64), kit.dp(64), Gravity.CENTER))
+        update()
+    }
+
+    override fun update() {
+        background = kit.glass(26)
+        ic.paint(Color.parseColor("#64D2FF"), kit.ink)
+        alpha = if (Fmt.state(dev.id)?.state == "unavailable") 0.5f else 1f
+        val pic = Fmt.state(dev.id)?.attrs?.optString("entity_picture").orEmpty()
+        if (System.currentTimeMillis() - at > 60_000) {
+            at = System.currentTimeMillis()
+            Ha.fetchImage(pic.ifBlank { "/api/camera_proxy/${dev.id}" }) { bmp ->
+                if (bmp != null) { shot.setImageBitmap(bmp); shot.visibility = View.VISIBLE; st.text = Tr.t("Última imagem") + " · " + java.text.SimpleDateFormat("HH:mm", Tr.locale).format(java.util.Date()) + " · " + Tr.t("Toca para ver ao vivo") }
+            }
+        }
+        if (shot.visibility != View.VISIBLE) st.text = Tr.t("Toca para ver ao vivo")
+    }
 }

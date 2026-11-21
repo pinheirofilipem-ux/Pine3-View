@@ -51,6 +51,7 @@ class AppearanceActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        UiScale.apply(this)
         kit = Kit(this)
         holder = FrameLayout(this).apply { setPadding(kit.dp(24), kit.dp(18), kit.dp(10), kit.dp(18)) }
         setContentView(ScrollView(this).apply { setBackgroundColor(Color.parseColor("#1C0F1E")); isFillViewport = true; addView(holder) })

@@ -90,6 +90,10 @@ class WxCard(kit: Kit, private val home: Home, private val kind: String, private
     private fun deg(v: Double?) = if (v == null) "–" else Fmt.num(Math.round(v).toDouble(), 0) + "°"
     private fun icon(c: String) = Fmt.WEATHER_ICON[c] ?: "mdi:weather-cloudy"
     private fun hh(t: Long) = SimpleDateFormat("HH:mm", Tr.locale).format(Date(t))
+    private fun tempColor(t: Double): Int = when {
+        t <= 0 -> Color.parseColor("#8ECBFF"); t <= 10 -> Color.parseColor("#64D2FF"); t <= 15 -> Color.parseColor("#5EE0B0")
+        t <= 20 -> Color.parseColor("#E8E04A"); t <= 25 -> Color.parseColor("#FFB340"); else -> Color.parseColor("#FF7A45")
+    }
 
     override fun update() {
         removeAllViews()
@@ -132,10 +136,31 @@ class WxCard(kit: Kit, private val home: Home, private val kind: String, private
         }
 
         // amanhã / próximos dias
-        val days = daily.drop(if (today != null) 1 else 0).take(if (tall) 5 else 1)
+        val days = daily.drop(if (today != null) 1 else 0).take(if (tall) 6 else 1)
         if (days.isNotEmpty()) {
             val box = LinearLayout(k.ctx).apply { orientation = LinearLayout.VERTICAL }
+            val lo = days.minOf { it.low ?: it.temp ?: 0.0 }; val hi = days.maxOf { it.temp ?: 0.0 }; val span = (hi - lo).takeIf { it > 0 } ?: 1.0
+            fun pos(v: Double) = ((v - lo) / span * 100).coerceIn(0.0, 100.0)
             days.forEachIndexed { i, d ->
+                if (tall) {
+                    val nm = if (i == 0 && today != null) Tr.t("Amanhã") else SimpleDateFormat("EEE", Tr.locale).format(Date(d.time)).replace(".", "").take(3).replaceFirstChar { it.uppercase() }
+                    val r = LinearLayout(k.ctx).apply { gravity = Gravity.CENTER_VERTICAL }
+                    r.addView(k.text(nm.uppercase(), 12f, k.fg, 600, spacing = 0.06f).apply { setSingleLine() }, LinearLayout.LayoutParams(k.dp(78), -2))
+                    r.addView(k.icon(icon(d.cond), k.fg, 20), LinearLayout.LayoutParams(k.dp(20), k.dp(20)).apply { marginEnd = k.dp(6) })
+                    r.addView(k.text(if (d.precip != null && d.precip >= 10) Math.round(d.precip).toString() + "%" else "", 11f, Color.parseColor("#64D2FF")), LinearLayout.LayoutParams(k.dp(34), -2))
+                    r.addView(k.text(deg(d.low ?: d.temp), 12f, k.muted), LinearLayout.LayoutParams(k.dp(30), -2))
+                    val bar = LinearLayout(k.ctx).apply { background = k.rounded(k.soft, 4) }
+                    val l = d.low ?: d.temp ?: lo; val h2 = d.temp ?: hi
+                    bar.addView(View(k.ctx), LinearLayout.LayoutParams(0, k.dp(6), pos(l).toFloat().coerceAtLeast(0.01f)))
+                    bar.addView(View(k.ctx).apply {
+                        background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(tempColor(l), tempColor(h2))).apply { cornerRadius = k.dp(4).toFloat() }
+                    }, LinearLayout.LayoutParams(0, k.dp(6), maxOf(4.0, pos(h2) - pos(l)).toFloat()))
+                    bar.addView(View(k.ctx), LinearLayout.LayoutParams(0, k.dp(6), (100 - pos(h2)).toFloat().coerceAtLeast(0.01f)))
+                    r.addView(bar, LinearLayout.LayoutParams(0, k.dp(6), 1f).apply { marginStart = k.dp(6); marginEnd = k.dp(8) })
+                    r.addView(k.text(deg(d.temp), 13f, k.fg, 600), LinearLayout.LayoutParams(k.dp(34), -2))
+                    box.addView(r, lp(k, top = 7))
+                    return@forEachIndexed
+                }
                 val name = if (i == 0 && today != null) Tr.t("Amanhã") else SimpleDateFormat("EEE", Tr.locale).format(Date(d.time)).replace(".", "").take(3).replaceFirstChar { it.uppercase() }
                 if (!tall) box.addView(k.text(name.uppercase(), 12f, k.muted, 500, spacing = 0.12f))
                 val row = LinearLayout(k.ctx).apply { gravity = Gravity.CENTER_VERTICAL }
@@ -183,7 +208,7 @@ class HomePage(kit: Kit, private val home: Home, private val nav: Nav) : Page(ki
 
     private fun date(): View {
         val row = LinearLayout(kit.ctx).apply { gravity = Gravity.CENTER_VERTICAL }
-        val fmt = SimpleDateFormat(if (Tr.en) "EEEE, MMMM d" else "EEEE, d 'de' MMMM", Tr.locale)
+        val fmt = SimpleDateFormat(if (Tr.en) "EEEE d MMMM" else "EEEE, d 'de' MMMM", if (Tr.en) java.util.Locale.UK else Tr.locale)
         row.addView(eyebrow(kit, fmt.format(Date())))
         if (s.optBoolean("home_people", false)) row.addView(peopleBox, LinearLayout.LayoutParams(-2, -2).apply { marginStart = kit.dp(16) })
         return row
@@ -235,10 +260,10 @@ class HomePage(kit: Kit, private val home: Home, private val nav: Nav) : Page(ki
         val items = ArrayList<Pair<String, Card>>()
         home.rooms.filter { !it.hidden }.forEach { r -> items += r.id to RoomCard(kit, r, dense) { nav.openRoom(r) } }
         if (s.optBoolean("show_summary", true)) {
-            items += "@climate" to SummaryCard(kit, "climate", null, home, nav)
-            items += "@security" to SummaryCard(kit, "security", null, home, nav)
-            devices(home).filter { it.kind == "vacuum" }.forEach { items += "@vacuum:${it.id}" to SummaryCard(kit, "vacuum", it.id, home, nav) }
-            items += "@media" to SummaryCard(kit, "media", null, home, nav)
+            items += "@climate" to SummaryCard(kit, "climate", null, home, nav, dense)
+            items += "@security" to SummaryCard(kit, "security", null, home, nav, dense)
+            devices(home).filter { it.kind == "vacuum" }.forEach { items += "@vacuum:${it.id}" to SummaryCard(kit, "vacuum", it.id, home, nav, dense) }
+            items += "@media" to SummaryCard(kit, "media", null, home, nav, dense)
         }
         fun pos(k: String, i: Int) = order.indexOf(k).let { if (it < 0) 10000 + i else it }
         items.mapIndexed { i, p -> Triple(pos(p.first, i), p.first, p.second) }.sortedBy { it.first }.forEach { cards += it.third; g.addView(it.third) }
@@ -472,7 +497,10 @@ class ClimatePage(kit: Kit, home: Home, nav: Nav) : Page(kit) {
                         addView(kit.text(r.name, 19f, kit.fg, 500, display = true).apply { setSingleLine(); ellipsize = TextUtils.TruncateAt.END })
                         val v = LinearLayout(kit.ctx).apply { gravity = Gravity.BOTTOM }
                         v.addView(kit.text((c.first ?: "–").replace("°C", "°"), 30f, kit.fg, 300, display = true))
-                        if (c.second != null) v.addView(kit.text("💧" + c.second, 15f, kit.muted), LinearLayout.LayoutParams(-2, -2).apply { marginStart = kit.dp(12) })
+                        if (c.second != null) {
+                            v.addView(kit.icon("mdi:water", Color.parseColor("#64D2FF"), 14), LinearLayout.LayoutParams(kit.dp(14), kit.dp(14)).apply { marginStart = kit.dp(12); bottomMargin = kit.dp(4) })
+                            v.addView(kit.text(c.second!!, 15f, kit.muted), LinearLayout.LayoutParams(-2, -2).apply { marginStart = kit.dp(2) })
+                        }
                         addView(v, lp(kit, top = 10))
                     })
                 }
@@ -510,7 +538,10 @@ class SecurityPage(kit: Kit, home: Home, nav: Nav) : Page(kit) {
             if (ids.isEmpty()) w.addView(kit.text(Tr.t("Nada para monitorizar."), 16f, kit.muted), lp(kit, top = 30))
             else {
                 val g = Grid(kit.ctx, kit.dp(200), kit.dp(170), kit.dp(18))
-                ids.forEach { d -> val c = Tile(kit, d) { nav.openDevice(it) }; cards += c; g.addView(c) }
+                ids.forEach { d ->
+                    val c: Card = if (d.kind == "camera") CamTile(kit, d) { nav.openDevice(it) } else Tile(kit, d, secWatch = d.kind == "lock" || d.kind == "binary_sensor") { nav.openDevice(it) }
+                    cards += c; g.addView(c)
+                }
                 w.addView(g, lp(kit, top = 16))
             }
         }

@@ -58,6 +58,7 @@ class SettingsActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        UiScale.apply(this)
         kit = Kit(this); prefs = Prefs(this)
         val d = kit::dp
 
@@ -137,6 +138,22 @@ class SettingsActivity : Activity() {
         }
         sensValue.text = "${prefs.sensitivity} / 10"
         scr.addView(sens, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(6) })
+        // tamanho da interface
+        val scaleHead = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        scaleHead.addView(kit.text(Tr.t("Tamanho da interface"), 13f, Color.parseColor("#BFA9BB")), LinearLayout.LayoutParams(0, -2, 1f))
+        val scaleValue = kit.text("${prefs.uiScale}%", 15f, kit.accent, 600); scaleHead.addView(scaleValue)
+        scr.addView(scaleHead, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(18) })
+        val scaleBar = SeekBar(this).apply {
+            max = 70; progress = prefs.uiScale - 60
+            progressTintList = android.content.res.ColorStateList.valueOf(kit.accent); thumbTintList = android.content.res.ColorStateList.valueOf(kit.accent)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar, p: Int, u: Boolean) { scaleValue.text = "${p + 60}%" }
+                override fun onStartTrackingTouch(s: SeekBar) {}
+                override fun onStopTrackingTouch(s: SeekBar) { prefs.uiScale = s.progress + 60; recreate() }
+            })
+        }
+        scr.addView(scaleBar, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(6) })
+        scr.addView(kit.text("Se o painel web mostra mais coisas por ecrã, baixa este valor.", 12f, Color.parseColor("#BFA9BB")), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(4) })
         val rule = prefs.wakeRules.firstOrNull() ?: DEFAULT_DOORBELL
         bellEntity = input(rule.entity, "event.entry_hallway_comelit_intercom_doorbell", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
         labeled(scr, "Campainha: entidade que acorda o ecrã", bellEntity)
