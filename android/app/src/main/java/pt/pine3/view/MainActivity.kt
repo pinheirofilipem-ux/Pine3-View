@@ -108,9 +108,9 @@ class MainActivity : Activity(), Nav {
     private var lastActivity = System.currentTimeMillis()
     private val saverTick = object : Runnable {
         override fun run() {
-            val mins = Ha.home?.settings?.optInt("screensaver", 0) ?: 0
-            if (mins > 0 && Lay.edit == null && saver == null && resumed && !PanelState.sleeping && bell?.isShowing != true && System.currentTimeMillis() - maxOf(lastActivity, PanelState.lastTouch) > mins * 60_000L) showSaver()
-            handler.postDelayed(this, 5_000)
+            val secs = prefs.saverSec(Ha.home?.settings?.optInt("screensaver", 0) ?: 0)
+            if (secs > 0 && Lay.edit == null && saver == null && resumed && !PanelState.sleeping && bell?.isShowing != true && System.currentTimeMillis() - maxOf(lastActivity, PanelState.lastTouch) > secs * 1000L) showSaver()
+            handler.postDelayed(this, 1_000)
         }
     }
     /** Se os vídeos não carregarem, o ecrã de descanso volta ao relógio escuro (sem insistir). */
@@ -221,7 +221,7 @@ class MainActivity : Activity(), Nav {
         applySleeping(PanelState.sleeping)
         Ha.listeners += haListener
         lastActivity = System.currentTimeMillis()
-        handler.removeCallbacks(saverTick); handler.postDelayed(saverTick, 5_000)
+        handler.removeCallbacks(saverTick); handler.postDelayed(saverTick, 1_000)
         Ha.configure(this)
         if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) MotionService.start(this)
         MotionService.poke()

@@ -46,6 +46,17 @@ class Prefs(ctx: Context) {
         get() = sp.getString("saverSource", null) ?: Aerials.DEFAULT_SOURCE
         set(v) = sp.edit().putString("saverSource", v.trim()).apply()
 
+    /** Segundos sem toques até entrar o screensaver (0 = desligado). -1 = ainda não escolhido: parte do valor em minutos do painel web. */
+    var saverSecRaw: Int
+        get() = sp.getInt("saverSec", -1)
+        set(v) = sp.edit().putInt("saverSec", v.coerceIn(0, 120)).apply()
+
+    /** O tempo efetivo de entrada: nunca menor que o do bloqueio quando está ativo. */
+    fun saverSec(webMinutes: Int): Int {
+        val s = saverSecRaw.let { if (it >= 0) it else (webMinutes * 60).coerceIn(0, 120) }
+        return if (s <= 0) 0 else maxOf(s, timeoutSec)
+    }
+
     /** Cor de fundo (pastel) atrás dos clipes com transparência, ex. "#F7C6CE"; vazio = sem fundo. */
     var saverBg: String
         get() = sp.getString("saverBg", "") ?: ""

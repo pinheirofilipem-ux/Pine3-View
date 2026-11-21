@@ -515,17 +515,41 @@ class SettingsActivity : Activity() {
     private fun buildSaver() {
         val ent = panel()
         h3(ent, Tr.t("Entrada e bloqueio"), true)
-        para(ent, "O screensaver aparece quando ninguém toca no ecrã durante este tempo. O bloqueio desliga o ecrã quando ninguém se mexe: conta sempre, também com o screensaver ativo.")
-        label(ent, "Entrar no screensaver após (minutos sem toques, 0 = desligado)")
-        val mins = input(draft.optInt("screensaver", 0).toString(), "0", InputType.TYPE_CLASS_NUMBER)
-        mins.addTextChangedListener(object : TextWatcher {
-            override fun afterTextChanged(e: Editable?) { val v = (e?.toString()?.toIntOrNull() ?: 0).coerceIn(0, 600); if (v != draft.optInt("screensaver", 0)) setD("screensaver", v) }
-            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-        })
-        ent.addView(mins)
-        label(ent, "Bloquear o ecrã após (segundos sem movimento)")
-        val timeout = input(prefs.timeoutSec.toString(), "15", InputType.TYPE_CLASS_NUMBER, app = true); ent.addView(timeout)
+        para(ent, "O screensaver aparece quando ninguém toca no ecrã durante este tempo (0 = desligado) e nunca entra antes do bloqueio. O bloqueio desliga o ecrã quando ninguém se mexe: conta sempre, também com o screensaver ativo.")
+        var lockV = prefs.timeoutSec.coerceIn(3, 120)
+        var saverV = prefs.saverSec(draft.optInt("screensaver", 0)).coerceIn(0, 120)
+        lateinit var lockBar: SeekBar; lateinit var saverBar: SeekBar
+        lateinit var lockTx: TextView; lateinit var saverTx: TextView
+        fun saverText() = if (saverV == 0) Tr.t("Desligado") else "$saverV s"
+        fun bar(title: String, init: Int, lo: Int, hi: Int, onUser: (Int) -> Unit): Pair<SeekBar, TextView> {
+            val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+            row.addView(kit.text(title, 13f, kit.muted), LinearLayout.LayoutParams(0, -2, 1f))
+            val tx = kit.text("", 15f, kit.accent, 600); row.addView(tx)
+            ent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(18) })
+            val sb = SeekBar(this).apply {
+                max = hi - lo; progress = init - lo
+                progressTintList = ColorStateList.valueOf(kit.accent); thumbTintList = ColorStateList.valueOf(kit.accent)
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar, p: Int, u: Boolean) { if (u) { onUser(p + lo); markApp() } }
+                    override fun onStartTrackingTouch(s: SeekBar) {}
+                    override fun onStopTrackingTouch(s: SeekBar) {}
+                })
+            }
+            ent.addView(sb, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(6) })
+            return sb to tx
+        }
+        // screensaver: 0 = desligado, e quando ativo nunca fica abaixo do bloqueio
+        val s1 = bar("Entrar no screensaver após (segundos sem toques)", saverV, 0, 120) { v ->
+            saverV = if (v == 0) 0 else maxOf(v, lockV)
+            saverBar.progress = saverV; saverTx.text = saverText()
+        }
+        saverBar = s1.first; saverTx = s1.second; saverTx.text = saverText()
+        val s2 = bar("Bloquear o ecrã após (segundos sem movimento)", lockV, 3, 120) { v ->
+            lockV = v
+            if (saverV in 1 until lockV) { saverV = lockV; saverBar.progress = saverV; saverTx.text = saverText() }
+            lockTx.text = "$lockV s"
+        }
+        lockBar = s2.first; lockTx = s2.second; lockTx.text = "$lockV s"
         val sh = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         sh.addView(kit.text("Sensibilidade ao movimento", 13f, kit.muted), LinearLayout.LayoutParams(0, -2, 1f))
         val sensValue = kit.text("${prefs.sensitivity} / 10", 15f, kit.accent, 600); sh.addView(sensValue)
@@ -627,7 +651,7 @@ class SettingsActivity : Activity() {
         }
 
         saveApp = {
-            prefs.timeoutSec = timeout.text.toString().toIntOrNull() ?: 15
+            prefs.timeoutSec = lockV; prefs.saverSecRaw = saverV
             prefs.sensitivity = sens.progress + 1
             prefs.saverVideo = saverVideo; prefs.saverQuality = quality; prefs.saverSource = src.text.toString(); prefs.saverList = listIn.text.toString()
             prefs.packUrl = packUrl.text.toString().ifBlank { Pack.DEFAULT_URL }; prefs.saverExtra = extraIn.text.toString(); prefs.saverBg = bg
