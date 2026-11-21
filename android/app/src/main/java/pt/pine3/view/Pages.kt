@@ -80,10 +80,10 @@ fun allLights(home: Home): List<String> = devices(home).filter { it.kind == "lig
 /** Cartão de tempo (.wxc): agora, próximas horas e amanhã (ou os próximos dias no formato alto). */
 class WxCard(kit: Kit, private val home: Home, private val kind: String, private val onClick: () -> Unit) : Card(kit.ctx) {
     private val k = kit
-    private val entity: String? = home.settings.optString("weather_entity").takeIf { it.startsWith("weather.") && Fmt.state(it) != null } ?: home.weather
+    private val pref = home.settings.optString("weather_entity", "")
     init {
         isClickable = true; setOnClickListener { onClick() }
-        entity?.let { e -> Weather.load(e) { post { update() } } }
+        Weather.load(pref) { post { update() } }
         update()
     }
 
@@ -100,8 +100,8 @@ class WxCard(kit: Kit, private val home: Home, private val kind: String, private
         val tall = kind.contains("tall")
         val wide = kind == "wide"
         background = k.glass(24)
-        val e = entity
-        val st = e?.let { Fmt.state(it) }
+        val st = Weather.current(pref) { post { update() } }
+        val als = Ipma.alerts { post { update() } }
         val col = LinearLayout(k.ctx).apply { orientation = if (tall) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             setPadding(k.dp(if (wide) 16 else 18), k.dp(if (wide) 12 else 14), k.dp(if (wide) 16 else 18), k.dp(if (wide) 12 else 14)) }
         val daily = Weather.daily
@@ -110,11 +110,11 @@ class WxCard(kit: Kit, private val home: Home, private val kind: String, private
         // agora
         val now = LinearLayout(k.ctx).apply { gravity = Gravity.CENTER_VERTICAL }
         if (st != null) {
-            val t = st.attrs.optDouble("temperature", Double.NaN)
-            now.addView(k.icon(icon(st.state), k.accent, if (wide) 36 else 44), LinearLayout.LayoutParams(k.dp(if (wide) 36 else 44), k.dp(if (wide) 36 else 44)).apply { marginEnd = k.dp(12) })
+            val t = st.temp ?: Double.NaN
+            now.addView(k.icon(icon(st.cond), k.accent, if (wide) 36 else 44), LinearLayout.LayoutParams(k.dp(if (wide) 36 else 44), k.dp(if (wide) 36 else 44)).apply { marginEnd = k.dp(12) })
             val tx = LinearLayout(k.ctx).apply { orientation = LinearLayout.VERTICAL }
             tx.addView(k.text(if (t.isNaN()) "–" else Fmt.num(Math.round(t).toDouble(), 0) + "°", if (wide) 30f else 36f, k.fg, 300, display = true))
-            tx.addView(k.text(Tr.t(Fmt.WEATHER_PT[st.state] ?: st.state), 15f, k.fg).apply { setSingleLine(); ellipsize = TextUtils.TruncateAt.END })
+            tx.addView(k.text(Tr.t(Fmt.WEATHER_PT[st.cond] ?: st.cond), 15f, k.fg).apply { setSingleLine(); ellipsize = TextUtils.TruncateAt.END })
             if (today != null) tx.addView(k.text(Tr.t("Máx. ") + deg(today.temp) + " · " + Tr.t("Mín. ") + deg(today.low), 13f, k.muted))
             now.addView(tx)
         } else now.addView(k.text(Tr.t("A carregar o tempo…"), 14f, k.muted))
@@ -173,21 +173,32 @@ class WxCard(kit: Kit, private val home: Home, private val kind: String, private
             }
             col.addView(box, if (tall) LinearLayout.LayoutParams(-1, -2) else LinearLayout.LayoutParams(-2, -2))
         }
-        addView(col, LayoutParams(-1, -2))
+        if (als.isNotEmpty()) {
+            val wrap = LinearLayout(k.ctx).apply { orientation = LinearLayout.VERTICAL }
+            wrap.addView(col)
+            wrap.addView(Ipma.banner(k, als[0], false, als.size - 1), LinearLayout.LayoutParams(-1, -2).apply { setMargins(k.dp(12), 0, k.dp(12), k.dp(12)) })
+            addView(wrap, LayoutParams(-1, -2))
+        } else addView(col, LayoutParams(-1, -2))
     }
 }
 
 /** A "pílula" do tempo da disposição clássica (.wpill). */
 private fun wxPill(kit: Kit, home: Home, onClick: () -> Unit): View? {
-    val e = home.settings.optString("weather_entity").takeIf { it.startsWith("weather.") } ?: home.weather ?: return null
-    val st = Fmt.state(e) ?: return null
-    val t = st.attrs.optDouble("temperature", Double.NaN)
+    val pref = home.settings.optString("weather_entity", "")
+    val cur = Weather.current(pref)
+    val al = Ipma.alerts().firstOrNull()
     return LinearLayout(kit.ctx).apply {
         gravity = Gravity.CENTER_VERTICAL; background = kit.glass(40); isClickable = true; setOnClickListener { onClick() }
         setPadding(kit.dp(18), 0, kit.dp(22), 0); minimumHeight = kit.dp(56)
-        addView(kit.icon(Fmt.WEATHER_ICON[st.state] ?: "mdi:weather-cloudy", kit.accent, 26), LinearLayout.LayoutParams(kit.dp(26), kit.dp(26)).apply { marginEnd = kit.dp(12) })
-        addView(kit.text(if (t.isNaN()) "–" else Fmt.num(Math.round(t).toDouble(), 0) + "°", 26f, kit.fg, 400, display = true))
-        addView(kit.text(Tr.t(Fmt.WEATHER_PT[st.state] ?: st.state), 16f, kit.muted), LinearLayout.LayoutParams(-2, -2).apply { marginStart = kit.dp(12) })
+        if (cur == null) {
+            addView(kit.icon("mdi:weather-cloudy-clock", kit.accent, 26), LinearLayout.LayoutParams(kit.dp(26), kit.dp(26)).apply { marginEnd = kit.dp(12) })
+            addView(kit.text(Tr.t("A carregar o tempo…"), 16f, kit.muted))
+            return@apply
+        }
+        addView(kit.icon(Fmt.WEATHER_ICON[cur.cond] ?: "mdi:weather-cloudy", kit.accent, 26), LinearLayout.LayoutParams(kit.dp(26), kit.dp(26)).apply { marginEnd = kit.dp(12) })
+        addView(kit.text(if (cur.temp == null) "–" else Fmt.num(Math.round(cur.temp).toDouble(), 0) + "°", 26f, kit.fg, 400, display = true))
+        addView(kit.text(Tr.t(Fmt.WEATHER_PT[cur.cond] ?: cur.cond), 16f, kit.muted), LinearLayout.LayoutParams(-2, -2).apply { marginStart = kit.dp(12) })
+        if (al != null) addView(kit.icon("mdi:alert", Ipma.color(al.level), 22), LinearLayout.LayoutParams(kit.dp(22), kit.dp(22)).apply { marginStart = kit.dp(12) })
     }
 }
 
@@ -279,7 +290,7 @@ class HomePage(kit: Kit, private val home: Home, private val nav: Nav) : Page(ki
                     val left = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL }
                     left.addView(date()); left.addView(clock(), lp(kit, top = 8))
                     stat()?.let { left.addView(it, lp(kit, top = 24)) }
-                    if (s.optBoolean("show_weather", true) && home.weather != null) left.addView(WxCard(kit, home, "tall") { nav.openScreen("weather") }.also { cards += it }, lp(kit, top = 20))
+                    if (s.optBoolean("show_weather", true)) left.addView(WxCard(kit, home, "tall") { nav.openScreen("weather") }.also { cards += it }, lp(kit, top = 20))
                     row.addView(left, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = kit.dp(36) })
                     val main = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL }
                     scenesView?.let { main.addView(it, lp(kit, top = 0)) }
@@ -293,7 +304,7 @@ class HomePage(kit: Kit, private val home: Home, private val nav: Nav) : Page(ki
                         orientation = LinearLayout.VERTICAL; background = kit.glass(32); setPadding(kit.dp(20), kit.dp(22), kit.dp(20), kit.dp(16))
                     }
                     sb.addView(date()); sb.addView(clock(), lp(kit, top = 0))
-                    if (s.optBoolean("show_weather", true) && home.weather != null) sb.addView(WxCard(kit, home, "tall side") { nav.openScreen("weather") }.also { cards += it }, lp(kit, top = 14))
+                    if (s.optBoolean("show_weather", true)) sb.addView(WxCard(kit, home, "tall side") { nav.openScreen("weather") }.also { cards += it }, lp(kit, top = 14))
                     stat()?.let { sb.addView(it, lp(kit, top = 14)) }
                     row.addView(sb, LinearLayout.LayoutParams(kit.dp(kit.clamp(290f, kit.vw(29f), 380f)), -2).apply { marginEnd = kit.dp(26) })
                     val main = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL }
@@ -329,7 +340,7 @@ class HomePage(kit: Kit, private val home: Home, private val nav: Nav) : Page(ki
                     left.addView(r1)
                     scenesView?.let { left.addView(it, lp(kit, top = 8)) }
                     top.addView(left, LinearLayout.LayoutParams(0, -2, 1f))
-                    if (s.optBoolean("show_weather", true) && home.weather != null)
+                    if (s.optBoolean("show_weather", true))
                         top.addView(WxCard(kit, home, "big") { nav.openScreen("weather") }.also { cards += it }, LinearLayout.LayoutParams(kit.dp(kit.clamp(300f, kit.wdp * 0.36f, 470f)), -2).apply { marginStart = kit.dp(36) })
                     w.addView(top)
                     w.addView(grid(), lp(kit, top = 22))

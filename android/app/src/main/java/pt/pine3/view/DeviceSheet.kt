@@ -275,7 +275,6 @@ class DeviceSheet(private val act: Activity, private val kit: Kit, private val i
         val mainL = mem.filter { it !in maint && !isReading(it) && (Fmt.domain(it) == "select" || it !in cats) }
         val settings = mem.filter { it !in maint && it !in mainL && !isReading(it) }
         val diag = mem.filter { it !in maint && isReading(it) }
-        if (mainL.isNotEmpty()) deviceSection(mainL, side)
         fun fold(key: String, title: String, icon: String, list: List<String>) {
             if (list.isEmpty()) return
             val open = key in vacOpen

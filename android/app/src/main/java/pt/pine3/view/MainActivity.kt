@@ -234,7 +234,10 @@ class MainActivity : Activity(), Nav {
         CamViewer(this, kit, id, name, chosen.ifEmpty { locks.take(1) }).show()
     }
 
-    override fun openScreen(key: String) { if (key in DOCK_ITEMS.map { it.first }) showTab(key) }
+    override fun openScreen(key: String) {
+        if (key == "weather") { ForecastSheet(this, kit, Ha.home?.settings?.optString("weather_entity", "").orEmpty()).show(); return }
+        if (key in DOCK_ITEMS.map { it.first }) showTab(key)
+    }
 
     override fun openDevice(id: String) {
         val dev = Ha.home?.rooms?.flatMap { it.devices }?.firstOrNull { it.id == id } ?: devOf(id)
@@ -348,7 +351,7 @@ class MainActivity : Activity(), Nav {
     }
 
     private fun scheduleReveal() {
-        if (!resumed || !hasWindowFocus() || PanelState.sleeping || blackout.visibility != View.VISIBLE) return
+        if (!resumed || (!hasWindowFocus() && PanelState.dialogs == 0) || PanelState.sleeping || blackout.visibility != View.VISIBLE) return
         handler.removeCallbacks(reveal)
         handler.postDelayed(reveal, SETTLE_MS)
     }

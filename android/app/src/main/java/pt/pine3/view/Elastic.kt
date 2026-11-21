@@ -106,5 +106,8 @@ fun immersive(d: android.app.Dialog) {
 
 /** Janela por cima da app: cada toque conta como atividade (reinicia o tempo para desligar o ecrã), tal como na janela principal. */
 class PokeDialog(act: android.app.Activity) : android.app.Dialog(act, android.R.style.Theme_Translucent_NoTitleBar) {
+    // Com uma janela destas aberta a atividade não tem foco: a cortina preta do ecrã principal tem de levantar na mesma ao acordar.
+    override fun onStart() { super.onStart(); PanelState.dialogs++ }
+    override fun onStop() { PanelState.dialogs = maxOf(0, PanelState.dialogs - 1); super.onStop() }
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean { MotionService.poke(); return super.dispatchTouchEvent(ev) }
 }

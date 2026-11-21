@@ -34,7 +34,7 @@ object Ha {
     @Volatile var pendingBell: Bell? = null
 
     private fun isBellEntity(id: String) =
-        (id.startsWith("event.") && states[id]?.attrs?.optString("device_class") == "doorbell") || (id.startsWith("image.") && id.contains("doorbell_snapshot"))
+        (id.startsWith("event.") && states[id]?.attrs?.optString("device_class") == "doorbell") || (id.startsWith("image.") && id.contains("doorbell_snapshot")) || (id.startsWith("sensor.") && id.contains("ipma"))
 
     val states = ConcurrentHashMap<String, State>()
     @Volatile var home: Home? = null
