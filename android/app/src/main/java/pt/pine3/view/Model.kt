@@ -30,6 +30,7 @@ class Home(
         }
         out += scenes; out += scripts; out += persons
         weather?.let { out += it }
+        out += "sun.sun"
         return out
     }
 

@@ -22,8 +22,8 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 
-/** Fundo "ameixa" do Pine3 View: base em gradiente + três brilhos radiais. Desenhado uma vez (a view é estática). */
-class PlumBackground : Drawable() {
+/** Fundo de um tema do Pine3 View: base em gradiente linear + brilhos radiais (como o CSS do painel web). */
+class ThemeBackground(private val theme: Theme) : Drawable() {
     private val base = Paint()
     private val glow = Paint()
     private var w = 0f
@@ -31,22 +31,31 @@ class PlumBackground : Drawable() {
 
     override fun onBoundsChange(b: android.graphics.Rect) {
         w = b.width().toFloat(); h = b.height().toFloat()
-        base.shader = android.graphics.LinearGradient(0f, 0f, w * 0.34f, h, Color.parseColor("#3A1D36"), Color.parseColor("#1D0F1F"), Shader.TileMode.CLAMP)
-    }
-
-    private fun glow(canvas: Canvas, cx: Float, cy: Float, rx: Float, ry: Float, color: Int) {
-        glow.shader = RadialGradient(cx, cy, rx, color, Color.TRANSPARENT, Shader.TileMode.CLAMP)
-        canvas.save()
-        canvas.scale(1f, ry / rx, cx, cy) // elipse
-        canvas.drawRect(0f, cy - rx, w, cy + rx, glow)
-        canvas.restore()
+        // Ângulo CSS: 0° = para cima, 90° = para a direita; a linha do gradiente atravessa a caixa pelo centro.
+        val a = Math.toRadians(theme.base.angle.toDouble())
+        val dx = Math.sin(a).toFloat(); val dy = (-Math.cos(a)).toFloat()
+        val half = (Math.abs(w * dx) + Math.abs(h * dy)) / 2f
+        val cx = w / 2f; val cy = h / 2f
+        base.shader = android.graphics.LinearGradient(
+            cx - dx * half, cy - dy * half, cx + dx * half, cy + dy * half, theme.base.colors, theme.base.pos, Shader.TileMode.CLAMP,
+        )
     }
 
     override fun draw(canvas: Canvas) {
         canvas.drawRect(0f, 0f, w, h, base)
-        glow(canvas, w * 0.55f, h * 0.35f, w * 0.54f, h * 0.42f, Color.parseColor("#7B4467"))
-        glow(canvas, 0f, 0f, w * 0.42f, h * 0.36f, Color.parseColor("#4A2440"))
-        glow(canvas, w, h, w * 0.48f, h * 0.42f, Color.parseColor("#2C1630"))
+        // No CSS a primeira camada fica por cima: desenha de trás para a frente.
+        for (g in theme.glows.asReversed()) {
+            val rx = g.rx * g.stop * w
+            val ry = g.ry * g.stop * h
+            if (rx <= 0f || ry <= 0f) continue
+            val cx = g.cx * w; val cy = g.cy * h
+            val clear = g.color and 0x00FFFFFF
+            glow.shader = RadialGradient(cx, cy, rx, g.color, clear, Shader.TileMode.CLAMP)
+            canvas.save()
+            canvas.scale(1f, ry / rx, cx, cy) // elipse
+            canvas.drawRect(0f, cy - rx, w, cy + rx, glow)
+            canvas.restore()
+        }
     }
 
     override fun setAlpha(alpha: Int) {}
@@ -61,8 +70,26 @@ class Kit(val ctx: Context) {
     var cream = Color.parseColor("#F5EFE1")
     var accent = Color.parseColor("#F6B83F")
     val ink = Color.parseColor("#2B1C2E")
-    val muted = Color.argb(166, 255, 255, 255)
-    val white = Color.WHITE
+    /** Cores que dependem do tema (claro/escuro): texto, texto suave, vidro e preenchimentos suaves. */
+    var fg = Color.WHITE
+    var muted = Color.argb(166, 255, 255, 255)
+    var soft = Color.argb(50, 255, 255, 255)
+    private var glassFill = Color.argb(30, 255, 255, 255)
+    private var glassStroke = Color.argb(38, 255, 255, 255)
+    private var rippleColor = Color.argb(50, 255, 255, 255)
+    var light = false
+        private set
+
+    fun applyTheme(theme: Theme) {
+        light = theme.light
+        if (light) {
+            fg = Color.rgb(33, 24, 38); muted = Color.argb(158, 33, 24, 38); soft = Color.argb(28, 33, 24, 38)
+            glassFill = Color.argb(140, 255, 255, 255); glassStroke = Color.argb(200, 255, 255, 255); rippleColor = Color.argb(40, 33, 24, 38)
+        } else {
+            fg = Color.WHITE; muted = Color.argb(166, 255, 255, 255); soft = Color.argb(50, 255, 255, 255)
+            glassFill = Color.argb(30, 255, 255, 255); glassStroke = Color.argb(38, 255, 255, 255); rippleColor = Color.argb(50, 255, 255, 255)
+        }
+    }
 
     fun dp(v: Number) = (v.toFloat() * density).toInt()
 
@@ -83,14 +110,11 @@ class Kit(val ctx: Context) {
         includeFontPadding = false
     }
 
-    fun iconRes(name: String): Int {
-        val key = "mdi_" + name.removePrefix("mdi:").replace('-', '_')
-        val id = ctx.resources.getIdentifier(key, "drawable", ctx.packageName)
-        return if (id != 0) id else ctx.resources.getIdentifier("mdi_circle_medium", "drawable", ctx.packageName)
-    }
+    /** Um ícone MDI como Drawable (a cor vem do filtro de cor da ImageView). */
+    fun mdi(name: String): android.graphics.drawable.Drawable = Mdi.drawable(ctx, name)
 
     fun icon(name: String, tint: Int, sizeDp: Int) = ImageView(ctx).apply {
-        setImageResource(iconRes(name))
+        setImageDrawable(mdi(name))
         setColorFilter(tint)
         layoutParams = LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp))
     }
@@ -98,9 +122,9 @@ class Kit(val ctx: Context) {
     fun rounded(color: Int, rDp: Number) = GradientDrawable().apply { setColor(color); cornerRadius = dp(rDp).toFloat() }
     fun circle(color: Int) = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
     fun glass(rDp: Number) = GradientDrawable().apply {
-        setColor(Color.argb(30, 255, 255, 255)); cornerRadius = dp(rDp).toFloat(); setStroke(dp(1), Color.argb(38, 255, 255, 255))
+        setColor(glassFill); cornerRadius = dp(rDp).toFloat(); setStroke(dp(1), glassStroke)
     }
-    fun ripple(d: Drawable) = RippleDrawable(ColorStateList.valueOf(Color.argb(50, 255, 255, 255)), d, null)
+    fun ripple(d: Drawable) = RippleDrawable(ColorStateList.valueOf(rippleColor), d, null)
 
     /** Botão redondo com um ícone. */
     fun roundButton(icon: String, sizeDp: Int, bg: Int, tint: Int, onClick: () -> Unit) = FrameLayout(ctx).apply {
@@ -113,40 +137,47 @@ class Kit(val ctx: Context) {
 
     /** Pílula com ícone e texto (cenas, filtros, botões Acender/Apagar). */
     fun pill(label: String, icon: String?, filled: Boolean, onClick: () -> Unit): LinearLayout {
-        val fg = if (filled) ink else white
+        val fgc = if (filled) ink else fg
         return LinearLayout(ctx).apply {
             gravity = Gravity.CENTER_VERTICAL
             background = ripple(if (filled) rounded(cream, 40) else glass(40))
             setPadding(dp(18), dp(12), dp(20), dp(12))
             isClickable = true
             setOnClickListener { onClick() }
-            if (icon != null) addView(icon(icon, fg, 18).also { (it.layoutParams as LinearLayout.LayoutParams).marginEnd = dp(8) })
-            addView(text(label, 15f, fg, 500))
+            if (icon != null) addView(icon(icon, fgc, 18).also { (it.layoutParams as LinearLayout.LayoutParams).marginEnd = dp(8) })
+            addView(text(label, 15f, fgc, 500))
         }
     }
 }
 
-/** Grelha de cartões do mesmo tamanho: o número de colunas depende da largura. */
+/** Grelha de cartões do mesmo tamanho: o número de colunas depende da largura. Ignora os cartões escondidos (GONE). */
 class Grid(ctx: Context, private val minW: Int, private val childH: Int, private val gap: Int) : ViewGroup(ctx) {
     private var cols = 1
     private var cw = 0
+
+    private fun visibleCount(): Int { var n = 0; for (i in 0 until childCount) if (getChildAt(i).visibility != GONE) n++; return n }
 
     override fun onMeasure(wSpec: Int, hSpec: Int) {
         val w = MeasureSpec.getSize(wSpec)
         cols = maxOf(1, (w + gap) / (minW + gap))
         cw = (w - (cols - 1) * gap) / cols
         for (i in 0 until childCount) {
-            getChildAt(i).measure(MeasureSpec.makeMeasureSpec(cw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(childH, MeasureSpec.EXACTLY))
+            val c = getChildAt(i)
+            if (c.visibility != GONE) c.measure(MeasureSpec.makeMeasureSpec(cw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(childH, MeasureSpec.EXACTLY))
         }
-        val rows = (childCount + cols - 1) / cols
+        val rows = (visibleCount() + cols - 1) / cols
         setMeasuredDimension(w, if (rows == 0) 0 else rows * childH + (rows - 1) * gap)
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        var k = 0
         for (i in 0 until childCount) {
-            val x = (i % cols) * (cw + gap)
-            val y = (i / cols) * (childH + gap)
-            getChildAt(i).layout(x, y, x + cw, y + childH)
+            val c = getChildAt(i)
+            if (c.visibility == GONE) continue
+            val x = (k % cols) * (cw + gap)
+            val y = (k / cols) * (childH + gap)
+            c.layout(x, y, x + cw, y + childH)
+            k++
         }
     }
 }

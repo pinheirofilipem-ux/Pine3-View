@@ -35,7 +35,9 @@ class MainActivity : Activity(), Nav {
 
     private lateinit var prefs: Prefs
     private lateinit var kit: Kit
+    private lateinit var root: FrameLayout
     private lateinit var content: FrameLayout
+    private var themeKey = ""
     private lateinit var dock: LinearLayout
     private lateinit var blackout: View
     private lateinit var banner: TextView
@@ -54,7 +56,11 @@ class MainActivity : Activity(), Nav {
             blackout.animate().alpha(0f).setDuration(FADE_MS).withEndAction { blackout.visibility = View.GONE; blackout.alpha = 1f }.start()
         }
     }
-    private val flush = Runnable { dirty = false; page?.update() }
+    private val flush = Runnable {
+        dirty = false
+        val home = Ha.home
+        if (home != null && lookChanged(home)) rebuild() else page?.update()
+    }
 
     private val haListener = object : Ha.Listener {
         override fun onStates(changed: Set<String>) {
@@ -75,7 +81,8 @@ class MainActivity : Activity(), Nav {
         kit = Kit(this)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        val root = FrameLayout(this).apply { background = PlumBackground() }
+        root = FrameLayout(this)
+        root.background = ThemeBackground(Themes.get("ameixa"))
         content = FrameLayout(this)
         root.addView(content, FrameLayout.LayoutParams(-1, -1))
 
@@ -86,7 +93,7 @@ class MainActivity : Activity(), Nav {
         }
         root.addView(dock, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = kit.dp(22) })
 
-        banner = kit.text("", 14f, kit.white, 500).apply {
+        banner = kit.text("", 14f, kit.fg, 500).apply {
             background = kit.rounded(Color.argb(190, 120, 40, 50), 20)
             setPadding(kit.dp(16), kit.dp(8), kit.dp(16), kit.dp(8))
             visibility = View.GONE
@@ -152,11 +159,11 @@ class MainActivity : Activity(), Nav {
     private fun buildDock() {
         dock.removeAllViews()
         listOf(
-            Triple(TAB_HOME, "Casa", "mdi:home-outline"), Triple(TAB_ROOMS, "Divisões", "mdi:view-grid-outline"),
-            Triple(TAB_HOUSE, "Casa 3D", "mdi:cube-outline"), Triple(TAB_SCENES, "Cenas", "mdi:creation"),
+            Triple(TAB_HOME, Tr.t("Casa"), "mdi:home-outline"), Triple(TAB_ROOMS, Tr.t("Divisões"), "mdi:view-grid-outline"),
+            Triple(TAB_HOUSE, Tr.t("Casa 3D"), "mdi:cube-outline"), Triple(TAB_SCENES, Tr.t("Cenas"), "mdi:creation"),
         ).forEach { (t, label, icon) ->
             val sel = t == tab
-            val fg = if (sel) kit.ink else kit.white
+            val fg = if (sel) kit.ink else kit.fg
             dock.addView(LinearLayout(this).apply {
                 gravity = Gravity.CENTER_VERTICAL
                 background = if (sel) kit.rounded(kit.cream, 30) else null
@@ -180,13 +187,14 @@ class MainActivity : Activity(), Nav {
         }
         kit.cream = home.color("card_color", kit.cream)
         kit.accent = home.color("accent_color", kit.accent)
+        if (applyLook(home)) { shownKey = "" }
         val room = roomId?.let { id -> home.rooms.firstOrNull { it.id == id } }
         val key = if (room != null) "room:${room.id}" else "tab:$tab"
         if (shownHome === home && shownKey == key && page != null) { page?.update(); return }
         val p: Page = when {
             room != null -> RoomPage(kit, room, this)
             tab == TAB_ROOMS -> RoomsPage(kit, home, this)
-            tab == TAB_HOUSE -> Placeholder(kit, "Casa 3D", "A casa 3D desenhada em Canvas vem na fase 2.")
+            tab == TAB_HOUSE -> Placeholder(kit, Tr.t("Casa 3D"), Tr.t("A casa 3D desenhada em Canvas vem na fase 2."))
             tab == TAB_SCENES -> ScenesPage(kit, home)
             else -> HomePage(kit, home, this)
         }
@@ -195,11 +203,30 @@ class MainActivity : Activity(), Nav {
         show(p)
     }
 
+    /** Aplica tema (fixo ou dia/noite) e língua; devolve true se algo mudou (e então a página tem de ser refeita). */
+    private fun applyLook(home: Home): Boolean {
+        val theme = Themes.pick(home.settings, Ha.states["sun.sun"]?.state, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY))
+        val en = home.settings.optString("language", "pt") == "en"
+        val changed = theme.key != themeKey || en != Tr.en
+        if (changed) {
+            themeKey = theme.key; Tr.en = en
+            kit.applyTheme(theme)
+            root.background = ThemeBackground(theme)
+            buildDock()
+        }
+        return changed
+    }
+
     private fun show(p: Page) {
         content.removeAllViews()
         page = p
         content.addView(p.view, FrameLayout.LayoutParams(-1, -1))
         p.update()
+    }
+
+    private fun lookChanged(home: Home): Boolean {
+        val theme = Themes.pick(home.settings, Ha.states["sun.sun"]?.state, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY))
+        return theme.key != themeKey
     }
 
     private fun updateBanner() {

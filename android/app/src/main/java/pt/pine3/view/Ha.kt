@@ -33,6 +33,14 @@ object Ha {
     @Volatile var connected = false
     @Volatile var homeError: String? = null
 
+    /** Últimas linhas do registo de ligação (para o ecrã de diagnóstico). */
+    val log = java.util.Collections.synchronizedList(ArrayList<String>())
+    fun log(msg: String) {
+        val t = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date())
+        log.add("$t  $msg")
+        while (log.size > 40) log.removeAt(0)
+    }
+
     val listeners = CopyOnWriteArrayList<Listener>()
     /** Quem acorda o ecrã (o serviço). */
     @Volatile var onWake: ((WakeRule) -> Unit)? = null
@@ -85,6 +93,30 @@ object Ha {
         thread = null
     }
 
+    /** Guarda definições do Pine3 View no HA (partilhadas com o painel web). O HA devolve o modelo atualizado. */
+    fun saveSettings(changes: JSONObject) {
+        // Atualiza já localmente, para a interface responder logo.
+        home?.settings?.let { s -> changes.keys().forEach { k -> s.put(k, changes.get(k)) } }
+        notifyMain { it.onHome() }
+        Thread {
+            try {
+                val msg = JSONObject().put("id", ids.incrementAndGet()).put("type", "pine3_view/settings")
+                changes.keys().forEach { k -> msg.put(k, changes.get(k)) }
+                ws?.send(msg.toString())
+            } catch (_: Exception) {}
+        }.start()
+    }
+
+    /** Explica uma falha de ligação em português, com a ação provável. */
+    fun describe(e: Exception): String = when {
+        e is java.net.UnknownHostException -> "não encontro \"${e.message}\". Usa o IP do HA (ex.: 192.168.1.10), o Android não resolve nomes .local"
+        e is java.net.ConnectException -> "ligação recusada. Confirma o endereço e a porta (normalmente 8123)"
+        e is java.net.SocketTimeoutException -> "tempo esgotado. O tablet está na mesma rede do HA?"
+        e is javax.net.ssl.SSLException -> "erro de certificado HTTPS. Ativa \"Aceitar certificado auto-assinado\""
+        e is IOException && (e.message ?: "").startsWith("handshake recusado") -> "o HA recusou o WebSocket (${e.message}). O endereço deve ser só http://IP:8123, sem /lovelace"
+        else -> e.message ?: e.javaClass.simpleName
+    }
+
     /** Chama um serviço do HA (sem esperar pelo resultado). */
     fun call(domain: String, service: String, entityIds: List<String>, data: JSONObject? = null) {
         if (entityIds.isEmpty()) return
@@ -109,10 +141,13 @@ object Ha {
                 backoff = 2000L
             } catch (e: AuthFailed) {
                 authFailed = true
-                setStatus("Token inválido", false)
+                log("O HA recusou o token")
+                setStatus("Token inválido: cria outro token de acesso de longa duração no HA", false)
             } catch (e: Exception) {
                 if (!running) break
-                setStatus("Sem ligação, a tentar de novo…", false)
+                val why = describe(e)
+                log("Falhou: $why")
+                setStatus("Sem ligação: $why", false)
             } finally {
                 try { ws?.close() } catch (_: Exception) {}
                 ws = null
@@ -128,16 +163,19 @@ object Ha {
     private fun session(url: String, token: String, trustAll: Boolean) {
         val socket = MiniWebSocket(url, trustAll, readTimeoutMs = 25_000)
         ws = socket
+        log("A ligar a $url")
         socket.connect()
+        log("WebSocket aberto")
         var msg = JSONObject(socket.receive() ?: throw IOException("fechado"))
         if (msg.optString("type") != "auth_required") throw IOException("resposta inesperada")
         socket.send(JSONObject().put("type", "auth").put("access_token", token).toString())
         msg = JSONObject(socket.receive() ?: throw IOException("fechado"))
         when (msg.optString("type")) {
-            "auth_ok" -> {}
+            "auth_ok" -> log("Autenticado")
             "auth_invalid" -> throw AuthFailed()
             else -> throw IOException("resposta inesperada")
         }
+        setStatus("Ligado", true)
         socket.send(JSONObject().put("id", ID_EVENTS).put("type", "subscribe_events").put("event_type", "state_changed").toString())
         socket.send(JSONObject().put("id", ID_STATES).put("type", "get_states").toString())
         socket.send(JSONObject().put("id", ID_HOME).put("type", "pine3_view/home").toString())
@@ -178,7 +216,9 @@ object Ha {
                     if (m.optBoolean("success")) {
                         m.optJSONObject("result")?.let { setHome(it) }
                     } else {
-                        homeError = "O Pine3 View não está instalado no Home Assistant (ou o token não tem acesso)."
+                        val code = m.optJSONObject("error")?.optString("code").orEmpty()
+                        log("pine3_view/home falhou: $code")
+                        homeError = "O Pine3 View não respondeu no Home Assistant ($code). Está instalado e reiniciado?"
                         notifyMain { it.onHome() }
                     }
                 }
@@ -192,12 +232,14 @@ object Ha {
             val o = arr.optJSONObject(i) ?: continue
             states[o.optString("entity_id")] = State(o.optString("state"), o.optJSONObject("attributes") ?: JSONObject())
         }
+        log("${arr.length()} entidades recebidas")
         notifyMain { it.onStates(emptySet()) }
     }
 
     private fun setHome(o: JSONObject) {
         try {
             home = Home.parse(o)
+            log("Modelo da casa: ${home?.rooms?.size ?: 0} divisões")
             homeError = null
             recomputeWatched()
         } catch (e: Exception) {

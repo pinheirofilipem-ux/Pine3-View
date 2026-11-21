@@ -42,6 +42,7 @@ class SettingsActivity : Activity() {
     private lateinit var bellWhen: EditText
     private lateinit var bellHold: EditText
     private lateinit var statusDot: View
+    private lateinit var testOut: TextView
     private lateinit var statusText: TextView
     private val perms = ArrayList<Triple<View, TextView, () -> Boolean>>()
     private val handler = Handler(Looper.getMainLooper())
@@ -64,11 +65,11 @@ class SettingsActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             background = kit.rounded(Color.argb(255, 43, 26, 45), 20)
             setPadding(d(18), d(16), d(18), d(18))
-            addView(kit.text(title, 17f, kit.white, 500, display = true))
+            addView(kit.text(title, 17f, kit.fg, 500, display = true))
             addView(kit.text(sub, 13f, kit.muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(2) })
         }
         fun input(v: String, hint: String, type: Int) = EditText(this).apply {
-            setText(v); this.hint = hint; setHintTextColor(Color.parseColor("#7C687A")); setTextColor(kit.white)
+            setText(v); this.hint = hint; setHintTextColor(Color.parseColor("#7C687A")); setTextColor(kit.fg)
             textSize = 16f; inputType = type; setSingleLine(); typeface = kit.font(400, false)
             background = kit.rounded(Color.parseColor("#3A2339"), 12); setPadding(d(16), d(13), d(16), d(13))
         }
@@ -79,7 +80,7 @@ class SettingsActivity : Activity() {
         fun switchRow(p: LinearLayout, label: String, on: Boolean): Switch {
             val sw = Switch(this).apply { isChecked = on }
             val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-            row.addView(kit.text(label, 15f, kit.white), LinearLayout.LayoutParams(0, -2, 1f)); row.addView(sw)
+            row.addView(kit.text(label, 15f, kit.fg), LinearLayout.LayoutParams(0, -2, 1f)); row.addView(sw)
             p.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(14) })
             return sw
         }
@@ -87,9 +88,11 @@ class SettingsActivity : Activity() {
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        titles.addView(kit.text("Definições", 26f, kit.white, 500, display = true))
+        titles.addView(kit.text("Definições", 26f, kit.fg, 500, display = true))
         titles.addView(kit.text("Pine3 View (nativo)", 14f, kit.muted))
         header.addView(titles, LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(kit.pill("Aspeto e idioma", "mdi:palette", false) { save(); startActivity(Intent(this, AppearanceActivity::class.java)) },
+            LinearLayout.LayoutParams(-2, -2).apply { marginEnd = d(10) })
         header.addView(kit.pill("Guardar e voltar", null, true) { save(); finish() })
         col.addView(header, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(16) })
 
@@ -107,9 +110,12 @@ class SettingsActivity : Activity() {
         val st = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         statusDot = View(this).apply { background = kit.circle(Color.parseColor("#F2755C")) }
         st.addView(statusDot, LinearLayout.LayoutParams(d(10), d(10)).apply { marginEnd = d(12) })
-        statusText = kit.text(Ha.status, 14f, kit.white)
+        statusText = kit.text(Ha.status, 14f, kit.fg)
         st.addView(statusText, LinearLayout.LayoutParams(0, -2, 1f))
         ha.addView(st, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(18) })
+        testOut = kit.text("", 12f, kit.muted)
+        ha.addView(kit.pill("Testar ligação", "mdi:wifi", false) { runTest() }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = d(14) })
+        ha.addView(testOut, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(10) })
         add(ha)
 
         // Ecrã e campainha
@@ -149,7 +155,7 @@ class SettingsActivity : Activity() {
             }
             val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
             row.addView(dot, LinearLayout.LayoutParams(d(10), d(10)).apply { marginEnd = d(14) })
-            row.addView(kit.text(label, 15f, kit.white), LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(kit.text(label, 15f, kit.fg), LinearLayout.LayoutParams(0, -2, 1f))
             row.addView(btn)
             sys.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(14) })
             perms += Triple(dot, btn, check)
@@ -188,6 +194,14 @@ class SettingsActivity : Activity() {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean { MotionService.poke(); return super.dispatchTouchEvent(ev) }
+
+    private fun runTest() {
+        save()
+        testOut.text = ""
+        HaTest.run(prefs.wsUrl(), prefs.haToken, prefs.ignoreSsl,
+            line = { ok, t -> runOnUiThread { testOut.append((if (ok) "✔ " else "✘ ") + t + "\n") } },
+            done = { runOnUiThread { testOut.append("\n" + Ha.log.takeLast(4).joinToString("\n")) } })
+    }
 
     private fun refreshPerms() = perms.forEach { (dot, btn, check) ->
         val ok = check()

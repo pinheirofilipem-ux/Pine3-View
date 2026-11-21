@@ -1,11 +1,7 @@
 package pt.pine3.view
 
-import java.util.Locale
-
 /** Textos e ícones dos estados, no português do Pine3 View. */
 object Fmt {
-    private val pt = Locale.forLanguageTag("pt-PT")
-
     val STATE_PT = mapOf(
         "on" to "Ligado", "off" to "Desligado", "open" to "Aberto", "closed" to "Fechado", "opening" to "A abrir", "closing" to "A fechar",
         "locked" to "Trancado", "unlocked" to "Destrancado", "playing" to "A tocar", "paused" to "Em pausa", "idle" to "Inativo",
@@ -55,7 +51,7 @@ object Fmt {
     fun name(id: String): String = state(id)?.attrs?.optString("friendly_name")?.ifBlank { null } ?: id
 
     fun num(v: Double, decimals: Int = 1): String {
-        val s = String.format(pt, "%.${decimals}f", v)
+        val s = String.format(Tr.locale, "%.${decimals}f", v)
         return if (s.contains(',')) s.trimEnd('0').trimEnd(',') else s
     }
 
@@ -78,26 +74,26 @@ object Fmt {
     /** Uma leitura (sensor) ou null. */
     fun reading(id: String): String? {
         val st = state(id) ?: return null
-        val v = st.state.toDoubleOrNull() ?: return STATE_PT[st.state] ?: st.state
+        val v = st.state.toDoubleOrNull() ?: return Tr.t(STATE_PT[st.state] ?: st.state)
         val unit = st.attrs.optString("unit_of_measurement")
         return num(v) + (if (unit.isNotEmpty()) (if (unit == "°C" || unit == "%") unit else " $unit") else "")
     }
 
     /** O texto pequeno de um cartão de dispositivo. */
     fun sub(id: String): String {
-        val st = state(id) ?: return "Indisponível"
+        val st = state(id) ?: return Tr.t("Indisponível")
         val a = st.attrs
-        if (st.state == "unavailable") return "Indisponível"
+        if (st.state == "unavailable") return Tr.t("Indisponível")
         return when (domain(id)) {
-            "light" -> if (st.state == "on") (if (a.has("brightness") && !a.isNull("brightness")) "${Math.round(a.optDouble("brightness") / 2.55)}%" else "Ligado") else "Desligado"
+            "light" -> if (st.state == "on") (if (a.has("brightness") && !a.isNull("brightness")) "${Math.round(a.optDouble("brightness") / 2.55)}%" else Tr.t("Ligado")) else Tr.t("Desligado")
             "cover" -> {
                 val p = a.optInt("current_position", -1)
-                if (st.state == "closed") "Fechado" else if (p in 0..100) "$p% aberto" else STATE_PT[st.state] ?: st.state
+                if (st.state == "closed") Tr.t("Fechado") else if (p in 0..100) "$p% ${Tr.t("Aberto").lowercase()}" else Tr.t(STATE_PT[st.state] ?: st.state)
             }
             "climate" -> {
                 val cur = a.optDouble("current_temperature", Double.NaN)
                 val tgt = a.optDouble("temperature", Double.NaN)
-                val mode = STATE_PT[st.state] ?: st.state
+                val mode = Tr.t(STATE_PT[st.state] ?: st.state)
                 buildString {
                     append(mode)
                     if (!cur.isNaN()) append(" · ").append(num(cur)).append("°")
@@ -109,29 +105,31 @@ object Fmt {
                 if (st.state == "playing" && title.isNotEmpty()) {
                     val artist = a.optString("media_artist")
                     if (artist.isNotEmpty()) "$title · $artist" else title
-                } else STATE_PT[st.state] ?: st.state
+                } else Tr.t(STATE_PT[st.state] ?: st.state)
             }
             "vacuum" -> {
                 val bat = a.optInt("battery_level", -1)
-                (STATE_PT[st.state] ?: st.state) + if (bat >= 0) " · $bat%" else ""
+                (Tr.t(STATE_PT[st.state] ?: st.state)) + if (bat >= 0) " · $bat%" else ""
             }
             "sensor" -> reading(id) ?: st.state
             "binary_sensor" -> when (a.optString("device_class")) {
-                "door", "window", "garage_door", "opening" -> if (st.state == "on") "Aberto" else "Fechado"
-                "motion", "occupancy", "presence" -> if (st.state == "on") "Movimento" else "Sem movimento"
-                "moisture" -> if (st.state == "on") "Molhado" else "Seco"
-                "smoke", "gas" -> if (st.state == "on") "Alarme" else "Normal"
-                else -> if (st.state == "on") "Ligado" else "Desligado"
+                "door", "window", "garage_door", "opening" -> if (st.state == "on") Tr.t("Aberto") else Tr.t("Fechado")
+                "motion", "occupancy", "presence" -> if (st.state == "on") Tr.t("Movimento") else Tr.t("Sem movimento")
+                "moisture" -> if (st.state == "on") Tr.t("Molhado") else Tr.t("Seco")
+                "smoke", "gas" -> if (st.state == "on") Tr.t("Alarme") else Tr.t("Normal")
+                else -> if (st.state == "on") Tr.t("Ligado") else Tr.t("Desligado")
             }
-            "scene", "script", "button" -> "Ativar"
-            "fan" -> if (st.state == "on") (if (a.has("percentage") && !a.isNull("percentage")) "${a.optInt("percentage")}%" else "Ligado") else "Desligado"
-            else -> STATE_PT[st.state] ?: st.state
+            "scene", "script", "button" -> Tr.t("Ativar")
+            "fan" -> if (st.state == "on") (if (a.has("percentage") && !a.isNull("percentage")) "${a.optInt("percentage")}%" else Tr.t("Ligado")) else Tr.t("Desligado")
+            else -> Tr.t(STATE_PT[st.state] ?: st.state)
         }
     }
 
     /** Ícone de um dispositivo: pelo domínio/classe do estado. */
     fun icon(id: String, kind: String): String {
         val a = state(id)?.attrs
+        val own = a?.optString("icon").orEmpty()
+        if (own.startsWith("mdi:")) return own
         val dc = a?.optString("device_class").orEmpty()
         when (domain(id)) {
             "sensor" -> when (dc) {

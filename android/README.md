@@ -5,12 +5,18 @@ fluidez com o WebView e junta o que o *Pine3 Wallpanel* já faz num tablet de pa
 
 O código desta pasta é **independente** da integração (`custom_components/`): a instalação por HACS não é afetada.
 
-## O que a fase 1 faz
+## O que faz agora
 - Liga-se ao Home Assistant por WebSocket (token de acesso de longa duração) e lê o **mesmo modelo da casa** que o painel web
   (`pine3_view/home` e `pine3_view/subscribe`): divisões, dispositivos, cenas, tempo, pessoas e as definições (cores, o que mostrar).
   Não edita nada: os editores continuam no painel web.
 - **Casa** (relógio, estado da casa com *Acender/Apagar luzes*, tempo, pessoas, cenas e cartões das divisões), **Divisões**,
   **uma divisão** (filtros por tipo e cartões dos dispositivos) e **Cenas**. Tocar nos cartões liga/desliga.
+- **Todos os ícones** do Material Design Icons (7447, os mesmos do Home Assistant), desenhados nativamente; respeita o ícone que cada
+  entidade define no HA.
+- **Aspeto e idioma** (Definições → Aspeto e idioma): os 26 temas do painel web (fixo, ou um de dia e outro de noite pelo sol), português
+  ou inglês, cores dos cartões e de destaque, e o que mostrar no início. As escolhas são gravadas no HA e valem também para o painel web.
+- **Cartões de resumo** no início: Clima, Segurança, Aspirador e A tocar.
+- **Testar ligação** (Definições): diz em que passo falha (DNS, WebSocket, token, Pine3 View) e o que fazer.
 - Os cartões atualizam-se sozinhos quando os estados mudam, sem reconstruir a página.
 - **Ecrã de parede**: a câmara frontal deteta movimento e acorda o ecrã, que desliga sem luz (administrador de dispositivo) depois
   de X segundos; a ligação ao HA fica viva com o ecrã desligado; arranque automático; fade suave ao acordar.
@@ -19,7 +25,7 @@ O código desta pasta é **independente** da integração (`custom_components/`)
 - Atalho para as definições: dois dedos premidos 2 s, ou o botão da engrenagem no início.
 
 Ainda não tem: casa 3D e planta (fase 2), ecrã nativo da campainha com câmara (fase 3), previsão do tempo, detalhe dos dispositivos
-(luminosidade, cor, clima...).
+(luminosidade, cor, clima...), disposições do início diferentes de "top", e a edição (cartões, ordem, esconder).
 
 ## Compilar
 ```bash
