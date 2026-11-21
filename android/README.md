@@ -15,6 +15,8 @@ O código desta pasta é **independente** da integração (`custom_components/`)
   entidade define no HA.
 - **Aspeto e idioma** (Definições → Aspeto e idioma): os 26 temas do painel web (fixo, ou um de dia e outro de noite pelo sol), português
   ou inglês, cores dos cartões e de destaque, e o que mostrar no início. As escolhas são gravadas no HA e valem também para o painel web.
+- **Dock "Liquid Glass"**: a lente de vidro desliza por baixo do separador ativo com mola e estica como uma gota (como no painel
+  web); as páginas entram com fade, subida e desfoque. Respeita a opção "Animações" do painel.
 - **Cartões de resumo** no início: Clima, Segurança, Aspirador e A tocar.
 - **Testar ligação** (Definições): diz em que passo falha (DNS, WebSocket, token, Pine3 View) e o que fazer.
 - Os cartões atualizam-se sozinhos quando os estados mudam, sem reconstruir a página.

@@ -38,7 +38,9 @@ class MainActivity : Activity(), Nav {
     private lateinit var root: FrameLayout
     private lateinit var content: FrameLayout
     private var themeKey = ""
-    private lateinit var dock: LinearLayout
+    private lateinit var dockHost: FrameLayout
+    private var dockView: DockView? = null
+    private var animationsOn = true
     private lateinit var blackout: View
     private lateinit var banner: TextView
     private val handler = Handler(Looper.getMainLooper())
@@ -86,12 +88,8 @@ class MainActivity : Activity(), Nav {
         content = FrameLayout(this)
         root.addView(content, FrameLayout.LayoutParams(-1, -1))
 
-        dock = LinearLayout(this).apply {
-            background = kit.glass(40)
-            setPadding(kit.dp(8), kit.dp(8), kit.dp(8), kit.dp(8))
-            elevation = kit.dp(6).toFloat()
-        }
-        root.addView(dock, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = kit.dp(22) })
+        dockHost = FrameLayout(this)
+        root.addView(dockHost, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = kit.dp(22) })
 
         banner = kit.text("", 14f, kit.fg, 500).apply {
             background = kit.rounded(Color.argb(190, 120, 40, 50), 20)
@@ -154,26 +152,21 @@ class MainActivity : Activity(), Nav {
     override fun back() { roomId = null; rebuild() }
     override fun openSettings() { startActivity(Intent(this, SettingsActivity::class.java)) }
 
-    private fun showTab(t: Int) { tab = t; roomId = null; rebuild(); buildDock() }
+    private fun showTab(t: Int) { tab = t; roomId = null; dockView?.setActive(t, animate = true); rebuild() }
 
     private fun buildDock() {
-        dock.removeAllViews()
-        listOf(
-            Triple(TAB_HOME, Tr.t("Casa"), "mdi:home-outline"), Triple(TAB_ROOMS, Tr.t("Divisões"), "mdi:view-grid-outline"),
-            Triple(TAB_HOUSE, Tr.t("Casa 3D"), "mdi:cube-outline"), Triple(TAB_SCENES, Tr.t("Cenas"), "mdi:creation"),
-        ).forEach { (t, label, icon) ->
-            val sel = t == tab
-            val fg = if (sel) kit.ink else kit.fg
-            dock.addView(LinearLayout(this).apply {
-                gravity = Gravity.CENTER_VERTICAL
-                background = if (sel) kit.rounded(kit.cream, 30) else null
-                setPadding(kit.dp(22), kit.dp(12), kit.dp(24), kit.dp(12))
-                isClickable = true
-                setOnClickListener { showTab(t) }
-                addView(kit.icon(icon, fg, 22).also { (it.layoutParams as LinearLayout.LayoutParams).marginEnd = kit.dp(8) })
-                addView(kit.text(label, 16f, fg, 500))
-            })
-        }
+        dockHost.removeAllViews()
+        val d = DockView(
+            kit,
+            listOf(
+                Triple(Tr.t("Casa"), "mdi:home-outline", TAB_HOME), Triple(Tr.t("Divisões"), "mdi:view-grid-outline", TAB_ROOMS),
+                Triple(Tr.t("Casa 3D"), "mdi:cube-outline", TAB_HOUSE), Triple(Tr.t("Cenas"), "mdi:creation", TAB_SCENES),
+            ),
+            animationsOn,
+        ) { showTab(it) }
+        dockHost.addView(d)
+        dockView = d
+        d.setActive(tab, animate = false)
     }
 
     /** (Re)constrói a página atual a partir do modelo. Só é chamada quando o modelo muda ou se navega. */
@@ -185,6 +178,8 @@ class MainActivity : Activity(), Nav {
             shownHome = null; shownKey = ""
             return
         }
+        val anim = home.settings.optBoolean("animations", true)
+        if (anim != animationsOn) { animationsOn = anim; buildDock() }
         kit.cream = home.color("card_color", kit.cream)
         kit.accent = home.color("accent_color", kit.accent)
         if (applyLook(home)) { shownKey = "" }
@@ -198,9 +193,10 @@ class MainActivity : Activity(), Nav {
             tab == TAB_SCENES -> ScenesPage(kit, home)
             else -> HomePage(kit, home, this)
         }
+        val animate = animationsOn && shownKey.isNotEmpty() && shownKey != key
         shownHome = home
         shownKey = key
-        show(p)
+        show(p, animate)
     }
 
     /** Aplica tema (fixo ou dia/noite) e língua; devolve true se algo mudou (e então a página tem de ser refeita). */
@@ -217,11 +213,30 @@ class MainActivity : Activity(), Nav {
         return changed
     }
 
-    private fun show(p: Page) {
+    private fun show(p: Page, animate: Boolean = false) {
         content.removeAllViews()
         page = p
         content.addView(p.view, FrameLayout.LayoutParams(-1, -1))
         p.update()
+        if (animate) enter(p.view)
+    }
+
+    /** Entrada de uma página (como o "vin" do painel web): aparece, sobe 14 dp, assenta e perde o desfoque. */
+    private fun enter(v: View) {
+        val ease = android.view.animation.PathInterpolator(0.2f, 0.8f, 0.2f, 1f)
+        v.alpha = 0f; v.translationY = kit.dp(14).toFloat(); v.scaleX = 0.985f; v.scaleY = 0.985f
+        v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f).setDuration(460).setInterpolator(ease).start()
+        if (Build.VERSION.SDK_INT >= 31) {
+            android.animation.ValueAnimator.ofFloat(10f, 0f).apply {
+                duration = 460; interpolator = ease
+                addUpdateListener {
+                    val r = (it.animatedValue as Float) * kit.density
+                    v.setRenderEffect(if (r > 0.5f) android.graphics.RenderEffect.createBlurEffect(r, r, android.graphics.Shader.TileMode.CLAMP) else null)
+                }
+                addListener(object : android.animation.AnimatorListenerAdapter() { override fun onAnimationEnd(a: android.animation.Animator) { v.setRenderEffect(null) } })
+                start()
+            }
+        }
     }
 
     private fun lookChanged(home: Home): Boolean {
