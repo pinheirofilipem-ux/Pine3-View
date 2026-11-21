@@ -183,8 +183,8 @@ class SettingsActivity : Activity() {
         Tr.en = draft.optString("language", "pt") == "en"
         Elastic.on = draft.optBoolean("animations", true)
 
-        root = FrameLayout(this).apply { background = ThemeBackground(theme) }
-        val page = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(kit.dp(40), kit.dp(24), kit.dp(40), kit.dp(20)) }
+        root = FrameLayout(this).apply { clipChildren = false; background = ThemeBackground(theme) }
+        val page = LinearLayout(this).apply { clipChildren = false; clipToPadding = false; orientation = LinearLayout.VERTICAL; setPadding(kit.dp(40), kit.dp(24), kit.dp(40), kit.dp(20)) }
 
         // cabeçalho
         val hd = LinearLayout(this).apply { gravity = Gravity.BOTTOM }
@@ -201,15 +201,19 @@ class SettingsActivity : Activity() {
         page.addView(hd, LinearLayout.LayoutParams(-1, -2))
 
         // corpo: barra lateral (com a lente) + conteúdo
-        val body = LinearLayout(this).apply { setPadding(0, kit.dp(18), 0, 0) }
+        val body = LinearLayout(this).apply { setPadding(0, kit.dp(18), 0, 0); clipChildren = false; clipToPadding = false }
         navBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         navLens = LensView(kit)
         navWrap = FrameLayout(this).apply {
+            clipChildren = false; clipToPadding = false
             addView(navLens, FrameLayout.LayoutParams(0, 0))
             addView(navBox, FrameLayout.LayoutParams(-1, -2))
             addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> if (navMove?.isRunning == true) applyNavLens(navTop, navH) else placeNav(false) }
         }
-        body.addView(ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(navWrap) }, LinearLayout.LayoutParams(kit.dp(kit.clamp(200f, kit.vw(20f), 270f)), -1).apply { marginEnd = kit.dp(22) })
+        val ov = kit.dp(14)
+        body.addView(ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false; clipToPadding = false; clipChildren = false; setPadding(ov, ov, ov, ov); addView(navWrap)
+        }, LinearLayout.LayoutParams(kit.dp(kit.clamp(200f, kit.vw(20f), 270f)) + 2 * ov, -1).apply { marginStart = -ov; marginEnd = kit.dp(22) - ov; topMargin = -ov; bottomMargin = -ov })
         mainBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         mainScroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(mainBox) }
         body.addView(mainScroll, LinearLayout.LayoutParams(0, -1, 1f))
@@ -305,7 +309,8 @@ class SettingsActivity : Activity() {
 
     private fun applyNavLens(t: Float, h: Float) {
         navTop = t; navH = h
-        navLens.layout(0, t.toInt(), navWrap.width, (t + Math.max(0f, h)).toInt())
+        val o = navLens.over
+        navLens.layout(-o, t.toInt() - o, navWrap.width + o, (t + Math.max(0f, h)).toInt() + o)
         navLens.invalidate()
     }
 

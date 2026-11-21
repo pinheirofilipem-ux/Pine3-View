@@ -28,9 +28,13 @@ internal class LensView(private val kit: Kit) : View(kit.ctx) {
     private val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = kit.dp(1).toFloat() }
     private val sheen = Paint(Paint.ANTI_ALIAS_FLAG)
     private val r = RectF()
+    /** Folga à volta da lente: o esticão elástico passa dos limites do separador e não pode ser cortado. */
+    val over = kit.dp(14)
 
     override fun onDraw(c: Canvas) {
-        val w = width.toFloat(); val h = height.toFloat()
+        val w = (width - 2 * over).toFloat(); val h = (height - 2 * over).toFloat()
+        if (w <= 0f || h <= 0f) return
+        c.save(); c.translate(over.toFloat(), over.toFloat())
         val cream = kit.cream
         val glassC = Color.argb(60, 255, 255, 255)
         fill.color = ArgbEvaluator().evaluate(glass, cream, glassC) as Int
@@ -46,6 +50,7 @@ internal class LensView(private val kit: Kit) : View(kit.ctx) {
         sheen.shader = LinearGradient(0f, 0f, 0f, top, Color.argb((140 * (0.7f + 0.3f * glass)).toInt(), 255, 255, 255), Color.TRANSPARENT, Shader.TileMode.CLAMP)
         r.set(w * 0.12f, h * 0.03f, w * 0.88f, h * 0.03f + top)
         c.drawRoundRect(r, top / 2f, top / 2f, sheen)
+        c.restore()
         c.restore()
     }
 }
@@ -75,6 +80,7 @@ class DockView(private val kit: Kit, labels: List<Triple<String, String, String>
             setStroke(kit.dp(1), if (dark) Color.argb(46, 255, 255, 255) else Color.argb(210, 255, 255, 255))
         }
         elevation = kit.dp(8).toFloat()
+        clipChildren = false; clipToPadding = false
         val pad = kit.dp(if (small) 6 else 7)
         setPadding(pad, pad, pad, pad)
         addView(lens, LayoutParams(0, 0))
@@ -125,7 +131,8 @@ class DockView(private val kit: Kit, labels: List<Triple<String, String, String>
 
     private fun applyLens(l: Float, w: Float) {
         lensL = l; lensW = w
-        lens.layout(l.toInt(), paddingTop, (l + Math.max(0f, w)).toInt(), paddingTop + tabH)
+        val o = lens.over
+        lens.layout(l.toInt() - o, paddingTop - o, (l + Math.max(0f, w)).toInt() + o, paddingTop + tabH + o)
         lens.invalidate()
     }
 

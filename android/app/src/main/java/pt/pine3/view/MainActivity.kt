@@ -135,12 +135,12 @@ class MainActivity : Activity(), Nav {
         kit = Kit(this)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        root = FrameLayout(this)
+        root = FrameLayout(this).apply { clipChildren = false }
         root.background = ThemeBackground(Themes.get("ameixa"))
         content = FrameLayout(this)
         root.addView(content, FrameLayout.LayoutParams(-1, -1))
 
-        dockHost = FrameLayout(this)
+        dockHost = FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
         root.addView(dockHost, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = kit.dp(22) })
 
         banner = kit.text("", 14f, kit.fg, 500).apply {
