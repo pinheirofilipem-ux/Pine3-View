@@ -10,6 +10,10 @@ object Tr {
 
     fun t(s: String): String = if (en) EN[s] ?: s else s
 
+    /** Plural: [n] com a forma singular ou plural na língua atual. */
+    fun pl(n: Int, ptOne: String, ptMany: String, enOne: String, enMany: String): String =
+        "$n " + if (en) (if (n == 1) enOne else enMany) else (if (n == 1) ptOne else ptMany)
+
     private val EN = mapOf(
         // início
         "Estado da casa" to "Home status", "Acender luzes" to "Turn lights on", "Apagar luzes" to "Turn lights off",

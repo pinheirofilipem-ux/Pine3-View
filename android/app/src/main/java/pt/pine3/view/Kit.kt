@@ -69,7 +69,8 @@ class Kit(val ctx: Context) {
     val density = ctx.resources.displayMetrics.density
     var cream = Color.parseColor("#F5EFE1")
     var accent = Color.parseColor("#F6B83F")
-    val ink = Color.parseColor("#2B1C2E")
+    val ink = Color.parseColor("#2A221F")
+    val inkSoft = Color.argb(153, 42, 34, 31)
     /** Cores que dependem do tema (claro/escuro): texto, texto suave, vidro e preenchimentos suaves. */
     var fg = Color.WHITE
     var muted = Color.argb(166, 255, 255, 255)
@@ -92,6 +93,15 @@ class Kit(val ctx: Context) {
     }
 
     fun dp(v: Number) = (v.toFloat() * density).toInt()
+
+    /** O viewport em "px CSS" (= dp): o painel web usa estas medidas e as suas media queries. */
+    val wdp: Float get() = ctx.resources.displayMetrics.widthPixels / density
+    val hdp: Float get() = ctx.resources.displayMetrics.heightPixels / density
+    fun vw(p: Float) = wdp * p / 100f
+    fun vh(p: Float) = hdp * p / 100f
+    fun clamp(min: Float, v: Float, max: Float) = v.coerceIn(min, max)
+    /** @media (max-width:1280px),(max-height:820px): o painel web usa medidas mais compactas. */
+    val compact: Boolean get() = wdp <= 1280f || hdp <= 820f
 
     private val fonts = HashMap<String, Typeface>()
     fun font(weight: Int, display: Boolean): Typeface = fonts.getOrPut("$display$weight") {
@@ -150,23 +160,50 @@ class Kit(val ctx: Context) {
     }
 }
 
-/** Grelha de cartões do mesmo tamanho: o número de colunas depende da largura. Ignora os cartões escondidos (GONE). */
-class Grid(ctx: Context, private val minW: Int, private val childH: Int, private val gap: Int) : ViewGroup(ctx) {
+/**
+ * Grelha como `repeat(auto-fill, minmax(minW, 1fr))` do CSS: colunas de largura igual conforme o espaço, linhas com a
+ * altura do cartão mais alto da linha (mín. [childH]). Um filho com tag `2` ocupa duas colunas ("grid-column: span 2").
+ * Ignora os cartões escondidos (GONE).
+ */
+class Grid(ctx: Context, private val minW: Int, private val childH: Int, private val gap: Int, private val fixedCols: Int = 0) : ViewGroup(ctx) {
     private var cols = 1
     private var cw = 0
+    private val pos = ArrayList<IntArray>() // x, y, w, h por filho visível (por ordem)
 
-    private fun visibleCount(): Int { var n = 0; for (i in 0 until childCount) if (getChildAt(i).visibility != GONE) n++; return n }
+    private fun span(c: View) = if (c.tag == 2) minOf(2, cols) else 1
 
     override fun onMeasure(wSpec: Int, hSpec: Int) {
         val w = MeasureSpec.getSize(wSpec)
-        cols = maxOf(1, (w + gap) / (minW + gap))
+        cols = if (fixedCols > 0) fixedCols else maxOf(1, (w + gap) / (minW + gap))
         cw = (w - (cols - 1) * gap) / cols
+        pos.clear()
+        var col = 0; var y = 0; var rowH = 0
         for (i in 0 until childCount) {
             val c = getChildAt(i)
-            if (c.visibility != GONE) c.measure(MeasureSpec.makeMeasureSpec(cw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(childH, MeasureSpec.EXACTLY))
+            if (c.visibility == GONE) continue
+            val sp = span(c)
+            if (col + sp > cols) { y += rowH + gap; rowH = 0; col = 0 }
+            val width = cw * sp + gap * (sp - 1)
+            c.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+            val h = maxOf(childH, c.measuredHeight)
+            pos.add(intArrayOf(col * (cw + gap), y, width, h))
+            rowH = maxOf(rowH, h)
+            col += sp
+            if (col >= cols) { y += rowH + gap; rowH = 0; col = 0 }
         }
-        val rows = (visibleCount() + cols - 1) / cols
-        setMeasuredDimension(w, if (rows == 0) 0 else rows * childH + (rows - 1) * gap)
+        val total = if (col == 0 && pos.isNotEmpty()) y - gap else y + rowH
+        // alturas de uma linha iguais (stretch)
+        var k = 0
+        val rows = HashMap<Int, Int>()
+        pos.forEach { rows[it[1]] = maxOf(rows[it[1]] ?: 0, it[3]) }
+        pos.forEach { it[3] = rows[it[1]] ?: it[3] }
+        for (i in 0 until childCount) {
+            val c = getChildAt(i)
+            if (c.visibility == GONE) continue
+            val p = pos[k++]
+            c.measure(MeasureSpec.makeMeasureSpec(p[2], MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(p[3], MeasureSpec.EXACTLY))
+        }
+        setMeasuredDimension(w, maxOf(0, total))
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
@@ -174,10 +211,8 @@ class Grid(ctx: Context, private val minW: Int, private val childH: Int, private
         for (i in 0 until childCount) {
             val c = getChildAt(i)
             if (c.visibility == GONE) continue
-            val x = (k % cols) * (cw + gap)
-            val y = (k / cols) * (childH + gap)
-            c.layout(x, y, x + cw, y + childH)
-            k++
+            val p = pos[k++]
+            c.layout(p[0], p[1], p[0] + p[2], p[1] + p[3])
         }
     }
 }

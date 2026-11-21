@@ -1,97 +1,123 @@
 package pt.pine3.view
 
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import org.json.JSONObject
 
 /** Um cartão que se atualiza sozinho quando os estados mudam (sem reconstruir a página). */
 abstract class Card(ctx: Context) : FrameLayout(ctx) {
     abstract fun update()
 }
 
-private fun lightsOf(room: Room) = room.devices.filter { !it.hidden && it.kind == "light" }.map { it.id }
+/** Círculo com um ícone (as bolinhas `.ri`, `.ic` e `.pw` do painel web). */
+private class IconCircle(val kit: Kit, sizeDp: Int, iconDp: Int, icon: String) : FrameLayout(kit.ctx) {
+    val img = kit.icon(icon, Color.WHITE, iconDp)
+    init {
+        addView(img, LayoutParams(kit.dp(iconDp), kit.dp(iconDp), Gravity.CENTER))
+        layoutParams = LinearLayout.LayoutParams(kit.dp(sizeDp), kit.dp(sizeDp))
+    }
+    fun paint(bg: Int, fg: Int) { background = kit.ripple(kit.circle(bg)); img.setColorFilter(fg) }
+    fun setIcon(name: String) = img.setImageDrawable(kit.mdi(name))
+}
 
-/** Cartão de uma divisão: ícone, botão de ligar/desligar luzes, nome, "x de y ligados", temperatura e bolinhas. */
-class RoomCard(private val kit: Kit, private val room: Room, private val onOpen: () -> Unit) : Card(kit.ctx) {
-    private val iconBox = FrameLayout(kit.ctx)
-    private val icon = kit.icon(room.icon, kit.ink, 26)
-    private val power = kit.roundButton("mdi:power", 44, Color.argb(40, 0, 0, 0), kit.ink) { toggleLights() }
-    private val name = kit.text(room.name, 22f, kit.ink, 400, display = true)
-    private val sub = kit.text("", 14f, kit.ink)
-    private val temp = kit.text("", 15f, kit.ink)
+private fun TextView.oneLine() = apply { setSingleLine(); ellipsize = TextUtils.TruncateAt.END }
+
+/** Cartão de uma divisão (.rc): ícone, botão de ligar/desligar, nome, "x de y ligados", bolinhas e temperatura. */
+class RoomCard(private val kit: Kit, private val room: Room, dense: Boolean, private val onOpen: () -> Unit) : Card(kit.ctx) {
+    private val ids = room.devices.filter { !it.hidden }.map { it.id }
+    private val ri = IconCircle(kit, if (dense) 38 else 52, if (dense) 22 else 26, room.icon)
+    private val pw = IconCircle(kit, if (dense) 44 else 64, if (dense) 24 else 28, "mdi:power")
+    private val nm = kit.text(room.name, 22f, kit.ink, 500, display = true).oneLine()
+    private val meta = kit.text("", 16f, kit.ink).oneLine()
     private val dots = Dots(kit.ctx, kit)
+    private val tmp = kit.text("", 16f, kit.ink)
 
     init {
+        val pad = kit.dp(if (dense) 16 else 22)
         isClickable = true
         setOnClickListener { onOpen() }
-        iconBox.addView(icon, FrameLayout.LayoutParams(kit.dp(26), kit.dp(26), Gravity.CENTER))
-        addView(iconBox, LayoutParams(kit.dp(44), kit.dp(44), Gravity.TOP or Gravity.START).apply { setMargins(kit.dp(18), kit.dp(18), 0, 0) })
-        addView(power, LayoutParams(kit.dp(44), kit.dp(44), Gravity.TOP or Gravity.END).apply { setMargins(0, kit.dp(18), kit.dp(18), 0) })
-        val bottom = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL }
-        bottom.addView(name)
-        bottom.addView(sub, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(4) })
-        val row = LinearLayout(kit.ctx).apply { gravity = Gravity.CENTER_VERTICAL }
-        row.addView(dots, LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(temp)
-        bottom.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(10) })
-        addView(bottom, LayoutParams(-1, -2, Gravity.BOTTOM).apply { setMargins(kit.dp(18), 0, kit.dp(18), kit.dp(16)) })
+        val col = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, pad) }
+        val row1 = LinearLayout(kit.ctx).apply { gravity = Gravity.TOP }
+        row1.addView(ri)
+        row1.addView(View(kit.ctx), LinearLayout.LayoutParams(0, 1, 1f))
+        row1.addView(pw)
+        col.addView(row1, LinearLayout.LayoutParams(-1, -2))
+        col.addView(View(kit.ctx), LinearLayout.LayoutParams(-1, 0, 1f))
+        col.addView(nm, LinearLayout.LayoutParams(-1, -2))
+        col.addView(meta, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(4) })
+        val drow = LinearLayout(kit.ctx).apply { gravity = Gravity.CENTER_VERTICAL; minimumHeight = kit.dp(22) }
+        drow.addView(dots, LinearLayout.LayoutParams(0, -2, 1f))
+        drow.addView(tmp)
+        col.addView(drow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(12) })
+        addView(col, LayoutParams(-1, -1))
+        pw.setOnClickListener {
+            val sw = Fmt.switchables(ids)
+            Ha.call("homeassistant", if (sw.any { Fmt.isOn(it) }) "turn_off" else "turn_on", sw)
+        }
         update()
     }
 
-    private fun toggleLights() {
-        val ids = lightsOf(room)
-        val anyOn = ids.any { Fmt.isOn(it) }
-        Ha.call("light", if (anyOn) "turn_off" else "turn_on", ids)
-    }
-
     override fun update() {
-        val ids = lightsOf(room)
-        val on = ids.map { Fmt.isOn(it) }
-        val any = on.any { it }
-        val fg = if (any) kit.ink else kit.fg
-        background = kit.ripple(if (any) kit.rounded(kit.cream, 28) else kit.glass(28))
-        iconBox.background = kit.circle(if (any) kit.accent else kit.soft)
-        icon.setColorFilter(if (any) kit.ink else kit.fg)
-        name.setTextColor(fg); sub.setTextColor(if (any) Color.argb(160, 43, 28, 46) else kit.muted); temp.setTextColor(fg)
-        power.background = kit.ripple(kit.circle(if (any) Color.argb(36, 0, 0, 0) else kit.soft))
-        (power.getChildAt(0) as android.widget.ImageView).setColorFilter(fg)
-        power.visibility = if (ids.isEmpty()) View.GONE else View.VISIBLE
-        sub.text = if (ids.isEmpty()) "${room.devices.count { !it.hidden }}" + Tr.t(" dispositivos") else "${on.count { it }}" + Tr.t(" de ") + "${ids.size}" + Tr.t(" ligados")
+        val sw = Fmt.switchables(ids)
+        val on = sw.filter { Fmt.isOn(it) }
+        val active = on.isNotEmpty()
+        val fg = if (active) kit.ink else kit.fg
+        background = kit.ripple(if (active) kit.rounded(kit.cream, 28) else kit.glass(28))
+        ri.paint(if (active) kit.accent else kit.soft, if (active) kit.ink else kit.fg)
+        pw.paint(if (active) Color.argb(20, 42, 34, 31) else kit.soft, fg)
+        pw.visibility = if (sw.isEmpty()) View.GONE else View.VISIBLE
+        nm.setTextColor(fg); tmp.setTextColor(fg)
+        meta.setTextColor(if (active) kit.inkSoft else kit.muted)
+        meta.text = when {
+            sw.isNotEmpty() && active -> "${on.size}" + Tr.t(" de ") + "${sw.size}" + Tr.t(" ligados")
+            sw.isNotEmpty() -> Tr.t("Tudo desligado")
+            else -> Tr.pl(ids.size, "dispositivo", "dispositivos", "device", "devices")
+        }
         dots.onColor = kit.accent
-        dots.offColor = if (any) Color.argb(60, 43, 28, 46) else kit.soft
-        dots.on = on
-        temp.text = room.temperature.firstNotNullOfOrNull { id -> Fmt.state(id)?.state?.toDoubleOrNull() }?.let { Fmt.num(it, 0) + "°" } ?: ""
+        dots.offColor = if (active) Color.argb(41, 42, 34, 31) else Color.argb(71, 255, 255, 255)
+        dots.on = sw.take(8).map { Fmt.isOn(it) }
+        tmp.text = Fmt.roomClimate(room).first?.replace(Regex("[,.]\\d"), "")?.replace("°C", "°") ?: ""
     }
 }
 
-/** Cartão de um dispositivo numa divisão: creme se ligado, vidro se desligado. Tocar liga/desliga. */
-class Tile(private val kit: Kit, private val dev: Dev) : Card(kit.ctx) {
+/** Cartão de um dispositivo (.tile): creme se ligado, vidro se desligado. */
+class Tile(private val kit: Kit, private val dev: Dev, private val onOpen: (String) -> Unit) : Card(kit.ctx) {
     private val domain = Fmt.domain(dev.id)
-    private val iconBox = FrameLayout(kit.ctx)
-    private val icon = kit.icon(Fmt.icon(dev.id, dev.kind), kit.ink, 24)
-    private val power = kit.roundButton("mdi:power", 40, Color.argb(40, 0, 0, 0), kit.ink) { Fmt.tap(dev.id) }
-    private val name = kit.text(dev.name, 20f, kit.ink, 400, display = true)
-    private val sub = kit.text("", 14f, kit.ink)
-    private val value = kit.text("", 30f, kit.ink, 300, display = true)
+    private val ic = IconCircle(kit, 48, 24, "mdi:circle-medium")
+    private val pw = IconCircle(kit, 54, 24, "mdi:power")
+    private val nm = kit.text(dev.name, 19f, kit.ink, 500, display = true).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END }
+    private val st = kit.text("", 15f, kit.ink).oneLine()
+    private val value = kit.text("", 34f, kit.ink, 300, display = true).oneLine()
+    private val ex = kit.text("", 13f, kit.ink).oneLine()
+    private val hasPower = domain in setOf("light", "switch", "fan", "input_boolean") ||
+        (Fmt.isTv(dev.id, dev.name) && ((Fmt.state(dev.id)?.attrs?.optInt("supported_features", 0) ?: 0) and 384) != 0)
 
     init {
-        isClickable = true
-        setOnClickListener { Fmt.tap(dev.id) }
-        iconBox.addView(icon, FrameLayout.LayoutParams(kit.dp(24), kit.dp(24), Gravity.CENTER))
-        addView(iconBox, LayoutParams(kit.dp(40), kit.dp(40), Gravity.TOP or Gravity.START).apply { setMargins(kit.dp(16), kit.dp(16), 0, 0) })
-        if (Fmt.isToggle(dev.id) && domain in setOf("light", "switch", "fan", "input_boolean")) {
-            addView(power, LayoutParams(kit.dp(40), kit.dp(40), Gravity.TOP or Gravity.END).apply { setMargins(0, kit.dp(16), kit.dp(16), 0) })
-        }
-        val bottom = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL }
-        if (domain == "sensor") bottom.addView(name.also { it.textSize = 16f })
-        bottom.addView(value, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(2) })
-        if (domain != "sensor") bottom.addView(name)
-        bottom.addView(sub, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(2) })
-        addView(bottom, LayoutParams(-1, -2, Gravity.BOTTOM).apply { setMargins(kit.dp(16), 0, kit.dp(16), kit.dp(14)) })
+        val pad = kit.dp(18)
+        isClickable = domain != "sensor"
+        setOnClickListener { if (domain in setOf("light", "cover", "climate", "media_player", "fan", "vacuum")) onOpen(dev.id) else Fmt.tap(dev.id) }
+        val col = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, pad) }
+        val row1 = LinearLayout(kit.ctx).apply { gravity = Gravity.TOP }
+        row1.addView(ic)
+        row1.addView(View(kit.ctx), LinearLayout.LayoutParams(0, 1, 1f))
+        if (hasPower) row1.addView(pw)
+        col.addView(row1, LinearLayout.LayoutParams(-1, -2))
+        col.addView(View(kit.ctx), LinearLayout.LayoutParams(-1, 0, 1f))
+        if (domain == "sensor") { col.addView(nm, LinearLayout.LayoutParams(-1, -2)); col.addView(value, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(6) }) }
+        else { col.addView(nm, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(14) }); col.addView(st, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(3) }) }
+        col.addView(ex, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(4) })
+        addView(col, LayoutParams(-1, -1))
+        pw.setOnClickListener { Fmt.tap(dev.id) }
         update()
     }
 
@@ -99,115 +125,271 @@ class Tile(private val kit: Kit, private val dev: Dev) : Card(kit.ctx) {
         val on = Fmt.isOn(dev.id)
         val fg = if (on) kit.ink else kit.fg
         background = kit.ripple(if (on) kit.rounded(kit.cream, 26) else kit.glass(26))
-        val tint = Fmt.ACCENT[domain] ?: kit.accent
-        iconBox.background = kit.circle(if (on) tint else kit.soft)
-        icon.setColorFilter(if (on) kit.ink else kit.fg)
-        name.setTextColor(fg); sub.setTextColor(if (on) Color.argb(160, 43, 28, 46) else kit.muted); value.setTextColor(fg)
-        power.background = kit.ripple(kit.circle(if (on) Color.argb(36, 0, 0, 0) else kit.soft))
-        (power.getChildAt(0) as android.widget.ImageView).setColorFilter(fg)
-        if (domain == "sensor") {
-            value.visibility = View.VISIBLE
-            value.text = Fmt.reading(dev.id) ?: ""
-            val extra = dev.extras.mapNotNull { Fmt.reading(it) }.joinToString(" · ")
-            sub.text = extra; sub.visibility = if (extra.isEmpty()) View.GONE else View.VISIBLE
-        } else {
-            value.visibility = View.GONE
-            val extra = dev.extras.mapNotNull { Fmt.reading(it) }.joinToString(" · ")
-            sub.text = Fmt.sub(dev.id) + if (extra.isNotEmpty() && on) " · $extra" else ""
-            sub.visibility = View.VISIBLE
+        val tint = Fmt.accent(dev.id, kit.accent)
+        ic.setIcon(Fmt.icon(dev.id, dev.kind))
+        ic.paint(if (on) tint else kit.soft, if (on) kit.ink else kit.fg)
+        pw.paint(if (on) Color.argb(20, 42, 34, 31) else kit.soft, fg)
+        nm.setTextColor(fg); value.setTextColor(fg)
+        st.setTextColor(if (on) kit.inkSoft else kit.muted); ex.setTextColor(if (on) kit.inkSoft else kit.muted)
+        alpha = if (Fmt.state(dev.id)?.state == "unavailable") 0.5f else 1f
+        val extra = dev.extras.mapNotNull { Fmt.reading(it) }.joinToString(" · ")
+        if (domain == "sensor") value.text = Fmt.reading(dev.id) ?: "" else st.text = Fmt.sub(dev.id)
+        ex.text = extra; ex.visibility = if (extra.isEmpty()) View.GONE else View.VISIBLE
+        if (domain != "sensor") value.visibility = View.GONE
+    }
+}
+
+/** O anel do cartão de clima: 270° de arco (o valor sobre a pista), começa a 135° como no SVG do painel web. */
+private class RingView(private val kit: Kit) : View(kit.ctx) {
+    var frac = 0f; var color = Color.WHITE; var track = Color.argb(31, 255, 255, 255)
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
+    private val r = RectF()
+    override fun onDraw(c: Canvas) {
+        val s = width.toFloat(); val k = s / 100f
+        p.strokeWidth = 7f * k
+        r.set(6f * k, 6f * k, 94f * k, 94f * k) // r = 44 em 100 -> margem 6
+        p.color = track; c.drawArc(r, 135f, 270f, false, p)
+        if (frac > 0f) { p.color = color; c.drawArc(r, 135f, 270f * frac, false, p) }
+    }
+}
+
+/** Cartão de clima com controlo direto (.tile.clx): anel com o alvo, temperatura atual, modos e − / +. */
+class ClimateCard(private val kit: Kit, private val dev: Dev, private val roomName: String?, private val onOpen: (String) -> Unit) : Card(kit.ctx) {
+    private val ring = RingView(kit)
+    private val big = kit.text("", 44f, kit.ink, 300, display = true)
+    private val sup = kit.text("°", 18f, kit.ink)
+    private val small = kit.text("", 12f, kit.ink)
+    private val nm = kit.text(dev.name, 19f, kit.ink, 500, display = true).oneLine()
+    private val st = kit.text("", 15f, kit.ink).oneLine()
+    private val seg = LinearLayout(kit.ctx)
+    private val pm = LinearLayout(kit.ctx)
+    private var want: Pair<Double, Long>? = null
+
+    init {
+        tag = 2 // ocupa duas colunas
+        isClickable = true
+        setOnClickListener { onOpen(dev.id) }
+        val pad = kit.dp(18)
+        val row = LinearLayout(kit.ctx).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(pad, pad, pad, pad) }
+        val rs = kit.dp(kit.clamp(96f, kit.vw(10f), 128f))
+        val ringBox = FrameLayout(kit.ctx)
+        ringBox.addView(ring, FrameLayout.LayoutParams(rs, rs))
+        val t = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+        val bl = LinearLayout(kit.ctx).apply { gravity = Gravity.TOP }
+        bl.addView(big); bl.addView(sup, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(2) })
+        t.addView(bl); t.addView(small)
+        ringBox.addView(t, FrameLayout.LayoutParams(rs, rs, Gravity.CENTER))
+        row.addView(ringBox, LinearLayout.LayoutParams(rs, rs).apply { marginEnd = kit.dp(18) })
+        val right = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL }
+        right.addView(nm); right.addView(st, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(2) })
+        right.addView(seg, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(10) })
+        right.addView(pm, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(10) })
+        row.addView(right, LinearLayout.LayoutParams(0, -2, 1f))
+        addView(row, LayoutParams(-1, -2, Gravity.CENTER_VERTICAL))
+        update()
+    }
+
+    private fun target(a: JSONObject): Double? {
+        val w = want
+        if (w != null && System.currentTimeMillis() - w.second < 15000 && a.optDouble("temperature", Double.NaN) != w.first) return w.first
+        return a.optDouble("temperature", Double.NaN).takeIf { !it.isNaN() }
+    }
+
+    override fun update() {
+        val s = Fmt.state(dev.id) ?: return
+        val a = s.attrs
+        val on = Fmt.isOn(dev.id)
+        val fg = if (on) kit.ink else kit.fg
+        val action = if (on) a.optString("hvac_action").takeIf { it.isNotEmpty() && it !in setOf("off", "idle") } else null
+        val tgt = target(a)
+        val lo = a.optDouble("target_temp_low", Double.NaN); val hi = a.optDouble("target_temp_high", Double.NaN)
+        val range = tgt == null && !lo.isNaN() && !hi.isNaN()
+        val all = (0 until (a.optJSONArray("hvac_modes")?.length() ?: 0)).map { a.optJSONArray("hvac_modes")!!.getString(it) }
+        val shortName = mapOf("cool" to "Frio", "heat" to "Calor", "heat_cool" to "Auto", "auto" to "Auto", "dry" to "Seco", "fan_only" to "Ventilar", "off" to "Desligar")
+        var modes = listOf("cool", "heat").filter { it in all }.toMutableList()
+        if (modes.size < 2) modes = (modes + all.filter { it != "off" && it !in modes }).take(2).toMutableList()
+        if ("off" in all) modes.add("off")
+        if (s.state != "off" && s.state in all && s.state !in modes) modes.add(modes.size - (if ("off" in all) 1 else 0), s.state)
+        val mode = mapOf("heating" to "heat", "preheating" to "heat", "cooling" to "cool", "drying" to "dry", "fan" to "fan_only")[action] ?: s.state
+        val col = if (!on) Color.argb(77, 255, 255, 255) else when (mode) {
+            "cool" -> 0xFF4AA8FF.toInt(); "dry" -> 0xFF64D2FF.toInt(); "fan_only" -> 0xFFA8B0BD.toInt(); "heat_cool", "auto" -> 0xFF4ADE80.toInt(); else -> 0xFFFF9F43.toInt()
+        }
+        val min = a.optDouble("min_temp", 7.0); val max = a.optDouble("max_temp", 35.0)
+        val cur = a.optDouble("current_temperature", Double.NaN)
+        val value = if (range) hi else tgt ?: cur
+        ring.frac = if (on && !value.isNaN()) ((value - min) / (max - min).coerceAtLeast(1.0)).coerceIn(0.04, 1.0).toFloat() else 0f
+        ring.color = col
+        ring.track = if (on) Color.argb(31, 42, 34, 31) else Color.argb(31, 255, 255, 255)
+        ring.invalidate()
+        val bigText = when {
+            on && tgt != null -> Fmt.num(tgt)
+            range && on -> Fmt.num(lo) + "–" + Fmt.num(hi)
+            !cur.isNaN() -> Fmt.num(Math.round(cur).toDouble(), 0)
+            else -> "–"
+        }
+        big.text = bigText
+        big.textSize = if (range && on) 22f else if (bigText.length > 3) kit.clamp(26f, kit.vw(2.6f), 34f) else kit.clamp(34f, kit.vw(3.4f), 44f)
+        big.setTextColor(fg); sup.setTextColor(fg); small.setTextColor(if (on) kit.inkSoft else kit.muted)
+        small.text = if (!on && !cur.isNaN()) Tr.t("Atual") else ""
+        small.visibility = if (small.text.isEmpty()) View.GONE else View.VISIBLE
+        nm.setTextColor(fg)
+        st.setTextColor(if (on) kit.inkSoft else kit.muted)
+        st.text = listOfNotNull(
+            roomName?.takeIf { it.isNotBlank() }, if (on && tgt != null && !cur.isNaN()) Fmt.num(cur) + "°" else null,
+            Tr.t(Fmt.STATE_PT[action ?: s.state] ?: (action ?: s.state)),
+        ).joinToString(" · ")
+        background = kit.ripple(if (on) kit.rounded(kit.cream, 26) else kit.glass(26))
+        alpha = if (s.state == "unavailable") 0.5f else 1f
+
+        seg.removeAllViews()
+        seg.background = kit.rounded(if (on) Color.argb(20, 42, 34, 31) else Color.argb(26, 255, 255, 255), 40)
+        seg.setPadding(kit.dp(3), kit.dp(3), kit.dp(3), kit.dp(3))
+        seg.visibility = if (s.state != "unavailable" && modes.size > 1) View.VISIBLE else View.GONE
+        modes.forEach { m ->
+            val act = m == s.state
+            seg.addView(kit.text(Tr.t(shortName[m] ?: (Fmt.STATE_PT[m] ?: m)), 14f, if (act) (if (on) kit.cream else kit.ink) else (if (on) kit.inkSoft else kit.muted), 600).apply {
+                gravity = Gravity.CENTER; setSingleLine(); ellipsize = TextUtils.TruncateAt.END
+                background = if (act) kit.rounded(if (on) kit.ink else Color.WHITE, 40) else null
+                isClickable = true; setOnClickListener { Ha.call("climate", "set_hvac_mode", listOf(dev.id), JSONObject().put("hvac_mode", m)) }
+            }, LinearLayout.LayoutParams(0, kit.dp(34), 1f))
+        }
+        pm.removeAllViews()
+        pm.visibility = if (on && tgt != null) View.VISIBLE else View.GONE
+        val step = a.optDouble("target_temp_step", 0.5).takeIf { it > 0 } ?: 0.5
+        listOf("−" to -1, "+" to 1).forEach { (label, d) ->
+            pm.addView(kit.text(label, 22f, fg, 500).apply {
+                gravity = Gravity.CENTER
+                background = kit.ripple(kit.rounded(if (on) Color.argb(20, 42, 34, 31) else kit.soft, 40))
+                isClickable = true
+                setOnClickListener {
+                    val now = target(a) ?: return@setOnClickListener
+                    val nv = (now + d * step).coerceIn(min, max)
+                    want = nv to System.currentTimeMillis()
+                    Ha.call("climate", "set_temperature", listOf(dev.id), JSONObject().put("temperature", nv))
+                    update()
+                }
+            }, LinearLayout.LayoutParams(0, kit.dp(44), 1f).apply { marginEnd = if (d < 0) kit.dp(8) else 0 })
         }
     }
 }
 
-/** Cartão de resumo do início: Clima, Segurança, Aspirador e A tocar. Esconde-se se não houver nada a mostrar. */
-class SummaryCard(private val kit: Kit, private val kind: String, private val home: Home) : Card(kit.ctx) {
-    private val iconBox = FrameLayout(kit.ctx)
-    private val icon = kit.icon("mdi:thermometer", kit.ink, 24)
-    private val label = kit.text("", 13f, kit.muted, 600, spacing = 0.18f)
-    private val big = kit.text("", 28f, kit.fg, 300, display = true)
-    private val sub = kit.text("", 14f, kit.muted)
+/** Cartões de resumo do início (Clima, Segurança, Aspirador, A tocar), com as cores e textos do painel web. */
+class SummaryCard(private val kit: Kit, private val kind: String, private val id: String?, private val home: Home, private val nav: Nav) : Card(kit.ctx) {
+    private val ri = IconCircle(kit, 52, 26, "mdi:thermometer")
+    private val eyebrow = kit.text("", 13f, kit.fg, 600, spacing = 0.2f)
+    private val big = kit.text("", 46f, kit.fg, 300, display = true).oneLine()
+    private val meta = kit.text("", 16f, kit.fg).oneLine()
+    private val bar = View(kit.ctx)
+    private val barBox = FrameLayout(kit.ctx)
     private val controls = LinearLayout(kit.ctx).apply { gravity = Gravity.CENTER_VERTICAL }
-    private var mediaId: String? = null
-
     private val devices get() = home.rooms.filter { !it.hidden }.flatMap { it.devices }.filter { !it.hidden }
 
     init {
-        background = kit.glass(26)
-        iconBox.addView(icon, FrameLayout.LayoutParams(kit.dp(24), kit.dp(24), Gravity.CENTER))
-        val head = LinearLayout(kit.ctx).apply { gravity = Gravity.CENTER_VERTICAL }
-        if (kind != "media") head.addView(iconBox, LinearLayout.LayoutParams(kit.dp(44), kit.dp(44)).apply { marginEnd = kit.dp(12) })
-        head.addView(label)
-        addView(head, LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply { setMargins(kit.dp(18), kit.dp(18), kit.dp(18), 0) })
-        val bottom = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL }
-        bottom.addView(big)
-        bottom.addView(sub, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(4) })
-        if (kind == "media") bottom.addView(controls, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(8) })
-        addView(bottom, LayoutParams(-1, -2, Gravity.BOTTOM).apply { setMargins(kit.dp(18), 0, kit.dp(18), kit.dp(16)) })
-        sub.setSingleLine(); sub.ellipsize = android.text.TextUtils.TruncateAt.END
-        big.setSingleLine(); big.ellipsize = android.text.TextUtils.TruncateAt.END
+        val pad = kit.dp(22)
+        isClickable = true
+        val col = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, pad) }
+        val row1 = LinearLayout(kit.ctx).apply { gravity = Gravity.TOP }
+        if (kind != "media") row1.addView(ri)
+        row1.addView(eyebrow, LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = kit.dp(14); marginStart = if (kind != "media") kit.dp(14) else 0 })
+        col.addView(row1, LinearLayout.LayoutParams(-1, -2))
+        col.addView(View(kit.ctx), LinearLayout.LayoutParams(-1, 0, 1f))
+        col.addView(big, LinearLayout.LayoutParams(-1, -2))
+        col.addView(meta, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(4) })
+        if (kind == "media") {
+            barBox.addView(bar, LayoutParams(0, kit.dp(4)))
+            col.addView(barBox, LinearLayout.LayoutParams(-1, kit.dp(4)).apply { topMargin = kit.dp(10) })
+            col.addView(controls, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(8) })
+        }
+        addView(col, LayoutParams(-1, -1))
         update()
     }
 
-    private fun tint(c: Int) { iconBox.background = kit.circle(c) }
+    private fun ok(bg: Int, fg: Int) = ri.paint(bg, fg)
 
     override fun update() {
-        big.setTextColor(kit.fg); sub.setTextColor(kit.muted); label.setTextColor(kit.muted)
-        background = kit.glass(26)
+        eyebrow.setTextColor(kit.fg); big.setTextColor(kit.fg); meta.setTextColor(kit.muted)
+        var on = false
         when (kind) {
             "climate" -> {
-                val cl = devices.filter { it.kind == "climate" }
-                val temps = home.rooms.flatMap { it.temperature }.mapNotNull { Fmt.state(it)?.state?.toDoubleOrNull() }
+                val cl = devices.filter { it.kind == "climate" && Fmt.state(it.id) != null }
+                val temps = devices.filter { Fmt.domain(it.id) == "sensor" && Fmt.state(it.id)?.attrs?.optString("device_class") == "temperature" }
+                    .mapNotNull { Fmt.state(it.id)?.state?.toDoubleOrNull() } + home.rooms.flatMap { it.temperature }.mapNotNull { Fmt.state(it)?.state?.toDoubleOrNull() }
                 val hums = home.rooms.flatMap { it.humidity }.mapNotNull { Fmt.state(it)?.state?.toDoubleOrNull() }
-                visibility = if (cl.isEmpty() && temps.isEmpty()) View.GONE else View.VISIBLE
-                label.text = Tr.t("Clima").uppercase(); icon.setImageDrawable(kit.mdi("mdi:thermometer")); tint(Color.parseColor("#30D158")); icon.setColorFilter(kit.ink)
-                val t = cl.firstNotNullOfOrNull { Fmt.state(it.id)?.attrs?.optDouble("current_temperature", Double.NaN)?.takeIf { v -> !v.isNaN() } }
-                    ?: temps.takeIf { it.isNotEmpty() }?.average()
-                big.text = t?.let { Fmt.num(it, 0) + "°" } ?: "–"
-                val on = cl.count { Fmt.isOn(it.id) }
-                sub.text = buildString {
-                    if (cl.isNotEmpty()) append("$on").append(Tr.t(" de ")).append("${cl.size}").append(Tr.t(" ligados"))
-                    if (hums.isNotEmpty()) { if (isNotEmpty()) append(" · "); append(Tr.t("Humidade ")).append(Fmt.num(hums.average(), 0)).append("%") }
-                }
+                val climate = cl.firstOrNull { Fmt.isOn(it.id) } ?: cl.firstOrNull()
+                visibility = if (temps.isEmpty() && climate == null) View.GONE else View.VISIBLE
+                on = climate != null && Fmt.isOn(climate.id)
+                eyebrow.text = Tr.t("Clima").uppercase(); ri.setIcon("mdi:thermometer"); ok(Color.parseColor("#34C759"), Color.parseColor("#0D2A14"))
+                val tt = if (temps.isNotEmpty()) temps.average() else climate?.let { Fmt.state(it.id)?.attrs?.optDouble("current_temperature", Double.NaN) }
+                big.text = if (tt == null || tt.isNaN()) "–°" else Fmt.num(Math.round(tt).toDouble(), 0) + "°"
+                meta.text = buildString {
+                    if (cl.size > 1) append("${cl.count { Fmt.isOn(it.id) }}").append(Tr.t(" de ")).append("${cl.size}").append(Tr.t(" ligados")).append(" · ")
+                    if (hums.isNotEmpty()) append(Tr.t("Humidade ")).append(Fmt.num(hums.average(), 0)).append("%")
+                    else if (climate != null) append(Tr.t(Fmt.STATE_PT[Fmt.state(climate.id)?.state] ?: Fmt.state(climate.id)?.state.orEmpty()))
+                }.trimEnd(' ', '·')
+                setOnClickListener { if (cl.size > 1) nav.openScreen("climate") else if (climate != null) nav.openDevice(climate.id) }
             }
             "security" -> {
-                val locks = devices.filter { it.kind == "lock" }
-                val opens = devices.filter { it.kind == "binary_sensor" && Fmt.state(it.id)?.attrs?.optString("device_class") in setOf("door", "window", "garage_door", "opening") }
-                val items = locks.size + opens.size
-                visibility = if (items == 0) View.GONE else View.VISIBLE
-                label.text = Tr.t("Segurança").uppercase(); icon.setImageDrawable(kit.mdi("mdi:shield-outline")); tint(kit.soft); icon.setColorFilter(kit.fg)
-                val unsafe = locks.count { Fmt.state(it.id)?.state == "unlocked" } + opens.count { Fmt.isOn(it.id) }
-                big.text = if (unsafe == 0) Tr.t("Tudo seguro") else "$unsafe" + Tr.t(if (locks.any { Fmt.state(it.id)?.state == "unlocked" }) " destrancados" else " abertos")
-                sub.text = "$items " + Tr.t("itens monitorizados")
+                val sec = devices.filter { it.kind == "lock" || (it.kind == "binary_sensor" && Fmt.state(it.id)?.attrs?.optString("device_class") in setOf("door", "window", "garage_door", "opening")) }
+                visibility = if (sec.isEmpty()) View.GONE else View.VISIBLE
+                val bad = sec.count { if (it.kind == "lock") Fmt.state(it.id)?.state == "unlocked" else Fmt.state(it.id)?.state == "on" }
+                eyebrow.text = Tr.t("Segurança").uppercase()
+                ri.setIcon(if (bad > 0) "mdi:shield-alert-outline" else "mdi:shield-check-outline")
+                if (bad > 0) ok(Color.parseColor("#FF9F0A"), Color.parseColor("#2A1500")) else ok(Color.parseColor("#30D158"), Color.parseColor("#06210F"))
+                big.textSize = 30f; big.typeface = kit.font(300, true)
+                big.text = if (bad > 0) Tr.pl(bad, "item aberto", "itens abertos", "item open", "items open") else Tr.t("Tudo seguro")
+                meta.text = Tr.pl(sec.size, "item monitorizado", "itens monitorizados", "item monitored", "items monitored")
+                setOnClickListener { nav.openScreen("security") }
             }
             "vacuum" -> {
-                val v = devices.firstOrNull { it.kind == "vacuum" }
-                visibility = if (v == null) View.GONE else View.VISIBLE
-                if (v != null) {
-                    label.text = Tr.t("Aspirador").uppercase(); icon.setImageDrawable(kit.mdi("mdi:robot-vacuum")); tint(Color.parseColor("#30D158")); icon.setColorFilter(kit.ink)
-                    val st = Fmt.state(v.id)
-                    big.text = Tr.t(Fmt.STATE_PT[st?.state] ?: st?.state.orEmpty())
-                    val bat = st?.attrs?.optInt("battery_level", -1) ?: -1
-                    sub.text = (if (bat >= 0) "$bat% · " else "") + v.name
-                    setOnClickListener { Fmt.tap(v.id) }
+                val st = id?.let { Fmt.state(it) }
+                visibility = if (st == null) View.GONE else View.VISIBLE
+                if (st != null && id != null) {
+                    on = Fmt.isOn(id)
+                    eyebrow.text = Tr.t("Aspirador").uppercase(); ri.setIcon("mdi:robot-vacuum"); ok(Color.parseColor("#30D158"), Color.parseColor("#06210F"))
+                    big.textSize = 30f; big.typeface = kit.font(300, true)
+                    big.text = Tr.t(Fmt.STATE_PT[st.state] ?: st.state)
+                    val bat = st.attrs.optInt("battery_level", -1)
+                    meta.text = listOfNotNull(if (bat >= 0) "🔋 $bat%" else null, Fmt.name(id)).joinToString(" · ")
+                    setOnClickListener { nav.openDevice(id) }
                 }
             }
             "media" -> {
                 val p = devices.firstOrNull { it.kind == "media_player" && Fmt.state(it.id)?.state == "playing" }
+                    ?: devices.firstOrNull { it.kind == "media_player" && Fmt.state(it.id)?.state == "paused" }
                 visibility = if (p == null) View.GONE else View.VISIBLE
                 if (p != null) {
-                    mediaId = p.id
-                    val a = Fmt.state(p.id)?.attrs
-                    label.text = Tr.t("A TOCAR") + " · " + p.name.uppercase()
-                    big.text = a?.optString("media_title").orEmpty().ifBlank { p.name }
-                    sub.text = a?.optString("media_artist").orEmpty()
+                    val a = Fmt.state(p.id)!!.attrs
+                    val room = home.rooms.firstOrNull { r -> r.devices.any { it.id == p.id } }?.name
+                    eyebrow.setTextColor(Color.parseColor("#5EE08A"))
+                    eyebrow.text = listOf(Tr.t("A tocar"), room.orEmpty(), a.optString("app_name")).filter { it.isNotBlank() }.joinToString(" · ").uppercase()
+                    big.textSize = 24f; big.typeface = kit.font(400, true)
+                    big.text = a.optString("media_title").ifBlank { p.name }
+                    meta.text = a.optString("media_artist")
+                    val dur = a.optDouble("media_duration", 0.0); val pos = a.optDouble("media_position", 0.0)
+                    val pct = if (dur > 0) (pos / dur).coerceIn(0.0, 1.0) else 0.0
+                    barBox.visibility = if (pct > 0) View.VISIBLE else View.GONE
+                    barBox.background = kit.rounded(kit.soft, 4); bar.background = kit.rounded(kit.fg, 4)
+                    barBox.post { bar.layoutParams = (bar.layoutParams as LayoutParams).apply { width = (barBox.width * pct).toInt() }; bar.requestLayout() }
                     controls.removeAllViews()
-                    val id = p.id
-                    controls.addView(kit.roundButton("mdi:skip-previous", 40, kit.soft, kit.fg) { Ha.call("media_player", "media_previous_track", listOf(id)) })
-                    controls.addView(kit.roundButton("mdi:pause", 48, kit.cream, kit.ink) { Ha.call("media_player", "media_play_pause", listOf(id)) },
-                        LinearLayout.LayoutParams(kit.dp(48), kit.dp(48)).apply { marginStart = kit.dp(10); marginEnd = kit.dp(10) })
-                    controls.addView(kit.roundButton("mdi:skip-next", 40, kit.soft, kit.fg) { Ha.call("media_player", "media_next_track", listOf(id)) })
+                    controls.addView(kit.roundButton("mdi:skip-previous", 38, Color.TRANSPARENT, kit.fg) { Ha.call("media_player", "media_previous_track", listOf(p.id)) })
+                    controls.addView(kit.roundButton(if (Fmt.state(p.id)?.state == "playing") "mdi:pause" else "mdi:play", 48, kit.cream, kit.ink) { Ha.call("media_player", "media_play_pause", listOf(p.id)) },
+                        LinearLayout.LayoutParams(kit.dp(48), kit.dp(48)).apply { marginStart = kit.dp(12); marginEnd = kit.dp(12) })
+                    controls.addView(kit.roundButton("mdi:skip-next", 38, Color.TRANSPARENT, kit.fg) { Ha.call("media_player", "media_next_track", listOf(p.id)) })
+                    setOnClickListener { nav.openDevice(p.id) }
                 }
             }
         }
+        if (kind == "climate" || kind == "vacuum") {
+            val fg = if (on) kit.ink else kit.fg
+            eyebrow.setTextColor(fg); big.setTextColor(fg); meta.setTextColor(if (on) kit.inkSoft else kit.muted)
+        }
+        background = kit.ripple(if (on) kit.rounded(kit.cream, 28) else kit.glass(28))
     }
+}
+
+/** Cartão de segurança: igual ao Tile, com o círculo verde quando tudo está seguro (.tile.secok). */
+class SecTile(private val kit: Kit, private val dev: Dev, private val onOpen: (String) -> Unit) : Card(kit.ctx) {
+    private val inner = Tile(kit, dev, onOpen)
+    init { addView(inner, LayoutParams(-1, -1)); update() }
+    override fun update() { inner.update() }
 }

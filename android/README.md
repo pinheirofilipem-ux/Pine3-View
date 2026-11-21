@@ -26,6 +26,14 @@ O código desta pasta é **independente** da integração (`custom_components/`)
   120 s), da integração Comelit.
 - Atalho para as definições: dois dedos premidos 2 s, ou o botão da engrenagem no início.
 
+**Paridade com o painel web (em curso)**
+- Feito: as 4 disposições do início (clássica, topo, colunas, barra lateral) com as medidas do CSS (px = dp, `vw` e `clamp`),
+  cartões de divisão, de dispositivo, de clima (com anel) e de resumo, ecrãs **Clima** e **Segurança**, dock configurável (e que se
+  adapta ao espaço), painel de detalhes dos dispositivos (luz, estore, clima, multimédia, ventoinha, aspirador, fechadura), tempo com
+  previsão (horas e dias), pessoas só quando ativas.
+- Falta: casa 3D e editor de planta, modo de edição (arrastar e esconder), ecrã de descanso, avisos do IPMA, câmaras e pop-up da campainha,
+  detalhe do aspirador (mapa e divisões), disposição em lista, formato estreito/telemóvel, divisões e dispositivos "grandes".
+
 Ainda não tem: casa 3D e planta (fase 2), ecrã nativo da campainha com câmara (fase 3), previsão do tempo, detalhe dos dispositivos
 (luminosidade, cor, clima...), disposições do início diferentes de "top", e a edição (cartões, ordem, esconder).
 

@@ -93,6 +93,18 @@ object Ha {
         thread = null
     }
 
+    private val pending = ConcurrentHashMap<Int, (JSONObject?) -> Unit>()
+
+    /** Pede algo ao HA e devolve o resultado na main thread (null se falhar). */
+    fun request(payload: JSONObject, cb: (JSONObject?) -> Unit) {
+        val id = ids.incrementAndGet()
+        pending[id] = cb
+        Thread {
+            try { ws?.send(payload.put("id", id).toString()) } catch (_: Exception) { pending.remove(id)?.let { f -> main.post { f(null) } } }
+        }.start()
+        main.postDelayed({ pending.remove(id)?.let { f -> f(null) } }, 15_000)
+    }
+
     /** Guarda definições do Pine3 View no HA (partilhadas com o painel web). O HA devolve o modelo atualizado. */
     fun saveSettings(changes: JSONObject) {
         // Atualiza já localmente, para a interface responder logo.
@@ -210,7 +222,11 @@ object Ha {
         }
         val m = try { JSONObject(text) } catch (_: Exception) { return }
         when (m.optString("type")) {
-            "result" -> when (m.optInt("id")) {
+            "result" -> if (pending.containsKey(m.optInt("id"))) {
+                val cb = pending.remove(m.optInt("id"))
+                val res = if (m.optBoolean("success")) m.optJSONObject("result") ?: JSONObject() else null
+                if (cb != null) main.post { cb(res) }
+            } else when (m.optInt("id")) {
                 ID_STATES -> m.optJSONArray("result")?.let { loadStates(it) }
                 ID_HOME -> {
                     if (m.optBoolean("success")) {

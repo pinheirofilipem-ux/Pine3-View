@@ -55,18 +55,46 @@ object Fmt {
         return if (s.contains(',')) s.trimEnd('0').trimEnd(',') else s
     }
 
-    /** Está "ligado" (cartão creme)? */
+    fun isTv(id: String, name: String = ""): Boolean {
+        if (domain(id) != "media_player") return false
+        val a = state(id)?.attrs ?: return false
+        return a.optString("device_class") == "tv" || Regex("\\btv\\b|televis", RegexOption.IGNORE_CASE).containsMatchIn(name + " " + a.optString("friendly_name"))
+    }
+
+    /** Está "ligado" (cartão creme)? Igual ao _isOn do painel web. */
     fun isOn(id: String): Boolean {
         val st = state(id)?.state ?: return false
         return when (domain(id)) {
-            "light", "switch", "fan", "input_boolean", "binary_sensor" -> st == "on"
-            "cover" -> st != "closed" && st != "unavailable"
             "lock" -> st == "unlocked"
             "climate" -> st != "off" && st != "unavailable"
-            "media_player" -> st == "playing" || st == "paused" || st == "on" || st == "buffering"
+            "media_player" -> if (isTv(id)) st !in setOf("off", "standby", "unavailable", "unknown") else st in setOf("playing", "on", "paused", "buffering")
             "vacuum" -> st == "cleaning" || st == "returning"
-            else -> false
+            else -> st in setOf("on", "open", "opening", "closing", "home")
         }
+    }
+
+    /** O que a divisão liga/desliga: luzes, tomadas, ventoinhas e input_boolean. */
+    fun switchables(ids: List<String>) = ids.filter { domain(it) in setOf("light", "switch", "fan", "input_boolean") }
+
+    /** Temperatura e humidade de uma divisão ("21,3°C", "54%"), como no painel web. */
+    fun roomClimate(room: Room): Pair<String?, String?> {
+        fun by(dc: String, list: List<String>): String? = (list + room.devices.map { it.id }).firstOrNull {
+            domain(it) == "sensor" && state(it)?.attrs?.optString("device_class") == dc && state(it)?.state?.toDoubleOrNull() != null
+        }
+        val tt = by("temperature", room.temperature); val hm = by("humidity", room.humidity)
+        val c = room.devices.map { it.id }.firstOrNull { domain(it) == "climate" && state(it)?.attrs?.has("current_temperature") == true && !state(it)!!.attrs.isNull("current_temperature") }
+        val temp = when { tt != null -> reading(tt); c != null -> num(state(c)!!.attrs.optDouble("current_temperature")) + "°"; else -> null }
+        return temp to (hm?.let { reading(it) })
+    }
+
+    /** A cor de destaque de um dispositivo (luz com cor, fechadura destrancada...). */
+    fun accent(id: String, fallback: Int): Int {
+        val a = state(id)?.attrs
+        if (domain(id) == "light" && a?.optJSONArray("rgb_color")?.length() == 3) {
+            val c = a.getJSONArray("rgb_color"); return android.graphics.Color.rgb(c.getInt(0), c.getInt(1), c.getInt(2))
+        }
+        if (domain(id) == "lock" && state(id)?.state !in setOf("locked", "unavailable", "unknown")) return 0xFFFF9F0A.toInt()
+        return ACCENT[domain(id)] ?: fallback
     }
 
     fun isToggle(id: String) = domain(id) in setOf("light", "switch", "fan", "input_boolean", "lock", "cover", "media_player")

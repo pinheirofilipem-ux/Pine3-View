@@ -50,19 +50,22 @@ private class LensView(private val kit: Kit) : View(kit.ctx) {
     }
 }
 
-/** A dock flutuante com a lente animada. */
-class DockView(private val kit: Kit, labels: List<Triple<String, String, Int>>, private val animationsOn: Boolean, private val onPick: (Int) -> Unit) : FrameLayout(kit.ctx) {
+/** A dock flutuante com a lente animada. Se não cabe, só o separador ativo mantém o nome e depois ficam só os ícones. */
+class DockView(private val kit: Kit, labels: List<Triple<String, String, String>>, private val animationsOn: Boolean, private val onPick: (Int) -> Unit) : FrameLayout(kit.ctx) {
     private val lens = LensView(kit)
     private val row = LinearLayout(kit.ctx)
     private val icons = ArrayList<ImageView>()
     private val texts = ArrayList<TextView>()
-    private val tabs = ArrayList<View>()
+    private val tabs = ArrayList<LinearLayout>()
     private var active = -1
     private var lensL = 0f
     private var lensW = 0f
     private var placed = false
+    private var mode = 0 // 0 completa, 1 só o ativo com nome, 2 só ícones
     private var move: ValueAnimator? = null
     private var squish: ValueAnimator? = null
+    private val small = kit.compact
+    private val tabH = kit.dp(if (small) 44 else 50)
 
     init {
         val dark = !kit.light
@@ -72,27 +75,46 @@ class DockView(private val kit: Kit, labels: List<Triple<String, String, Int>>, 
             setStroke(kit.dp(1), if (dark) Color.argb(46, 255, 255, 255) else Color.argb(210, 255, 255, 255))
         }
         elevation = kit.dp(8).toFloat()
-        setPadding(kit.dp(7), kit.dp(7), kit.dp(7), kit.dp(7))
+        val pad = kit.dp(if (small) 6 else 7)
+        setPadding(pad, pad, pad, pad)
         addView(lens, LayoutParams(0, 0))
         addView(row, LayoutParams(-2, -2))
         labels.forEach { (label, icon, _) ->
-            val ic = kit.icon(icon, kit.muted, 22).also { (it.layoutParams as LinearLayout.LayoutParams).marginEnd = kit.dp(10) }
-            val tx = kit.text(label, 17f, kit.muted, 500)
-            val tab = LinearLayout(kit.ctx).apply {
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(kit.dp(24), 0, kit.dp(26), 0)
-                isClickable = true
-                addView(ic); addView(tx)
-            }
+            val ic = kit.icon(icon, kit.muted, if (small) 20 else 22)
+            val tx = kit.text(label, if (small) 16f else 18f, kit.muted, 500).apply { setSingleLine() }
+            val tab = LinearLayout(kit.ctx).apply { gravity = Gravity.CENTER_VERTICAL; isClickable = true; addView(ic); addView(tx, LinearLayout.LayoutParams(-2, -2).apply { marginStart = kit.dp(if (small) 8 else 10) }) }
             icons += ic; texts += tx; tabs += tab
-            row.addView(tab, LinearLayout.LayoutParams(-2, kit.dp(50)).apply { marginEnd = kit.dp(4) })
+            row.addView(tab, LinearLayout.LayoutParams(-2, tabH).apply { marginEnd = kit.dp(if (small) 4 else 6) })
         }
         tabs.forEachIndexed { i, t -> t.setOnClickListener { onPick(i) } }
+        applyMode()
+    }
+
+    private fun applyMode() {
+        tabs.forEachIndexed { i, t ->
+            val showText = mode == 0 || (mode == 1 && i == active)
+            texts[i].visibility = if (showText) View.VISIBLE else View.GONE
+            val padH = when (mode) { 2 -> 15; 1 -> 14; else -> if (small) 18 else 24 }
+            t.setPadding(kit.dp(padH), 0, kit.dp(padH), 0)
+            (icons[i].layoutParams as LinearLayout.LayoutParams)
+        }
+    }
+
+    override fun onMeasure(w: Int, h: Int) {
+        val avail = MeasureSpec.getSize(w) - kit.dp(24)
+        // escolhe o modo mais largo que cabe
+        for (m in 0..2) {
+            mode = m; applyMode()
+            var total = paddingLeft + paddingRight
+            tabs.forEach { it.measure(MeasureSpec.UNSPECIFIED, MeasureSpec.makeMeasureSpec(tabH, MeasureSpec.EXACTLY)); total += it.measuredWidth + kit.dp(if (small) 4 else 6) }
+            if (total <= avail || m == 2) break
+        }
+        super.onMeasure(w, h)
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         super.onLayout(changed, l, t, r, b)
-        if (active >= 0 && (changed || !placed)) { place(active, animate = false) }
+        if (active >= 0) place(active, animate = false)
     }
 
     private fun target(i: Int): Pair<Float, Float> {
@@ -103,7 +125,7 @@ class DockView(private val kit: Kit, labels: List<Triple<String, String, Int>>, 
     private fun applyLens(l: Float, w: Float) {
         lensL = l; lensW = w
         val lp = lens.layoutParams as LayoutParams
-        lp.width = Math.max(0, w.toInt()); lp.height = kit.dp(50); lp.leftMargin = 0; lp.topMargin = paddingTop
+        lp.width = Math.max(0, w.toInt()); lp.height = tabH; lp.leftMargin = 0; lp.topMargin = paddingTop
         lens.layoutParams = lp
         lens.translationX = l
     }
@@ -124,23 +146,23 @@ class DockView(private val kit: Kit, labels: List<Triple<String, String, Int>>, 
         val prev = active
         active = i
         tabs.indices.forEach { colorTo(it, it == i, animate && animationsOn && prev >= 0) }
+        if (mode == 1) { requestLayout(); placed = false; return } // o nome muda de separador: refaz a medida
         if (width == 0 || tabs[i].width == 0) { placed = false; return }
         place(i, animate && animationsOn && prev >= 0)
     }
 
     private fun place(i: Int, animate: Boolean) {
         val (l1, w1) = target(i)
+        if (w1 <= 0f) return
         move?.cancel(); squish?.cancel()
         if (!animate) { applyLens(l1, w1); lens.scaleXf = 1f; lens.scaleYf = 1f; lens.glass = 0f; lens.invalidate(); placed = true; return }
         val l0 = lensL; val w0 = lensW
-        // mola: cubic-bezier(.34,1.36,.5,1), 550 ms, no deslocamento e na largura
         move = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 550
             interpolator = PathInterpolator(0.34f, 1.36f, 0.5f, 1f)
             addUpdateListener { val f = it.animatedValue as Float; applyLens(l0 + (l1 - l0) * f, w0 + (w1 - w0) * f) }
             start()
         }
-        // gota: 0% normal, 35% esticada e de vidro, 70% quase normal, 100% normal
         val ease = PathInterpolator(0.3f, 0.9f, 0.4f, 1f)
         squish = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 550

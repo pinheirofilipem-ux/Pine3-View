@@ -27,10 +27,12 @@ class MainActivity : Activity(), Nav {
         const val SETTLE_MS = 250L
         const val FADE_MS = 300L
         const val UPDATE_DEBOUNCE_MS = 120L
-        const val TAB_HOME = 0
-        const val TAB_ROOMS = 1
-        const val TAB_HOUSE = 2
-        const val TAB_SCENES = 3
+        /** Os ecrãs da dock, pela ordem do painel web: chave, ícone, nome. */
+        val DOCK_ITEMS = listOf(
+            Triple("home", "mdi:home-outline", "Casa"), Triple("rooms", "mdi:view-grid-outline", "Divisões"),
+            Triple("house", "mdi:cube-outline", "Casa 3D"), Triple("scenes", "mdi:creation-outline", "Cenas"),
+            Triple("climate", "mdi:thermometer", "Clima"), Triple("security", "mdi:shield-outline", "Segurança"),
+        )
     }
 
     private lateinit var prefs: Prefs
@@ -38,6 +40,7 @@ class MainActivity : Activity(), Nav {
     private lateinit var root: FrameLayout
     private lateinit var content: FrameLayout
     private var themeKey = ""
+    private var dockKeysSig = ""
     private lateinit var dockHost: FrameLayout
     private var dockView: DockView? = null
     private var animationsOn = true
@@ -46,7 +49,7 @@ class MainActivity : Activity(), Nav {
     private val handler = Handler(Looper.getMainLooper())
 
     private var page: Page? = null
-    private var tab = TAB_HOME
+    private var tab = "home"
     private var roomId: String? = null
     private var resumed = false
     private var dirty = false
@@ -97,6 +100,9 @@ class MainActivity : Activity(), Nav {
             visibility = View.GONE
         }
         root.addView(banner, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = kit.dp(10) })
+
+        root.addView(kit.roundButton("mdi:dots-vertical", 44, kit.soft, kit.fg) { openSettings() },
+            FrameLayout.LayoutParams(kit.dp(44), kit.dp(44), Gravity.TOP or Gravity.END).apply { topMargin = kit.dp(16); rightMargin = kit.dp(18) })
 
         blackout = View(this).apply { setBackgroundColor(Color.BLACK); isClickable = true }
         root.addView(blackout, FrameLayout.LayoutParams(-1, -1))
@@ -152,21 +158,33 @@ class MainActivity : Activity(), Nav {
     override fun back() { roomId = null; rebuild() }
     override fun openSettings() { startActivity(Intent(this, SettingsActivity::class.java)) }
 
-    private fun showTab(t: Int) { tab = t; roomId = null; dockView?.setActive(t, animate = true); rebuild() }
+    private fun dockKeys(): List<String> {
+        val chosen = Ha.home?.settings?.optJSONArray("dock")
+        val list = if (chosen == null) listOf("home", "rooms", "house", "scenes") else (0 until chosen.length()).map { chosen.getString(it) }
+        return DOCK_ITEMS.map { it.first }.filter { it == "home" || it in list }
+    }
+
+    private fun showTab(key: String) {
+        tab = key; roomId = null
+        dockView?.setActive(dockKeys().indexOf(key).coerceAtLeast(0), animate = true)
+        rebuild()
+    }
+
+    override fun openScreen(key: String) { if (key in DOCK_ITEMS.map { it.first }) showTab(key) }
+
+    override fun openDevice(id: String) {
+        val dev = Ha.home?.rooms?.flatMap { it.devices }?.firstOrNull { it.id == id } ?: devOf(id)
+        DeviceSheet(this, kit, id, dev).show()
+    }
 
     private fun buildDock() {
         dockHost.removeAllViews()
-        val d = DockView(
-            kit,
-            listOf(
-                Triple(Tr.t("Casa"), "mdi:home-outline", TAB_HOME), Triple(Tr.t("Divisões"), "mdi:view-grid-outline", TAB_ROOMS),
-                Triple(Tr.t("Casa 3D"), "mdi:cube-outline", TAB_HOUSE), Triple(Tr.t("Cenas"), "mdi:creation", TAB_SCENES),
-            ),
-            animationsOn,
-        ) { showTab(it) }
+        val keys = dockKeys()
+        val d = DockView(kit, keys.map { k -> DOCK_ITEMS.first { it.first == k }.let { Triple(Tr.t(it.third), it.second, it.first) } }, animationsOn) { showTab(keys[it]) }
         dockHost.addView(d)
         dockView = d
-        d.setActive(tab, animate = false)
+        d.setActive(keys.indexOf(tab).coerceAtLeast(0), animate = false)
+        (dockHost.layoutParams as FrameLayout.LayoutParams).bottomMargin = kit.dp(if (kit.compact) 14 else 22)
     }
 
     /** (Re)constrói a página atual a partir do modelo. Só é chamada quando o modelo muda ou se navega. */
@@ -183,14 +201,17 @@ class MainActivity : Activity(), Nav {
         kit.cream = home.color("card_color", kit.cream)
         kit.accent = home.color("accent_color", kit.accent)
         if (applyLook(home)) { shownKey = "" }
+        if (dockKeysSig != dockKeys().joinToString()) { dockKeysSig = dockKeys().joinToString(); buildDock() }
         val room = roomId?.let { id -> home.rooms.firstOrNull { it.id == id } }
-        val key = if (room != null) "room:${room.id}" else "tab:$tab"
+        val key = if (room != null) "room:${room.id}" else "tab:$tab:" + home.settings.optString("home_layout") + home.settings.optString("dock") + home.settings.optBoolean("home_people") + home.settings.optBoolean("show_summary", true) + home.settings.optBoolean("show_status", true) + home.settings.optBoolean("show_scenes", true) + home.settings.optBoolean("show_weather", true) + home.settings.optBoolean("clock_24h", true)
         if (shownHome === home && shownKey == key && page != null) { page?.update(); return }
         val p: Page = when {
             room != null -> RoomPage(kit, room, this)
-            tab == TAB_ROOMS -> RoomsPage(kit, home, this)
-            tab == TAB_HOUSE -> Placeholder(kit, Tr.t("Casa 3D"), Tr.t("A casa 3D desenhada em Canvas vem na fase 2."))
-            tab == TAB_SCENES -> ScenesPage(kit, home)
+            tab == "rooms" -> RoomsPage(kit, home, this)
+            tab == "house" -> Placeholder(kit, Tr.t("Casa 3D"), Tr.t("A casa 3D desenhada em Canvas vem mais tarde."))
+            tab == "scenes" -> ScenesPage(kit, home, this)
+            tab == "climate" -> ClimatePage(kit, home, this)
+            tab == "security" -> SecurityPage(kit, home, this)
             else -> HomePage(kit, home, this)
         }
         val animate = animationsOn && shownKey.isNotEmpty() && shownKey != key

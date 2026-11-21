@@ -65,6 +65,10 @@ class AppearanceActivity : Activity() {
         Ha.saveSettings(o)
     }
 
+    private fun sub(t: String) = kit.text(t.uppercase(), 12f, Color.argb(166, 255, 255, 255), 600, spacing = 0.14f)
+
+    private fun lp(top: Int = 0) = LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(top) }
+
     private fun card(parent: LinearLayout, title: String, sub: String, w: Float = 1f): LinearLayout {
         val c = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -165,12 +169,32 @@ class AppearanceActivity : Activity() {
         // Início
         val homeCard = card(cards, "Início", "O que se vê e em que língua")
         segmented(homeCard, listOf("pt" to "Português", "en" to "English"), s.optString("language", "pt"), 12) { set("language" to it) }
+        homeCard.addView(sub("Disposição do início"), lp(top = 16))
+        segmented(homeCard, listOf("classic" to "Clássica", "top" to "Topo", "columns" to "Colunas", "sidebar" to "Barra"), s.optString("home_layout", "top"), 6) { set("home_layout" to it) }
         toggle(homeCard, "Meteorologia", "show_weather", s, true)
         toggle(homeCard, "Pessoas", "home_people", s, false)
         toggle(homeCard, "Estado da casa", "show_status", s, true)
         toggle(homeCard, "Cenas", "show_scenes", s, true)
         toggle(homeCard, "Cartões de resumo", "show_summary", s, true)
         toggle(homeCard, "Relógio de 24 horas", "clock_24h", s, true)
+        toggle(homeCard, "Animações", "animations", s, true)
+        homeCard.addView(sub("Dock"), lp(top = 18))
+        val dockArr = s.optJSONArray("dock")
+        val dockNow = if (dockArr == null) listOf("rooms", "house", "scenes") else (0 until dockArr.length()).map { dockArr.getString(it) }
+        listOf("rooms" to "Divisões", "house" to "Casa 3D", "scenes" to "Cenas", "climate" to "Clima", "security" to "Segurança").forEach { (k, label) ->
+            val sw = Switch(this).apply {
+                isChecked = k in dockNow
+                thumbTintList = ColorStateList.valueOf(kit.accent); trackTintList = ColorStateList.valueOf(Color.argb(110, 246, 184, 63))
+                setOnCheckedChangeListener { _, on ->
+                    val order = listOf("rooms", "house", "scenes", "climate", "security")
+                    val next = order.filter { it == k && on || it != k && it in dockNow }
+                    set("dock" to org.json.JSONArray(next))
+                }
+            }
+            val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+            row.addView(kit.text(label, 15f, Color.WHITE), LinearLayout.LayoutParams(0, -2, 1f)); row.addView(sw)
+            homeCard.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(10) })
+        }
 
         // Cores
         val colorCard = card(cards, "Cores", "Cartões e cor de destaque")
