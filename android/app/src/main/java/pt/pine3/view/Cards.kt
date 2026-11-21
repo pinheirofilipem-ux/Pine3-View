@@ -405,8 +405,8 @@ class CamTile(private val kit: Kit, private val dev: Dev, private val onOpen: (S
     private val ic = IconCircle(kit, 48, 24, "mdi:cctv")
     private val nm = kit.text(dev.name, 19f, Color.WHITE, 500, display = true).oneLine()
     private val st = kit.text("", 15f, Color.argb(210, 255, 255, 255)).oneLine()
-    private val loading = LoadingOverlay(kit, Tr.t("A carregar a câmara…"))
-    private var at = 0L
+    private var shownStamp = -1L
+    private lateinit var play: View
 
     init {
         tag = 2
@@ -417,7 +417,6 @@ class CamTile(private val kit: Kit, private val dev: Dev, private val onOpen: (S
             override fun getOutline(v: View, o: android.graphics.Outline) { o.setRoundRect(0, 0, v.width, v.height, kit.dp(26).toFloat()) }
         }
         addView(shot, LayoutParams(-1, -1))
-        addView(loading, LayoutParams(-1, -1))
         addView(View(kit.ctx).apply { background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.argb(20, 0, 0, 0), Color.argb(150, 0, 0, 0))) }, LayoutParams(-1, -1))
         val pad = kit.dp(18)
         val col = LinearLayout(kit.ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, pad) }
@@ -425,7 +424,7 @@ class CamTile(private val kit: Kit, private val dev: Dev, private val onOpen: (S
         col.addView(View(kit.ctx), LinearLayout.LayoutParams(-1, 0, 1f))
         col.addView(nm); col.addView(st, LinearLayout.LayoutParams(-1, -2).apply { topMargin = kit.dp(3) })
         addView(col, LayoutParams(-1, -1))
-        val play = FrameLayout(kit.ctx).apply {
+        play = FrameLayout(kit.ctx).apply {
             background = kit.circle(Color.argb(150, 20, 16, 24))
             addView(kit.icon("mdi:play", Color.WHITE, 28), LayoutParams(kit.dp(28), kit.dp(28), Gravity.CENTER))
         }
@@ -437,13 +436,13 @@ class CamTile(private val kit: Kit, private val dev: Dev, private val onOpen: (S
         background = kit.glass(26)
         ic.paint(Color.parseColor("#64D2FF"), kit.ink)
         alpha = if (Fmt.state(dev.id)?.state == "unavailable") 0.5f else 1f
-        val pic = Fmt.state(dev.id)?.attrs?.optString("entity_picture").orEmpty()
-        if (System.currentTimeMillis() - at > 60_000) {
-            at = System.currentTimeMillis()
-            Ha.fetchImage(pic.ifBlank { "/api/camera_proxy/${dev.id}" }) { bmp ->
-                if (bmp != null) { shot.setImageBitmap(bmp); shot.visibility = View.VISIBLE; loading.visibility = View.GONE; st.text = Tr.t("Última imagem") + " · " + java.text.SimpleDateFormat("HH:mm", Tr.locale).format(java.util.Date()) + " · " + Tr.t("Toca para ver ao vivo") }
-            }
+        // O cartão nunca liga a câmara: mostra só a última imagem guardada ao fechar a vista ao vivo.
+        val saved = CamCache.stamp(kit.ctx, dev.id)
+        if (saved != shownStamp) {
+            shownStamp = saved
+            val bmp = CamCache.load(kit.ctx, dev.id)
+            if (bmp != null) { shot.setImageBitmap(bmp); shot.visibility = View.VISIBLE; play.visibility = View.GONE } else { shot.visibility = View.GONE; play.visibility = View.VISIBLE }
         }
-        if (shot.visibility != View.VISIBLE) st.text = Tr.t("Toca para ver ao vivo")
+        st.text = if (saved > 0) Tr.t("Última imagem") + " · " + java.text.SimpleDateFormat("d MMM HH:mm", Tr.locale).format(java.util.Date(saved)) else Tr.t("Toca para ver ao vivo")
     }
 }

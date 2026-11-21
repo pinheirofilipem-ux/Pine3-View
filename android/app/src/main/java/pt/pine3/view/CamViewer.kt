@@ -26,6 +26,7 @@ class CamViewer(private val act: Activity, private val kit: Kit, private val cam
     private var armed: String? = null
     private var armUntil = 0L
     private val loading = LoadingOverlay(kit, Tr.t("A carregar a câmara…"))
+    private var last: android.graphics.Bitmap? = null
     private var open = true
 
     private val tick = object : Runnable {
@@ -36,7 +37,7 @@ class CamViewer(private val act: Activity, private val kit: Kit, private val cam
             val s = ((now - started) / 1000).toInt(); elapsed.text = "${s / 60}:${"%02d".format(s % 60)}"
             val left = ((until - now) / 1000).toInt(); timer.text = Tr.t("fecha em ") + "${left / 60}:${"%02d".format(left % 60)}"
             val pic = Fmt.state(camId)?.attrs?.optString("entity_picture").orEmpty()
-            Ha.fetchImage(pic.ifBlank { "/api/camera_proxy/$camId" }) { b -> if (b != null && open) { img.setImageBitmap(b); loading.visibility = View.GONE } }
+            Ha.fetchImage(pic.ifBlank { "/api/camera_proxy/$camId" }) { b -> if (b != null && open) { img.setImageBitmap(b); last = b; loading.visibility = View.GONE } }
             h.postDelayed(this, 1000)
         }
     }
@@ -113,7 +114,7 @@ class CamViewer(private val act: Activity, private val kit: Kit, private val cam
             setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
             setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
         }
-        dialog.setOnDismissListener { open = false; h.removeCallbacks(tick) }
+        dialog.setOnDismissListener { open = false; h.removeCallbacks(tick); last?.let { CamCache.save(act, camId, it) } }
         dialog.show()
         Elastic.pop(card, 0, 0.9f)
         h.post(tick)

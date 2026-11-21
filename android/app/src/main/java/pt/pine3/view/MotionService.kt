@@ -29,7 +29,7 @@ class MotionService : Service() {
     companion object {
         private const val CHANNEL = "motion"
         private const val NOTIF_ID = 1
-        private const val IGNORE_AFTER_SLEEP_MS = 1500L
+        private const val IGNORE_AFTER_SLEEP_MS = 3500L
 
         @Volatile private var instance: MotionService? = null
 

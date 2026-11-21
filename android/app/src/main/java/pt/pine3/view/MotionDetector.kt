@@ -31,7 +31,9 @@ class MotionDetector(
         const val MIN_FRAME_INTERVAL_MS = 60L      // ecrã desligado: máx ~16 fps de análise (acorda depressa)
         const val AWAKE_FRAME_INTERVAL_MS = 250L   // ecrã ligado: 4 análises/s chegam para adiar o desligar, e o CPU fica para a página
         const val NOTIFY_INTERVAL_MS = 150L        // máx de avisos por segundo ao serviço
-        const val WATCHDOG_MS = 4000L
+        const val WATCHDOG_MS = 2500L
+        const val SETTLE_MS = 3000L                // após ligar/desligar o ecrã a luz e a auto-exposição mudam: ignora esse período
+        const val RETRY_MS = 800L
     }
 
     private val thread = HandlerThread("motion").apply { start() }
@@ -99,6 +101,7 @@ class MotionDetector(
             reader = ir
             frameCount = 0
             hits = 0
+            settleUntil = SystemClock.elapsedRealtime() + 1500L // câmara recém-aberta: exposição ainda a assentar
 
             val fps = chars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
                 ?.filter { it.upper <= 15 }
@@ -112,8 +115,8 @@ class MotionDetector(
                     camera = device
                     startSession(device, ir, fps)
                 }
-                override fun onDisconnected(device: CameraDevice) { opening = false; device.close(); camera = null }
-                override fun onError(device: CameraDevice, error: Int) { opening = false; device.close(); camera = null }
+                override fun onDisconnected(device: CameraDevice) { opening = false; device.close(); camera = null; retry() }
+                override fun onError(device: CameraDevice, error: Int) { opening = false; device.close(); camera = null; retry() }
             }, handler)
         } catch (e: CameraAccessException) {
             opening = false
@@ -148,6 +151,9 @@ class MotionDetector(
         }
     }
 
+    /** A câmara foi tirada (bloqueio do ecrã, outra app): tenta reabrir já, sem esperar pelo watchdog. */
+    private fun retry() { if (running) handler.postDelayed({ if (running && camera == null) open() }, RETRY_MS) }
+
     private fun closeCamera() {
         try { session?.close() } catch (_: Exception) {}
         try { camera?.close() } catch (_: Exception) {}
@@ -167,7 +173,13 @@ class MotionDetector(
         try {
             val now = SystemClock.elapsedRealtime()
             lastFrameAt = now
-            val every = if (PanelState.sleeping) MIN_FRAME_INTERVAL_MS else AWAKE_FRAME_INTERVAL_MS
+            val sl = PanelState.sleeping
+            if (sl != lastSleeping) {
+                // o ecrã mudou: a cena mudou de luz. Recomeça a referência e espera que a exposição estabilize.
+                lastSleeping = sl; frameCount = 0; hits = 0; settleUntil = now + SETTLE_MS
+            }
+            if (now < settleUntil) { lastProcessedAt = now; return }
+            val every = if (sl) MIN_FRAME_INTERVAL_MS else AWAKE_FRAME_INTERVAL_MS
             if (now - (lastProcessedAt) < every) return
             lastProcessedAt = now
 
@@ -190,6 +202,8 @@ class MotionDetector(
     }
 
     private var lastProcessedAt = 0L
+    private var lastSleeping = false
+    private var settleUntil = 0L
 
     private fun fillGrid(buf: java.nio.ByteBuffer, w: Int, h: Int, rowStride: Int, pixStride: Int, out: IntArray) {
         for (cy in 0 until ROWS) {
