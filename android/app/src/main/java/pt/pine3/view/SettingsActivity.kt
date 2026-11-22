@@ -584,6 +584,8 @@ class SettingsActivity : Activity() {
         var saverVideo = prefs.saverVideo
         optToggle(vid, "Usar vídeos no screensaver", null, saverVideo) { saverVideo = it; markApp() }
 
+        var fitV = prefs.saverFit
+        optChoice(vid, "Ajuste do vídeo ao ecrã", "Pela altura: o vídeo ocupa a altura toda do ecrã, sem esticar (se for mais largo, corta um pouco dos lados). Preencher corta os dois eixos; Inteiro mostra tudo, com barras.", listOf("height" to "Pela altura", "fill" to "Preencher", "all" to "Inteiro"), fitV) { fitV = it; prefs.saverFit = it; markApp(); redraw() }
         var quality = prefs.saverQuality
         optChoice(vid, "Qualidade (vídeos da Apple TV)", "1080p gasta menos dados; 4K só em tablets potentes.", listOf("1080" to "1080p (H.264)", "4k" to "4K"), quality) { quality = it; markApp(); redraw() }
         label(vid, "Lista de vídeos (endereço de um ficheiro .json ou .txt)")
@@ -664,7 +666,7 @@ class SettingsActivity : Activity() {
         saveApp = {
             prefs.timeoutSec = lockV; prefs.saverSecRaw = saverV
             prefs.sensitivity = sens.progress + 1
-            prefs.saverVideo = saverVideo; prefs.saverQuality = quality; prefs.saverSource = src.text.toString(); prefs.saverList = listIn.text.toString()
+            prefs.saverVideo = saverVideo; prefs.saverFit = fitV; prefs.saverQuality = quality; prefs.saverSource = src.text.toString(); prefs.saverList = listIn.text.toString()
             prefs.packUrl = packUrl.text.toString().ifBlank { Pack.DEFAULT_URL }; prefs.saverExtra = extraIn.text.toString(); 
             if (files.isNotEmpty()) prefs.clipMinMb = minMb
             Aerials.reparse(this, quality)

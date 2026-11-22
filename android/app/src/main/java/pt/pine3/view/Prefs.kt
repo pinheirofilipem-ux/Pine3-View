@@ -67,6 +67,11 @@ class Prefs(ctx: Context) {
         get() = sp.getString("saverBlend", "black") ?: "black"
         set(v) = sp.edit().putString("saverBlend", v).apply()
 
+    /** Ajuste do vídeo ao ecrã: "height" (pela altura), "fill" (preenche, corta) ou "all" (inteiro). */
+    var saverFit: String
+        get() = sp.getString("saverFit", "height") ?: "height"
+        set(v) = sp.edit().putString("saverFit", v).apply()
+
     /** Tamanho mínimo (MB) de um clipe para entrar por regra: os pequenos costumam ser loops soltos. */
     var clipMinMb: Int
         get() = sp.getInt("clipMinMb", 8)

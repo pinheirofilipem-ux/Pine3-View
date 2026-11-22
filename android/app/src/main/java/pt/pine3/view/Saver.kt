@@ -19,7 +19,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 /** Ecrã de descanso (.saver do painel web): relógio grande e escurecido que deriva devagar. Um toque fecha. */
-class SaverView(private val kit: Kit, private val h24: Boolean, private val video: Boolean = false, private val bg: Int? = null, private val blend: String = "white", private val onClose: () -> Unit) : FrameLayout(kit.ctx) {
+class SaverView(private val kit: Kit, private val h24: Boolean, private val video: Boolean = false, private val bg: Int? = null, private val blend: String = "white", private val fit: String = "height", private val onClose: () -> Unit) : FrameLayout(kit.ctx) {
     private var player: AerialView? = null
     private var overlay: TimeOverlay? = null
     private val clock = kit.text("", kit.clamp(90f, kit.vw(18f), 220f), Color.argb(235, 255, 255, 255), 200, display = true)
@@ -39,7 +39,7 @@ class SaverView(private val kit: Kit, private val h24: Boolean, private val vide
         if (video) {
             // vídeo por trás e, em baixo à esquerda como na Apple TV, a hora e a data com sombra
             setBackgroundColor(bg ?: Color.BLACK)
-            player = AerialView(kit.ctx, bg != null, blend).also { addView(it, LayoutParams(-1, -1)) }
+            player = AerialView(kit.ctx, bg != null, blend).also { it.fitMode = fit; addView(it, LayoutParams(-1, -1)) }
             val st = kit.text("", 12f, Color.argb(150, 255, 255, 255)).apply { setShadowLayer(4f, 0f, 1f, Color.BLACK) }
             addView(st, LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply { setMargins(kit.dp(20), kit.dp(14), 0, 0) })
             player?.onStatus = { t -> st.text = t }
@@ -123,11 +123,18 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
     override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean { release(); return true }
     override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
 
+    /** Como o vídeo ocupa o ecrã: "height" = pela altura do ecrã (não corta em cima nem em baixo), "fill" = preenche (corta), "all" = vê-se inteiro (barras). */
+    var fitMode = "height"
+
     private fun fit() {
         val p = mp ?: return
         val vw = p.videoWidth.toFloat(); val vh = p.videoHeight.toFloat()
         if (vw <= 0 || vh <= 0 || width == 0 || height == 0) return
-        val sc = maxOf(width / vw, height / vh)
+        val sc = when (fitMode) {
+            "fill" -> maxOf(width / vw, height / vh)
+            "all" -> minOf(width / vw, height / vh)
+            else -> height / vh
+        }
         val m = Matrix(); m.setScale(vw * sc / width, vh * sc / height, width / 2f, height / 2f)
         setTransform(m)
     }
