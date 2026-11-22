@@ -25,8 +25,8 @@ object Pack {
 
     fun files(ctx: Context): List<File> = dir(ctx).listFiles { f -> f.isFile && f.name.endsWith(".mov", true) && f.length() > 0 }?.sortedBy { it.name }.orEmpty()
 
-    /** Regra por omissão: ignora os "loop" e os ficheiros pequenos. */
-    fun defaultOn(f: File, minMb: Int) = !f.name.contains("loop", true) && f.length() >= minMb * 1_000_000L
+    /** Regra por omissão: ignora os fragmentos (loop, intro, outro) e os ficheiros pequenos; ficam as cenas completas. */
+    fun defaultOn(f: File, minMb: Int) = !Regex("loop|intro|outro", RegexOption.IGNORE_CASE).containsMatchIn(f.name) && f.length() >= minMb * 1_000_000L
 
     fun isOn(f: File, prefs: Prefs) = prefs.clipChoices[f.name] ?: defaultOn(f, prefs.clipMinMb)
 

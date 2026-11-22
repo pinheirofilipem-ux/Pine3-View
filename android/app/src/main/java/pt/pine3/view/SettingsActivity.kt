@@ -626,7 +626,7 @@ class SettingsActivity : Activity() {
         var minMb = prefs.clipMinMb
         if (files.isNotEmpty()) {
             divider(pk)
-            label(pk, "Regra: ignorar clipes com menos de (MB) e os que têm \"loop\" no nome")
+            label(pk, "Regra: ignorar clipes com menos de (MB) e os de intro, loop ou outro")
             val minIn = input(minMb.toString(), "8", InputType.TYPE_CLASS_NUMBER, app = true); pk.addView(minIn)
             minIn.addTextChangedListener(object : TextWatcher {
                 override fun afterTextChanged(e: Editable?) { minMb = (e?.toString()?.toIntOrNull() ?: 0).coerceIn(0, 500) }
@@ -646,7 +646,7 @@ class SettingsActivity : Activity() {
                 row.addView(LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     addView(kit.text(f.name.removeSuffix(".mov"), 15f, kit.fg, 500).apply { setSingleLine(); ellipsize = TextUtils.TruncateAt.END })
-                    addView(kit.text(String.format(java.util.Locale.US, "%.1f MB", mb) + if (f.name.contains("loop", true)) " · loop" else "", 12f, kit.muted))
+                    addView(kit.text(String.format(java.util.Locale.US, "%.1f MB", mb) + Regex("loop|intro|outro", RegexOption.IGNORE_CASE).find(f.name)?.let { " · " + it.value.lowercase() } ?: "", 12f, kit.muted))
                 }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = d(12) })
                 row.addView(Toggle(kit, choices[f.name] ?: Pack.defaultOn(f, minMb)) { v -> choices[f.name] = v; prefs.clipChoices = choices; Aerials.setLocal(this) })
                 pk.addView(row, LinearLayout.LayoutParams(-1, -2))
