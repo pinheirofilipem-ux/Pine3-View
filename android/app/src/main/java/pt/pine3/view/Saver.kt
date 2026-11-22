@@ -39,11 +39,17 @@ class SaverView(private val kit: Kit, private val h24: Boolean, private val vide
         if (video) {
             // vídeo por trás e, em baixo à esquerda como na Apple TV, a hora e a data com sombra
             setBackgroundColor(bg ?: Color.BLACK)
-            player = AerialView(kit.ctx, bg != null, blend).also { it.fitMode = fit; addView(it, LayoutParams(-1, -1)) }
+            player = AerialView(kit.ctx, bg != null, blend).also {
+                it.fitMode = fit; addView(it, LayoutParams(-1, -1))
+                val cover = View(kit.ctx).apply { setBackgroundColor(Color.BLACK) }
+                addView(cover, LayoutParams(-1, -1)); it.cover = cover
+            }
             val st = kit.text("", 12f, Color.argb(150, 255, 255, 255)).apply { setShadowLayer(4f, 0f, 1f, Color.BLACK) }
             addView(st, LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply { setMargins(kit.dp(20), kit.dp(14), 0, 0) })
             val hide = Runnable { st.animate().alpha(0f).setDuration(600).start() }
-            player?.onStatus = { t -> st.removeCallbacks(hide); st.text = t; st.animate().cancel(); st.alpha = 1f; if (!t.startsWith("Erro") && !t.startsWith("MediaPlayer")) st.postDelayed(hide, 4000) }
+            st.alpha = 0f
+            // só mostra erros (a linha de estado já não aparece quando tudo corre bem)
+            player?.onStatus = { t -> if (t.startsWith("Erro")) { st.removeCallbacks(hide); st.text = t; st.animate().cancel(); st.alpha = 1f; st.postDelayed(hide, 8000) } }
             addView(View(kit.ctx).apply { background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.TRANSPARENT, Color.argb(150, 0, 0, 0))) },
                 LayoutParams(-1, kit.dp(kit.clamp(220f, kit.hdp * 0.42f, 420f)), Gravity.BOTTOM))
             // hora e data desenhadas à mão numa só vista de tamanho fixo (sem medir texto): nada pode cortar
@@ -116,7 +122,18 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
     /** Estado para mostrar no ecrã (nome do clipe, erros): ajuda a perceber porque fica preto. */
     var onStatus: ((String) -> Unit)? = null
 
-    init { surfaceTextureListener = this; alpha = 0f; isOpaque = true }
+    /** Cortina preta por cima do vídeo: os fades entre vídeos animam-na (a vista de vídeo fica sempre opaca). */
+    var cover: View? = null
+    private var covered = true
+    init { surfaceTextureListener = this; isOpaque = true }
+
+    private fun reveal(ms: Long) { covered = false; cover?.animate()?.cancel(); cover?.animate()?.alpha(0f)?.setDuration(ms)?.start() }
+    private fun hide(ms: Long, end: () -> Unit) {
+        covered = true
+        val cv = cover
+        if (cv == null || cv.alpha >= 0.99f) { end(); return }
+        cv.animate().cancel(); cv.animate().alpha(1f).setDuration(ms).withEndAction(end).start()
+    }
 
     fun play(list: List<Aerials.Clip>) {
         if (list.isEmpty()) return
@@ -152,9 +169,10 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
         onStatus?.invoke(if (why == "direto") "A carregar $name…" else "MediaPlayer falhou ($why); a tentar o descodificador alternativo…")
         val me = object : CodecPlayer(context, clip.url, Surface(st),
             { w, h -> post { vw = w.toFloat(); vh = h.toFloat(); fit() } },
-            { dec -> post { failures = 0; preferCodec = true; onStatus?.invoke("$name  ${vw.toInt()}×${vh.toInt()}  [$dec]"); animate().alpha(1f).setDuration(900).start() } },
-            { post { if (cp != null) animate().alpha(0f).setDuration(700).withEndAction { next() }.start() } },
+            { dec -> post { failures = 0; preferCodec = true; onStatus?.invoke("$name  ${vw.toInt()}×${vh.toInt()}  [$dec]"); reveal(1000) } },
+            { post { if (cp != null) hide(900) { next() } } },
             { err -> post { failures++; onStatus?.invoke("Erro em $name: $err"); if (failures < 4) postDelayed({ next() }, 1500) } },
+            { post { if (cp != null && !covered) hide(1100) {} } },
         ) {}
         cp = me
         me.start()
@@ -177,9 +195,9 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
             p.setVolume(0f, 0f)
             onStatus?.invoke("A carregar " + clip.id.removePrefix("local:") + "…")
             p.setOnVideoSizeChangedListener { m, w, h -> vw = w.toFloat(); vh = h.toFloat(); fit(); onStatus?.invoke(clip.id.removePrefix("local:") + "  " + w + "×" + h) }
-            p.setOnPreparedListener { if (mp === it) { failures = 0; fit(); it.start(); postDelayed({ if (mp === it) animate().alpha(1f).setDuration(600).start() }, 1500) } }
-            p.setOnInfoListener { m, what, _ -> if (mp === m && what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) animate().alpha(1f).setDuration(900).start(); false }
-            p.setOnCompletionListener { m -> if (mp === m) animate().alpha(0f).setDuration(700).withEndAction { next() }.start() }
+            p.setOnPreparedListener { if (mp === it) { failures = 0; fit(); it.start(); postDelayed({ if (mp === it) reveal(700) }, 1500) } }
+            p.setOnInfoListener { m, what, _ -> if (mp === m && what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) reveal(1000); false }
+            p.setOnCompletionListener { m -> if (mp === m) hide(900) { next() } }
             p.setOnErrorListener { _, what, extra -> post { fallback(clip, "$what/$extra") }; true }
             p.prepareAsync()
         } catch (e: Exception) { post { fallback(clip, e.javaClass.simpleName + " " + (e.message ?: "")) } }

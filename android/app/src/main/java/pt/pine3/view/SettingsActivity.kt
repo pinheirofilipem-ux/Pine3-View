@@ -389,15 +389,15 @@ class SettingsActivity : Activity() {
         mainBox.addView(p, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(16) })
         return p
     }
-    private fun h3(p: LinearLayout, t: String, first: Boolean = false) = p.addView(kit.text(t, 19f, kit.fg, 500, display = true), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(if (first) 0 else 22) })
-    private fun para(p: LinearLayout, t: String) = p.addView(kit.text(t, 14f, kit.muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(4) })
+    private fun h3(p: LinearLayout, t: String, first: Boolean = false) = p.addView(kit.text(Tr.t(t), 19f, kit.fg, 500, display = true), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(if (first) 0 else 22) })
+    private fun para(p: LinearLayout, t: String) = p.addView(kit.text(Tr.t(t), 14f, kit.muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(4) })
 
     private fun divider(p: LinearLayout) = p.addView(View(this).apply { setBackgroundColor(kit.soft) }, LinearLayout.LayoutParams(-1, d(1)).apply { topMargin = d(14) })
 
     private fun titleBlock(title: String, sub: String?): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        addView(kit.text(title, 17f, kit.fg, 600))
-        if (sub != null) addView(kit.text(sub, 13f, kit.muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(2) })
+        addView(kit.text(Tr.t(title), 17f, kit.fg, 600))
+        if (sub != null) addView(kit.text(Tr.t(sub), 13f, kit.muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(2) })
     }
 
     private fun optToggle(p: LinearLayout, title: String, sub: String?, on: Boolean, onChange: (Boolean) -> Unit) {
@@ -414,7 +414,7 @@ class SettingsActivity : Activity() {
         val g = Grid(this, d(110), d(42), d(8))
         options.forEach { (v, l) ->
             val sel = v == cur
-            g.addView(kit.text(l, 15f, if (sel) kit.ink else kit.fg, 600).apply {
+            g.addView(kit.text(Tr.t(l), 15f, if (sel) kit.ink else kit.fg, 600).apply {
                 gravity = Gravity.CENTER; background = kit.ripple(kit.rounded(if (sel) kit.cream else kit.soft, 40)); setSingleLine(); ellipsize = TextUtils.TruncateAt.END
                 isClickable = true; setOnClickListener { onPick(v) }
             })
@@ -423,13 +423,13 @@ class SettingsActivity : Activity() {
     }
 
     private fun input(v: String, hint: String, type: Int, app: Boolean = false) = EditText(this).apply {
-        setText(v); this.hint = hint; setHintTextColor(kit.muted); setTextColor(kit.fg); textSize = 16f; inputType = type; setSingleLine()
+        setText(v); this.hint = Tr.t(hint); setHintTextColor(kit.muted); setTextColor(kit.fg); textSize = 16f; inputType = type; setSingleLine()
         typeface = kit.font(400, false); background = kit.rounded(kit.soft, 14); setPadding(d(16), d(13), d(16), d(13))
         if (app) addTextChangedListener(object : TextWatcher { override fun afterTextChanged(e: Editable?) { markApp() } override fun beforeTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {} override fun onTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {} })
     }
-    private fun label(p: LinearLayout, t: String) = p.addView(kit.text(t, 13f, kit.muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(14); bottomMargin = d(6) })
+    private fun label(p: LinearLayout, t: String) = p.addView(kit.text(Tr.t(t), 13f, kit.muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(14); bottomMargin = d(6) })
 
-    private fun pillBtn(t: String, icon: String?, filled: Boolean = false, click: () -> Unit) = kit.pill(t, icon, filled, click)
+    private fun pillBtn(t: String, icon: String?, filled: Boolean = false, click: () -> Unit) = kit.pill(Tr.t(t), icon, filled, click)
 
     // ---------------------------------------------------------------- App (só deste dispositivo)
 
@@ -490,10 +490,10 @@ class SettingsActivity : Activity() {
         h3(sys, Tr.t("Permissões"), true); para(sys, "Para funcionar sempre, mesmo com o ecrã desligado.")
         fun permRow(label: String, check: () -> Boolean, action: () -> Unit) {
             val dot = View(this).apply { background = kit.circle(Color.parseColor("#F2755C")) }
-            val btn = kit.text("Ativar", 14f, kit.accent, 600).apply { background = kit.rounded(kit.soft, 12); setPadding(d(16), d(8), d(16), d(8)); setOnClickListener { action() } }
+            val btn = kit.text(Tr.t("Ativar"), 14f, kit.accent, 600).apply { background = kit.rounded(kit.soft, 12); setPadding(d(16), d(8), d(16), d(8)); setOnClickListener { action() } }
             val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
             row.addView(dot, LinearLayout.LayoutParams(d(10), d(10)).apply { marginEnd = d(14) })
-            row.addView(kit.text(label, 16f, kit.fg), LinearLayout.LayoutParams(0, -2, 1f)); row.addView(btn)
+            row.addView(kit.text(Tr.t(label), 16f, kit.fg), LinearLayout.LayoutParams(0, -2, 1f)); row.addView(btn)
             sys.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(14) })
             perms += Triple(dot, btn, check)
         }
@@ -535,7 +535,7 @@ class SettingsActivity : Activity() {
         fun saverText() = if (saverV == 0) Tr.t("Desligado") else "$saverV s"
         fun bar(title: String, init: Int, lo: Int, hi: Int, onUser: (Int) -> Unit): Pair<SeekBar, TextView> {
             val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-            row.addView(kit.text(title, 13f, kit.muted), LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(kit.text(Tr.t(title), 13f, kit.muted), LinearLayout.LayoutParams(0, -2, 1f))
             val tx = kit.text("", 15f, kit.accent, 600); row.addView(tx)
             ent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(18) })
             val sb = SeekBar(this).apply {
@@ -564,7 +564,7 @@ class SettingsActivity : Activity() {
         }
         lockBar = s2.first; lockTx = s2.second; lockTx.text = "$lockV s"
         val sh = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        sh.addView(kit.text("Sensibilidade ao movimento", 13f, kit.muted), LinearLayout.LayoutParams(0, -2, 1f))
+        sh.addView(kit.text(Tr.t("Sensibilidade ao movimento"), 13f, kit.muted), LinearLayout.LayoutParams(0, -2, 1f))
         val sensValue = kit.text("${prefs.sensitivity} / 10", 15f, kit.accent, 600); sh.addView(sensValue)
         ent.addView(sh, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(18) })
         val sens = SeekBar(this).apply {
@@ -595,11 +595,11 @@ class SettingsActivity : Activity() {
         label(vid, "Vídeos extra (um endereço por linha)")
         val extraIn = input(prefs.saverExtra, "https://…/clip.mp4", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_VARIATION_URI, app = true).apply { setSingleLine(false); minLines = 3; gravity = Gravity.TOP }
         vid.addView(extraIn)
-        val vstatus = kit.text(if (Aerials.count > 0) "${Aerials.count} vídeos" else "", 13f, kit.muted)
+        val vstatus = kit.text(if (Aerials.count > 0) Tr.s("${Aerials.count} vídeos", "${Aerials.count} videos") else "", 13f, kit.muted)
         vid.addView(pillBtn("Atualizar listas", "mdi:refresh") {
             prefs.saverSource = src.text.toString(); prefs.saverQuality = quality; prefs.saverList = listIn.text.toString()
-            vstatus.text = "A descarregar…"
-            Aerials.loadList(this, prefs.saverList) { Aerials.load(this, prefs.saverSource, quality, force = true) { _ -> vstatus.text = if (Aerials.count > 0) "${Aerials.count} vídeos" else "✘ " + (Aerials.error ?: "sem vídeos") } }
+            vstatus.text = Tr.s("A descarregar…", "Downloading…")
+            Aerials.loadList(this, prefs.saverList) { Aerials.load(this, prefs.saverSource, quality, force = true) { _ -> vstatus.text = if (Aerials.count > 0) Tr.s("${Aerials.count} vídeos", "${Aerials.count} videos") else "✘ " + Tr.t(Aerials.error ?: Tr.s("sem vídeos", "no videos")) } }
         }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = d(14) })
         vid.addView(vstatus, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(8) })
 
@@ -649,7 +649,7 @@ class SettingsActivity : Activity() {
             brow.addView(pillBtn("Nenhum", null) { files.forEach { choices[it.name] = false }; prefs.clipChoices = choices; redraw() }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = d(10) })
             pk.addView(brow, LinearLayout.LayoutParams(-2, -2).apply { topMargin = d(14) })
             val on = files.count { choices[it.name] ?: Pack.defaultOn(it, minMb) }
-            para(pk, "$on de ${files.size} clipes vão passar.")
+            para(pk, Tr.s("$on de ${files.size} clipes vão passar.", "$on of ${files.size} clips will play."))
             files.forEach { f ->
                 val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, d(8), 0, d(8)) }
                 val mb = f.length() / 1_000_000.0
@@ -895,13 +895,13 @@ class SettingsActivity : Activity() {
         val facts = Grid(this, d(180), d(70), d(14))
         fun fact(k: String, v: String) = facts.addView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; background = kit.rounded(kit.soft, 18); setPadding(d(16), d(12), d(16), d(12))
-            addView(kit.text(k, 12f, kit.muted)); addView(kit.text(v, 20f, kit.fg, 500, display = true))
+            addView(kit.text(Tr.t(k), 12f, kit.muted)); addView(kit.text(v, 20f, kit.fg, 500, display = true))
         })
-        fact(Tr.t("Versão"), "nativa 0.1"); fact("Modo", if (home != null) "Integração" else "Sem ligação")
+        fact(Tr.t("Versão"), Tr.s("nativa 0.1", "native 0.1")); fact("Modo", if (home != null) Tr.t("Integração") else Tr.t("Sem ligação"))
         fact(Tr.t("Divisões"), "${home?.rooms?.size ?: "—"}"); fact("Dispositivos", "${home?.rooms?.sumOf { it.devices.size } ?: "—"}")
         p.addView(facts, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(16) })
         val row = LinearLayout(this)
-        row.addView(pillBtn(Tr.t("Reconstruir agora"), "mdi:refresh") { Ha.configure(this); showToast("A atualizar…") })
+        row.addView(pillBtn(Tr.t("Reconstruir agora"), "mdi:refresh") { Ha.configure(this); showToast(Tr.s("A atualizar…", "Updating…")) })
         p.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(20) })
     }
 }

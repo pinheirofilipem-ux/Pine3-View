@@ -110,7 +110,7 @@ object Weather {
                     val now = System.currentTimeMillis() - 3600_000
                     if (h != null) {
                         val t = h.getJSONArray("time"); val c = h.getJSONArray("weather_code"); val tt = h.getJSONArray("temperature_2m"); val p = h.optJSONArray("precipitation_probability")
-                        hourly = (0 until t.length()).map { Hour(ts(t.getString(it)), wmo(c.optInt(it)), tt.optDouble(it), p?.optDouble(it)?.takeIf { v -> !v.isNaN() }) }.filter { it.time >= now }.take(12)
+                        hourly = (0 until t.length()).map { Hour(ts(t.getString(it)), wmo(c.optInt(it)), tt.optDouble(it), p?.optDouble(it)?.takeIf { v -> !v.isNaN() }) }.filter { it.time >= now }.take(48)
                     }
                     if (d != null) {
                         val t = d.getJSONArray("time"); val c = d.getJSONArray("weather_code"); val hi = d.getJSONArray("temperature_2m_max"); val lo = d.getJSONArray("temperature_2m_min"); val p = d.optJSONArray("precipitation_probability_max")
@@ -133,7 +133,7 @@ object Weather {
             }
         }
         val now = System.currentTimeMillis() - 3600_000
-        ask("hourly") { a -> hourly = (0 until a.length()).map { a.getJSONObject(it) }.map { Hour(ts(it.optString("datetime")), it.optString("condition"), num(it, "temperature"), pct(it, "precipitation_probability")) }.filter { it.time >= now }.take(12) }
+        ask("hourly") { a -> hourly = (0 until a.length()).map { a.getJSONObject(it) }.map { Hour(ts(it.optString("datetime")), it.optString("condition"), num(it, "temperature"), pct(it, "precipitation_probability")) }.filter { it.time >= now }.take(48) }
         ask("daily") { a -> daily = (0 until a.length()).map { a.getJSONObject(it) }.map { Day(ts(it.optString("datetime")), it.optString("condition"), num(it, "temperature"), num(it, "templow"), pct(it, "precipitation_probability")) }.take(7) }
     }
 }

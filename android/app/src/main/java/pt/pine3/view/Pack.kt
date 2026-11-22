@@ -75,7 +75,7 @@ object Pack {
         if (running) return progress
         val f = files(ctx)
         val mb = f.sumOf { it.length() } / 1_000_000
-        return error?.let { "✘ $it" } ?: if (f.isEmpty()) "Nenhum clipe no tablet" else "${f.size} clipes no tablet ($mb MB)"
+        return error?.let { "✘ " + Tr.t(it) } ?: if (f.isEmpty()) Tr.s("Nenhum clipe no tablet", "No clips on the tablet") else Tr.s("${f.size} clipes no tablet ($mb MB)", "${f.size} clips on the tablet ($mb MB)")
     }
 
     fun delete(ctx: Context) { dir(ctx).listFiles()?.forEach { it.delete() }; error = null }
@@ -110,7 +110,7 @@ object Pack {
     /** Descarrega e extrai os .mov. [done] corre na main thread. */
     fun download(ctx: Context, url: String, done: () -> Unit) {
         if (running) return
-        running = true; error = null; progress = "A ligar…"
+        running = true; error = null; progress = Tr.s("A ligar…", "Connecting…")
         val h = android.os.Handler(android.os.Looper.getMainLooper())
         val app = ctx.applicationContext
         Thread {
@@ -119,7 +119,7 @@ object Pack {
                 try {
                     // 1.º tentativa: em fluxo, sem guardar o zip (só ocupa o espaço dos clipes)
                     val c = open(url); size = c.contentLengthLong
-                    val counting = Counting(c.inputStream) { n -> progress = "A descarregar… ${if (size > 0) (n * 100 / size).toString() + "%" else (n / 1_000_000).toString() + " MB"}  ($count clipes)" }
+                    val counting = Counting(c.inputStream) { n -> progress = Tr.s("A descarregar… ", "Downloading… ") + (if (size > 0) (n * 100 / size).toString() + "%" else (n / 1_000_000).toString() + " MB") + Tr.s("  ($count clipes)", "  ($count clips)") }
                     ZipInputStream(BufferedInputStream(counting, 1 shl 16)).use { z ->
                         while (true) {
                             val e = z.nextEntry ?: break
@@ -130,8 +130,8 @@ object Pack {
                     // zip com entradas sem compressão e sem tamanho: descarrega o ficheiro todo e abre-o com acesso direto
                     val tmp = File(app.cacheDir, "pack.zip")
                     val c = open(url); size = c.contentLengthLong
-                    tmp.outputStream().buffered(1 shl 16).use { o -> Counting(c.inputStream) { n -> progress = "A descarregar… ${if (size > 0) (n * 100 / size).toString() + "%" else ""}" }.use { it.copyTo(o) } }
-                    progress = "A extrair…"
+                    tmp.outputStream().buffered(1 shl 16).use { o -> Counting(c.inputStream) { n -> progress = Tr.s("A descarregar… ", "Downloading… ") + (if (size > 0) (n * 100 / size).toString() + "%" else "") }.use { it.copyTo(o) } }
+                    progress = Tr.s("A extrair…", "Extracting…")
                     ZipFile(tmp).use { zf ->
                         zf.entries().asSequence().filter { !it.isDirectory && it.name.endsWith(".mov", true) && !it.name.contains("__MACOSX") }.forEach { en -> zf.getInputStream(en).use { save(app, en.name, it) }; count++ }
                     }

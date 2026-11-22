@@ -90,7 +90,7 @@ object Ha {
         if (newSig == sig && (newSig.isEmpty() || running)) return
         sig = newSig
         stop()
-        if (newSig.isEmpty()) { setStatus("Inativo (falta endereço ou token)", false); return }
+        if (newSig.isEmpty()) { setStatus(Tr.s("Inativo (falta endereço ou token)", "Inactive (address or token missing)"), false); return }
         running = true
         val trust = prefs.ignoreSsl
         thread = Thread({ loop(url!!, token, trust) }, "ha-client").apply { isDaemon = true; start() }
@@ -167,11 +167,11 @@ object Ha {
 
     /** Explica uma falha de ligação em português, com a ação provável. */
     fun describe(e: Exception): String = when {
-        e is java.net.UnknownHostException -> "não encontro \"${e.message}\". Usa o IP do HA (ex.: 192.168.1.10), o Android não resolve nomes .local"
-        e is java.net.ConnectException -> "ligação recusada. Confirma o endereço e a porta (normalmente 8123)"
-        e is java.net.SocketTimeoutException -> "tempo esgotado. O tablet está na mesma rede do HA?"
-        e is javax.net.ssl.SSLException -> "erro de certificado HTTPS. Ativa \"Aceitar certificado auto-assinado\""
-        e is IOException && (e.message ?: "").startsWith("handshake recusado") -> "o HA recusou o WebSocket (${e.message}). O endereço deve ser só http://IP:8123, sem /lovelace"
+        e is java.net.UnknownHostException -> Tr.s("não encontro \"${e.message}\". Usa o IP do HA (ex.: 192.168.1.10), o Android não resolve nomes .local", "cannot find \"${e.message}\". Use the HA IP (e.g. 192.168.1.10), Android does not resolve .local names")
+        e is java.net.ConnectException -> Tr.s("ligação recusada. Confirma o endereço e a porta (normalmente 8123)", "connection refused. Check the address and port (usually 8123)")
+        e is java.net.SocketTimeoutException -> Tr.s("tempo esgotado. O tablet está na mesma rede do HA?", "timed out. Is the tablet on the same network as HA?")
+        e is javax.net.ssl.SSLException -> Tr.s("erro de certificado HTTPS. Ativa \"Aceitar certificado auto-assinado\"", "HTTPS certificate error. Turn on \"Accept self-signed certificate\"")
+        e is IOException && (e.message ?: "").startsWith("handshake recusado") -> Tr.s("o HA recusou o WebSocket (${e.message}). O endereço deve ser só http://IP:8123, sem /lovelace", "HA refused the WebSocket (${e.message}). The address must be just http://IP:8123, without /lovelace")
         else -> e.message ?: e.javaClass.simpleName
     }
 
@@ -194,18 +194,18 @@ object Ha {
         while (running) {
             var authFailed = false
             try {
-                setStatus("A ligar…", false)
+                setStatus(Tr.s("A ligar…", "Connecting…"), false)
                 session(url, token, trustAll)
                 backoff = 2000L
             } catch (e: AuthFailed) {
                 authFailed = true
                 log("O HA recusou o token")
-                setStatus("Token inválido: cria outro token de acesso de longa duração no HA", false)
+                setStatus(Tr.s("Token inválido: cria outro token de acesso de longa duração no HA", "Invalid token: create another long-lived access token in HA"), false)
             } catch (e: Exception) {
                 if (!running) break
                 val why = describe(e)
                 log("Falhou: $why")
-                setStatus("Sem ligação: $why", false)
+                setStatus(Tr.s("Sem ligação: ", "No connection: ") + why, false)
             } finally {
                 try { ws?.close() } catch (_: Exception) {}
                 ws = null
@@ -233,7 +233,7 @@ object Ha {
             "auth_invalid" -> throw AuthFailed()
             else -> throw IOException("resposta inesperada")
         }
-        setStatus("Ligado", true)
+        setStatus(Tr.s("Ligado", "Connected"), true)
         socket.send(JSONObject().put("id", ID_EVENTS).put("type", "subscribe_events").put("event_type", "state_changed").toString())
         socket.send(JSONObject().put("id", ID_STATES).put("type", "get_states").toString())
         socket.send(JSONObject().put("id", ID_HOME).put("type", "pine3_view/home").toString())

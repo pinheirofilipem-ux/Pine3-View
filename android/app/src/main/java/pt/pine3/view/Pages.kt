@@ -121,19 +121,23 @@ class WxCard(kit: Kit, private val home: Home, private val kind: String, private
         } else now.addView(k.text(Tr.t("A carregar o tempo…"), 14f, k.muted))
         col.addView(now)
 
-        // próximas horas
-        val hours = Weather.hourly.filter { it.time >= System.currentTimeMillis() - 30 * 60_000 }.take(if (kind == "big") 4 else 5)
+        // próximas horas: fila que desliza para a esquerda (até 24 horas), como no iPhone
+        val hours = Weather.hourly.filter { it.time >= System.currentTimeMillis() - 30 * 60_000 }.take(24)
         if (hours.isNotEmpty()) {
-            val hr = LinearLayout(k.ctx).apply { gravity = Gravity.CENTER; if (tall) setPadding(0, k.dp(10), 0, k.dp(10)) else setPadding(k.dp(10), 0, k.dp(10), 0) }
-            hours.forEach { h ->
+            val hr = LinearLayout(k.ctx).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(k.dp(4), if (tall) k.dp(10) else 0, k.dp(4), if (tall) k.dp(10) else 0) }
+            hours.forEachIndexed { i, h ->
                 val c = LinearLayout(k.ctx).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
-                c.addView(k.text(hh(h.time), 12f, k.muted))
+                c.addView(k.text(if (i == 0 && h.time - System.currentTimeMillis() < 3600_000) Tr.t("Agora") else hh(h.time), 12f, k.muted))
                 c.addView(k.icon(icon(h.cond), k.fg, 22), LinearLayout.LayoutParams(k.dp(22), k.dp(22)).apply { topMargin = k.dp(3); bottomMargin = k.dp(3) })
                 c.addView(k.text(deg(h.temp), 15f, k.fg, 600))
-                if (h.precip != null && h.precip >= 10) c.addView(k.text("💧" + Math.round(h.precip) + "%", 11f, Color.parseColor("#64D2FF")))
-                hr.addView(c, LinearLayout.LayoutParams(0, -2, 1f))
+                c.addView(k.text(if (h.precip != null && h.precip >= 10) "💧" + Math.round(h.precip) + "%" else " ", 11f, Color.parseColor("#64D2FF")))
+                hr.addView(c, LinearLayout.LayoutParams(k.dp(58), -2))
             }
-            col.addView(hr, if (tall) LinearLayout.LayoutParams(-1, -2) else LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = k.dp(12); marginEnd = k.dp(12) })
+            val hsv = android.widget.HorizontalScrollView(k.ctx).apply {
+                isHorizontalScrollBarEnabled = false; overScrollMode = View.OVER_SCROLL_NEVER; addView(hr)
+                setOnClickListener { onClick() } // um toque abre a previsão; deslizar mostra mais horas
+            }
+            col.addView(hsv, if (tall) LinearLayout.LayoutParams(-1, -2) else LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = k.dp(12); marginEnd = k.dp(12) })
         }
 
         // amanhã / próximos dias

@@ -15,6 +15,7 @@ import android.view.Surface
 open class CodecPlayer(
     private val ctx: Context, private val src: String, private val surface: Surface,
     private val onSize: (Int, Int) -> Unit, private val onFirstFrame: (String) -> Unit, private val onDone: () -> Unit, private val onError: (String) -> Unit,
+    private val onNearEnd: () -> Unit = {},
 ) {
     @Volatile private var stop = false
     private var thread: Thread? = null
@@ -47,7 +48,8 @@ open class CodecPlayer(
             val c = codec ?: run { onError(last); return }
             val bi = MediaCodec.BufferInfo()
             var inDone = false; var outDone = false; var shown = false
-            var firstPts = -1L; var startNs = 0L
+            var firstPts = -1L; var startNs = 0L; var nearSent = false
+            val durationUs = if (f.containsKey(MediaFormat.KEY_DURATION)) f.getLong(MediaFormat.KEY_DURATION) else 0L
             while (!outDone && !stop) {
                 if (!inDone) {
                     val i = c.dequeueInputBuffer(5_000)
@@ -64,6 +66,7 @@ open class CodecPlayer(
                     if (firstPts < 0) { firstPts = bi.presentationTimeUs; startNs = System.nanoTime() }
                     val waitMs = (startNs + (bi.presentationTimeUs - firstPts) * 1000 - System.nanoTime()) / 1_000_000
                     if (waitMs > 0 && !stop) try { Thread.sleep(minOf(waitMs, 200)) } catch (_: InterruptedException) {}
+                    if (!nearSent && durationUs > 0 && bi.presentationTimeUs >= durationUs - 1_300_000) { nearSent = true; onNearEnd() }
                     c.releaseOutputBuffer(o, bi.size > 0)
                     if (!shown && bi.size > 0) { shown = true; onFirstFrame(name) }
                 }
