@@ -69,7 +69,7 @@ object Weather {
         omLoading = true; waiting += done
         Ha.request(JSONObject().put("type", "get_config")) { cfg ->
             val lat = cfg?.optDouble("latitude", Double.NaN) ?: Double.NaN; val lon = cfg?.optDouble("longitude", Double.NaN) ?: Double.NaN
-            if (lat.isNaN() || lon.isNaN()) { omLoading = false; waiting.clear(); return@request }
+            if (lat.isNaN() || lon.isNaN()) { omLoading = false; val ws = ArrayList(waiting); waiting.clear(); ws.forEach { it() }; return@request }
             val f = if (cfg?.optJSONObject("unit_system")?.optString("temperature") == "°F") "&temperature_unit=fahrenheit" else ""
             val url = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon" +
                 "&current=temperature_2m,relative_humidity_2m,weather_code,is_day,wind_speed_10m" +
@@ -86,12 +86,23 @@ object Weather {
         }
     }
 
-    /** Previsão por hora e por dia, com cache de 15 minutos. */
+    private var loadingKey = ""
+    private val loadWaiters = ArrayList<() -> Unit>()
+
+    /** Previsão por hora e por dia, com cache de 15 minutos. [done] corre (na main thread) quando uma carga nova termina; com cache fresca não corre. */
     fun load(pref: String, done: () -> Unit) {
         val e = source(pref)
         val k = e ?: "om"
-        if ((System.currentTimeMillis() - at < 15 * 60_000 && key == k && loaded) || loading) { return }
-        loading = true; key = k
+        if (loaded && key == k && System.currentTimeMillis() - at < 15 * 60_000) return
+        loadWaiters += done
+        if (loading && loadingKey == k) return
+        if (key != k) loaded = false
+        loading = true; loadingKey = k
+        fun complete() {
+            if (loadingKey != k) return
+            loading = false; loaded = true; key = k; at = System.currentTimeMillis()
+            val ws = ArrayList(loadWaiters); loadWaiters.clear(); ws.forEach { it() }
+        }
         if (e == null) {
             loadOm({
                 om?.let { j ->
@@ -106,12 +117,12 @@ object Weather {
                         daily = (0 until t.length()).map { Day(ts(t.getString(it)), wmo(c.optInt(it)), hi.optDouble(it), lo.optDouble(it), p?.optDouble(it)?.takeIf { v -> !v.isNaN() }) }
                     }
                 }
-                loading = false; loaded = true; at = System.currentTimeMillis(); done()
+                complete()
             }, true)
             return
         }
         var pending = 2
-        fun finish() { if (--pending == 0) { loading = false; loaded = true; at = System.currentTimeMillis(); done() } }
+        fun finish() { if (--pending == 0) complete() }
         fun ask(type: String, onList: (JSONArray) -> Unit) {
             Ha.request(
                 JSONObject().put("type", "call_service").put("domain", "weather").put("service", "get_forecasts")

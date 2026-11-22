@@ -100,6 +100,7 @@ class WxCard(kit: Kit, private val home: Home, private val kind: String, private
         val tall = kind.contains("tall")
         val wide = kind == "wide"
         background = k.glass(24)
+        Weather.load(pref) { post { update() } }
         val st = Weather.current(pref) { post { update() } }
         val als = Ipma.alerts { post { update() } }
         val col = LinearLayout(k.ctx).apply { orientation = if (tall) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL

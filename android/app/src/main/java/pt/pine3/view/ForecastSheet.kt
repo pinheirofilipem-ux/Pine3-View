@@ -23,6 +23,11 @@ class ForecastSheet(private val act: Activity, private val kit: Kit, private val
     private val h = Handler(Looper.getMainLooper())
     private val wide = kit.wdp >= 820f
     private var open = true
+    private val redraw = Runnable { if (open) { Weather.load(pref) { if (open) h.post { render() } }; render() } }
+    private val listener = object : Ha.Listener {
+        // a ligação pode ainda estar a recuperar (o ecrã acabou de acordar): quando chegam os estados, volta a pedir e a desenhar
+        override fun onStates(changed: Set<String>) { if (changed.isEmpty() || changed.any { it.startsWith("weather.") || it.contains("ipma") || it == "sun.sun" }) { h.removeCallbacks(redraw); h.postDelayed(redraw, 400) } }
+    }
 
     private fun deg(v: Double?) = if (v == null) "–" else Fmt.num(Math.round(v).toDouble(), 0) + "°"
     private fun icon(c: String) = Fmt.WEATHER_ICON[c] ?: "mdi:weather-cloudy"
@@ -162,7 +167,8 @@ class ForecastSheet(private val act: Activity, private val kit: Kit, private val
         }
         dialog.setContentView(root)
         dialog.window?.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
-        dialog.setOnDismissListener { open = false }
+        dialog.setOnDismissListener { open = false; Ha.listeners -= listener; h.removeCallbacks(redraw) }
+        Ha.listeners += listener
         Weather.load(pref) { if (open) h.post { render() } }
         render()
         immersive(dialog)
