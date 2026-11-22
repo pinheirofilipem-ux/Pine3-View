@@ -106,6 +106,67 @@ class DockView(private val kit: Kit, labels: List<Triple<String, String, String>
         }
     }
 
+    // --- arrastar a lente com o dedo (como o Liquid Glass da Apple): a lente cresce, segue o dedo e, ao largar, assenta no separador mais próximo
+    private var grab = false
+    private var dragging = false
+    private var downX = 0f
+    private var grabDx = 0f
+    private var hover = -1
+    private val slop = kit.dp(6)
+
+    private fun lensRect(): android.graphics.RectF = android.graphics.RectF(lensL, paddingTop.toFloat(), lensL + lensW, (paddingTop + tabH).toFloat())
+
+    override fun onInterceptTouchEvent(e: android.view.MotionEvent): Boolean {
+        when (e.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> { downX = e.x; grab = lensRect().let { r -> r.inset(-kit.dp(6).toFloat(), -kit.dp(8).toFloat()); r.contains(e.x, e.y) } && active >= 0; dragging = false }
+            android.view.MotionEvent.ACTION_MOVE -> if (grab && !dragging && Math.abs(e.x - downX) > slop) { startDrag(e.x); return true }
+        }
+        return false
+    }
+
+    private fun startDrag(x: Float) {
+        dragging = true
+        parent?.requestDisallowInterceptTouchEvent(true)
+        move?.cancel(); squish?.cancel()
+        grabDx = x - (lensL + lensW / 2f)
+        hover = active
+        // a lente "levanta": mais larga, mais alta e em vidro claro
+        lens.glass = 1f
+        lens.animate().cancel()
+        android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 220; interpolator = PathInterpolator(0.34f, 1.56f, 0.5f, 1f)
+            val sx0 = lens.scaleXf; val sy0 = lens.scaleYf
+            addUpdateListener { val f = it.animatedValue as Float; lens.scaleXf = sx0 + (1.14f - sx0) * f; lens.scaleYf = sy0 + (1.18f - sy0) * f; lens.invalidate() }
+            start()
+        }
+    }
+
+    override fun onTouchEvent(e: android.view.MotionEvent): Boolean {
+        if (!dragging) return super.onTouchEvent(e)
+        when (e.actionMasked) {
+            android.view.MotionEvent.ACTION_MOVE -> {
+                val minC = row.left + tabs.first().left + tabs.first().width / 2f
+                val maxC = row.left + tabs.last().left + tabs.last().width / 2f
+                val c = (e.x - grabDx).coerceIn(minC - tabs.first().width * 0.25f, maxC + tabs.last().width * 0.25f)
+                // a largura da lente acompanha a do separador por baixo do centro
+                val idx = tabs.indices.minByOrNull { i -> Math.abs(row.left + tabs[i].left + tabs[i].width / 2f - c) } ?: active
+                val w = lensW + (tabs[idx].width - lensW) * 0.25f
+                applyLens(c - w / 2f, w)
+                if (idx != hover) { hover = idx; tabs.indices.forEach { colorTo(it, it == idx, true) } }
+            }
+            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                parent?.requestDisallowInterceptTouchEvent(false)
+                dragging = false; grab = false
+                val i = if (e.actionMasked == android.view.MotionEvent.ACTION_UP) hover.coerceAtLeast(0) else active
+                // assenta: volta ao tamanho normal e a mola leva-a ao separador escolhido
+                lens.glass = 0f
+                lens.scaleXf = 1f; lens.scaleYf = 1f; lens.invalidate()
+                if (i != active) onPick(i) else { colorTo(active, true, true); place(active, animationsOn) }
+            }
+        }
+        return true
+    }
+
     override fun onMeasure(w: Int, h: Int) {
         val avail = MeasureSpec.getSize(w) - kit.dp(24)
         // escolhe o modo mais largo que cabe
@@ -121,7 +182,7 @@ class DockView(private val kit: Kit, labels: List<Triple<String, String, String>
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         super.onLayout(changed, l, t, r, b)
         // a lente é posicionada à mão (nunca por LayoutParams): senão cada fotograma da animação pedia um layout que a cancelava
-        if (move?.isRunning == true) applyLens(lensL, lensW) else if (active >= 0) place(active, animate = false)
+        if (dragging || move?.isRunning == true) applyLens(lensL, lensW) else if (active >= 0) place(active, animate = false)
     }
 
     private fun target(i: Int): Pair<Float, Float> {
