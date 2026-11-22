@@ -1,0 +1,42 @@
+name: Android (nativo, experimental)
+
+# Só corre quando muda algo em android/ (a integração e o HACS não são afetados).
+on:
+  push:
+    paths: ['android/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+          build-root-directory: android
+      - run: chmod +x gradlew && ./gradlew --no-daemon :app:assembleRelease
+      - run: mv app/build/outputs/apk/release/app-release.apk Pine3ViewNative.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pine3-view-native-apk
+          path: android/Pine3ViewNative.apk
+      # Só no branch principal: atualiza a pre-release "android-latest" com o APK mais recente.
+      - uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: android-latest
+          name: Pine3 View nativo (último build)
+          prerelease: true
+          files: android/Pine3ViewNative.apk
+          target_commitish: ${{ github.sha }}
