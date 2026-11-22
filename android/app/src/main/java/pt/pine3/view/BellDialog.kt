@@ -24,7 +24,7 @@ class BellDialog(
     private val act: Activity, private val kit: Kit, private val id: String, private val type: String, private val attrs: JSONObject,
     private val doors: List<String>, private val onWatch: (cam: String, name: String) -> Unit,
 ) {
-    private val dialog = PokeDialog(act)
+    private val dialog = PokeDialog(act).apply { closeOnIdle = false }
     private val h = Handler(Looper.getMainLooper())
     private val cam = attrs.optString("camera_entity").takeIf { type == "ring" && Ha.states.containsKey(it) } ?: ""
     private val call = attrs.optString("call_id")

@@ -128,7 +128,22 @@ class PokeDialog(act: android.app.Activity) : android.app.Dialog(act, android.R.
             } else { brightness(false); v.visibility = View.VISIBLE; v.alpha = 0f; v.animate().alpha(1f).setDuration(PanelState.FADE_MS).start() }
         }
     }
-    override fun onStart() { super.onStart(); PanelState.dialogs++; PanelState.sleepListeners += onSleep; if (PanelState.sleeping) { window?.decorView?.alpha = 0f; window?.decorView?.visibility = View.INVISIBLE } }
-    override fun onStop() { PanelState.sleepListeners -= onSleep; PanelState.dialogs = maxOf(0, PanelState.dialogs - 1); super.onStop() }
+    /** As janelas normais (folhas, previsão...) fecham sozinhas ao fim de [IDLE_MS] sem toques; a câmara e a campainha ficam abertas. */
+    var closeOnIdle = true
+    private val idle = object : Runnable {
+        override fun run() {
+            if (!isShowing) return
+            if (closeOnIdle && System.currentTimeMillis() - PanelState.lastTouch > IDLE_MS) { dismiss(); return }
+            window?.decorView?.postDelayed(this, 1000)
+        }
+    }
+    companion object {
+        const val IDLE_MS = 10_000L
+        val shown = java.util.concurrent.CopyOnWriteArrayList<PokeDialog>()
+        /** O screensaver vai aparecer por cima de tudo: fecha as janelas que fecham por inatividade. */
+        fun closeIdle() { shown.filter { it.closeOnIdle }.forEach { try { it.dismiss() } catch (_: Exception) {} } }
+    }
+    override fun onStart() { super.onStart(); shown += this; window?.decorView?.postDelayed(idle, 1000); PanelState.dialogs++; PanelState.sleepListeners += onSleep; if (PanelState.sleeping) { window?.decorView?.alpha = 0f; window?.decorView?.visibility = View.INVISIBLE } }
+    override fun onStop() { shown -= this; window?.decorView?.removeCallbacks(idle); PanelState.sleepListeners -= onSleep; PanelState.dialogs = maxOf(0, PanelState.dialogs - 1); super.onStop() }
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean { MotionService.poke(); return super.dispatchTouchEvent(ev) }
 }

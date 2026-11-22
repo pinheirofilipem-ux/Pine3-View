@@ -117,6 +117,7 @@ class MainActivity : Activity(), Nav {
     private var saverVideoFailed = false
 
     private fun showSaver() {
+        PokeDialog.closeIdle() // o screensaver fica por cima de tudo: as janelas normais fecham primeiro
         val video = prefs.saverVideo && !saverVideoFailed
         Aerials.setExtra(prefs.saverExtra); Aerials.setLocal(this)
         val s = SaverView(kit, Ha.home?.settings?.optBoolean("clock_24h", true) ?: true, video, null, "black", prefs.saverFit) { hideSaver() }
@@ -207,6 +208,7 @@ class MainActivity : Activity(), Nav {
     override fun onResume() {
         super.onResume()
         resumed = true
+        dirty = false
         saverVideoFailed = false
         if (Glass.level != prefs.glassLevel) { Glass.level = prefs.glassLevel; buildDock(); shownKey = "" } // o estilo do vidro mudou nas definições
         cover()
@@ -232,7 +234,7 @@ class MainActivity : Activity(), Nav {
         cover()
         handler.removeCallbacks(openSettingsRun)
         handler.removeCallbacks(saverTick)
-        handler.removeCallbacks(flush)
+        handler.removeCallbacks(flush); dirty = false
         Ha.listeners -= haListener
         PanelState.listener = null
         super.onPause()
