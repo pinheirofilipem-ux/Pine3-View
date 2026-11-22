@@ -143,7 +143,7 @@ class MainActivity : Activity(), Nav {
         if (!resumed) return // fica em Ha.pendingBell; abre-se no onResume
         if (type == "ring" || type == "floor_call") {
             Ha.pendingBell = null
-            if (Ha.home?.settings?.optString("bell", "on") == "off") return
+            if (!prefs.bellPopup) return
             bell?.dismiss(); hideSaver()
             val cam = attrs.optString("camera_entity")
             val rel = attrs.optString("release_entity").takeIf { Ha.states.containsKey(it) }
@@ -152,14 +152,7 @@ class MainActivity : Activity(), Nav {
         } else bell?.onEvent(id, type, attrs)
     }
 
-    /** Portas associadas a uma câmara (cam_doors do Pine3 View, ou as fechaduras da casa). */
-    private fun doorsFor(camId: String): List<String> {
-        val home = Ha.home
-        val cfg = home?.settings?.optJSONObject("cam_doors")?.optJSONArray(camId)
-        val chosen = if (cfg != null) (0 until cfg.length()).map { cfg.getString(it) } else emptyList()
-        val locks = home?.rooms?.flatMap { it.devices }?.filter { it.kind == "lock" || (it.kind == "button" && Regex("lock|door|gate|entrance|porta|port[aã]o|fecha", RegexOption.IGNORE_CASE).containsMatchIn(it.id + it.name)) }?.map { it.id }.orEmpty()
-        return chosen.ifEmpty { locks.take(1) }
-    }
+    private fun doorsFor(camId: String): List<String> = doorsForCamera(camId)
 
     // Dois dedos premidos > 2 s abrem as definições.
     private val openSettingsRun = Runnable { openSettings() }

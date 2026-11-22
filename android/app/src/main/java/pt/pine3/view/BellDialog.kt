@@ -163,3 +163,23 @@ class BellDialog(
     val isShowing get() = open && dialog.isShowing
     fun dismiss() { open = false; if (dialog.isShowing) dialog.dismiss() }
 }
+
+/** Portas associadas a uma câmara (cam_doors do Pine3 View, ou as fechaduras da casa). */
+fun doorsForCamera(camId: String): List<String> {
+    val home = Ha.home
+    val cfg = home?.settings?.optJSONObject("cam_doors")?.optJSONArray(camId)
+    val chosen = if (cfg != null) (0 until cfg.length()).map { cfg.getString(it) } else emptyList()
+    val locks = home?.rooms?.flatMap { it.devices }?.filter { it.kind == "lock" || (it.kind == "button" && Regex("lock|door|gate|entrance|porta|port[aã]o|fecha", RegexOption.IGNORE_CASE).containsMatchIn(it.id + it.name)) }?.map { it.id }.orEmpty()
+    return chosen.ifEmpty { locks.take(1) }
+}
+
+/** Mostra o pop-up da campainha como se tivessem tocado agora (a primeira campainha do HA, ou a entidade das regras). Devolve false se não houver nenhuma. */
+fun testBell(act: Activity, kit: Kit): Boolean {
+    val id = Ha.states.keys.filter { it.startsWith("event.") && Ha.states[it]?.attrs?.optString("device_class") == "doorbell" }.sorted().firstOrNull()
+        ?: Prefs(act).wakeRules.firstOrNull()?.entity?.takeIf { Ha.states.containsKey(it) } ?: return false
+    val attrs = JSONObject(Ha.states[id]?.attrs?.toString() ?: "{}").put("event_type", "ring")
+    val rel = attrs.optString("release_entity").takeIf { Ha.states.containsKey(it) }
+    val doors = if (rel != null) listOf(rel) else doorsForCamera(attrs.optString("camera_entity"))
+    BellDialog(act, kit, id, "ring", attrs, doors) { c, n -> CamViewer(act, kit, c, n, doorsForCamera(c)).show() }.show()
+    return true
+}

@@ -57,6 +57,11 @@ class Prefs(ctx: Context) {
         return if (s <= 0) 0 else minOf(s, maxOf(1, timeoutSec - 1))
     }
 
+    /** Mostrar o pop-up quando tocam à campainha. */
+    var bellPopup: Boolean
+        get() = sp.getBoolean("bellPopup", true)
+        set(v) = sp.edit().putBoolean("bellPopup", v).apply()
+
     /** Estilo do vidro: 0 atual, 1 suave, 2 Liquid Glass. */
     var glassLevel: Int
         get() = sp.getInt("glassLevel", 0)

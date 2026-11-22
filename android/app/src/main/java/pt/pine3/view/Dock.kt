@@ -48,7 +48,7 @@ internal class LensView(private val kit: Kit) : View(kit.ctx) {
         c.drawRoundRect(r, h / 2f, h / 2f, edge)
         // brilho no topo
         val top = h * 0.45f
-        sheen.shader = LinearGradient(0f, 0f, 0f, top, Color.argb((140 * (0.7f + 0.3f * glass)).toInt(), 255, 255, 255), Color.TRANSPARENT, Shader.TileMode.CLAMP)
+        sheen.shader = LinearGradient(0f, 0f, 0f, top, Color.argb((140 * (0.7f + 0.3f * glass)).toInt(), 255, 255, 255), Color.argb(0, 255, 255, 255), Shader.TileMode.CLAMP)
         r.set(w * 0.12f, h * 0.03f, w * 0.88f, h * 0.03f + top)
         c.drawRoundRect(r, top / 2f, top / 2f, sheen)
         c.restore()

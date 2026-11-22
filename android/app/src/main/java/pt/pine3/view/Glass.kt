@@ -29,15 +29,32 @@ class GlassDrawable(private val kit: Kit, private val radiusPx: Float, private v
     private fun a(c: Int, alpha: Float) = Color.argb((alpha.coerceIn(0f, 1f) * 255).toInt(), Color.red(c), Color.green(c), Color.blue(c))
     private fun mix(c: Int, w: Int, t: Float) = Color.rgb((Color.red(c) + (Color.red(w) - Color.red(c)) * t).toInt(), (Color.green(c) + (Color.green(w) - Color.green(c)) * t).toInt(), (Color.blue(c) + (Color.blue(w) - Color.blue(c)) * t).toInt())
 
+    companion object {
+        /** Cada tamanho/estilo desenha-se uma vez e reutiliza-se (os cartões da grelha partilham o mesmo bitmap). */
+        private val cache = object : android.util.LruCache<String, android.graphics.Bitmap>(24 * 1024 * 1024) {
+            override fun sizeOf(key: String, value: android.graphics.Bitmap) = value.byteCount
+        }
+    }
+
     override fun draw(c: Canvas) {
         val b = bounds
         if (b.isEmpty) return
-        val w = b.width().toFloat(); val h = b.height().toFloat()
+        val key = "${b.width()}x${b.height()}|$kind|$base|$level|${kit.light}|$radiusPx"
+        var bm = cache.get(key)
+        if (bm == null) {
+            bm = android.graphics.Bitmap.createBitmap(b.width(), b.height(), android.graphics.Bitmap.Config.ARGB_8888)
+            render(Canvas(bm), b.width().toFloat(), b.height().toFloat())
+            cache.put(key, bm)
+        }
+        c.drawBitmap(bm, b.left.toFloat(), b.top.toFloat(), null)
+    }
+
+    private fun render(c: Canvas, w: Float, h: Float) {
         val rad = minOf(radiusPx, minOf(w, h) / 2f)
         val one = kit.dp(1).toFloat()
         val light = kit.light
         val strong = level >= 2
-        c.save(); c.translate(b.left.toFloat(), b.top.toFloat())
+        c.save()
         r.set(0f, 0f, w, h)
         clip.reset(); clip.addRoundRect(r, rad, rad, Path.Direction.CW)
         c.save(); c.clipPath(clip)
@@ -53,14 +70,14 @@ class GlassDrawable(private val kit: Kit, private val radiusPx: Float, private v
 
         // luz de canto (nível 2)
         if (strong) {
-            p.shader = RadialGradient(w * 0.05f, h * 0.02f, maxOf(w, h) * 0.75f, intArrayOf(a(Color.WHITE, if (kind == 1) .8f else .34f), Color.TRANSPARENT), floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
+            p.shader = RadialGradient(w * 0.05f, h * 0.02f, maxOf(w, h) * 0.75f, intArrayOf(a(Color.WHITE, if (kind == 1) .8f else .34f), a(Color.WHITE, 0f)), floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
             c.drawRect(r, p)
             // brilho diagonal
-            p.shader = LinearGradient(0f, 0f, w, h, intArrayOf(Color.TRANSPARENT, a(Color.WHITE, .10f), Color.TRANSPARENT), floatArrayOf(0.38f, 0.5f, 0.62f), Shader.TileMode.CLAMP)
+            p.shader = LinearGradient(0f, 0f, w, h, intArrayOf(a(Color.WHITE, 0f), a(Color.WHITE, .10f), a(Color.WHITE, 0f)), floatArrayOf(0.38f, 0.5f, 0.62f), Shader.TileMode.CLAMP)
             c.drawRect(r, p)
         }
         // faixa de brilho no topo
-        p.shader = LinearGradient(0f, 0f, 0f, h * 0.5f, a(Color.WHITE, if (kind == 1) .5f else if (strong) .30f else .22f), Color.TRANSPARENT, Shader.TileMode.CLAMP)
+        p.shader = LinearGradient(0f, 0f, 0f, h * 0.5f, a(Color.WHITE, if (kind == 1) .5f else if (strong) .30f else .22f), a(Color.WHITE, 0f), Shader.TileMode.CLAMP)
         c.drawRect(0f, 0f, w, h * 0.5f, p)
         c.restore()
 

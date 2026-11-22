@@ -483,6 +483,13 @@ class SettingsActivity : Activity() {
         val bellWhen = input(rule.whenValue, "ring", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, app = true); scr.addView(bellWhen)
         label(scr, "Manter o ecrã ligado (segundos)")
         val bellHold = input(rule.holdSec.toString(), "120", InputType.TYPE_CLASS_NUMBER, app = true); scr.addView(bellHold)
+        var bellPopup = prefs.bellPopup
+        optToggle(scr, "Pop-up da campainha", "Quando tocam à porta, abre logo a última imagem da câmara, o botão para abrir a porta e o vídeo a pedido.", bellPopup) { bellPopup = it; markApp() }
+        divider(scr)
+        val testRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        testRow.addView(titleBlock("Testar a campainha", "Mostra o pop-up como se tivessem tocado agora."), LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = d(16) })
+        testRow.addView(pillBtn("Testar", "mdi:bell-ring-outline") { if (!testBell(this, kit)) showToast(Tr.t("Nenhuma campainha encontrada")) })
+        scr.addView(testRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(14) })
         var boot = prefs.bootStart
         optToggle(scr, "Abrir quando o tablet arranca", null, boot) { boot = it; markApp() }
 
@@ -513,7 +520,7 @@ class SettingsActivity : Activity() {
 
         saveApp = {
             commitHa()
-            prefs.bootStart = boot
+            prefs.bootStart = boot; prefs.bellPopup = bellPopup
             val entity = bellEntity.text.toString().trim().lowercase()
             prefs.wakeRules = if (entity.isBlank()) emptyList() else listOf(WakeRule(entity, bellWhen.text.toString().trim(), (bellHold.text.toString().toIntOrNull() ?: 120).coerceIn(5, 3600)))
             Ha.configure(this)
