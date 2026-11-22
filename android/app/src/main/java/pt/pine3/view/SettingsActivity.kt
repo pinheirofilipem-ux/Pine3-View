@@ -584,7 +584,9 @@ class SettingsActivity : Activity() {
             })
         }
         vid.addView(sw, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(4) })
-        para(vid, "O Android não lê a transparência destes clipes: a cor aparece no preto deles (por isso as linhas pretas do desenho ficam da cor do fundo). Preto = sem fundo.")
+        var blend = prefs.saverBlend
+        optChoice(vid, "Onde aparece a cor", "O Android não lê a transparência destes clipes: o fundo deles vem branco ou preto, consoante o clipe. Escolhe o que se parece com os teus.",
+            listOf("white" to "Nos brancos", "black" to "Nos pretos"), blend) { blend = it; prefs.saverBlend = it; markApp(); redraw() }
 
         var quality = prefs.saverQuality
         optChoice(vid, "Qualidade (vídeos da Apple TV)", "1080p gasta menos dados; 4K só em tablets potentes.", listOf("1080" to "1080p (H.264)", "4k" to "4K"), quality) { quality = it; markApp(); redraw() }
@@ -655,7 +657,7 @@ class SettingsActivity : Activity() {
             prefs.timeoutSec = lockV; prefs.saverSecRaw = saverV
             prefs.sensitivity = sens.progress + 1
             prefs.saverVideo = saverVideo; prefs.saverQuality = quality; prefs.saverSource = src.text.toString(); prefs.saverList = listIn.text.toString()
-            prefs.packUrl = packUrl.text.toString().ifBlank { Pack.DEFAULT_URL }; prefs.saverExtra = extraIn.text.toString(); prefs.saverBg = bg
+            prefs.packUrl = packUrl.text.toString().ifBlank { Pack.DEFAULT_URL }; prefs.saverExtra = extraIn.text.toString(); prefs.saverBg = bg; prefs.saverBlend = blend
             if (files.isNotEmpty()) prefs.clipMinMb = minMb
             Aerials.reparse(this, quality)
         }

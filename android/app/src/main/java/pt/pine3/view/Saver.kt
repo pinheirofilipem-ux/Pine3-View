@@ -1,6 +1,8 @@
 package pt.pine3.view
 
 import android.animation.ValueAnimator
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
@@ -17,8 +19,9 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 /** Ecrã de descanso (.saver do painel web): relógio grande e escurecido que deriva devagar. Um toque fecha. */
-class SaverView(private val kit: Kit, private val h24: Boolean, private val video: Boolean = false, private val bg: Int? = null, private val onClose: () -> Unit) : FrameLayout(kit.ctx) {
+class SaverView(private val kit: Kit, private val h24: Boolean, private val video: Boolean = false, private val bg: Int? = null, private val blend: String = "white", private val onClose: () -> Unit) : FrameLayout(kit.ctx) {
     private var player: AerialView? = null
+    private var vclock: ClockView? = null
     private val clock = kit.text("", kit.clamp(90f, kit.vw(18f), 220f), Color.argb(235, 255, 255, 255), 200, display = true)
     private val date = kit.text("", kit.clamp(18f, kit.vw(2.4f), 28f), Color.argb(153, 255, 255, 255))
     private val meta = LinearLayout(kit.ctx).apply { gravity = Gravity.CENTER }
@@ -36,16 +39,14 @@ class SaverView(private val kit: Kit, private val h24: Boolean, private val vide
         if (video) {
             // vídeo por trás e, em baixo à esquerda como na Apple TV, a hora e a data com sombra
             setBackgroundColor(bg ?: Color.BLACK)
-            player = AerialView(kit.ctx, bg != null).also { addView(it, LayoutParams(-1, -1)) }
+            player = AerialView(kit.ctx, bg != null, blend).also { addView(it, LayoutParams(-1, -1)) }
             addView(View(kit.ctx).apply { background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.TRANSPARENT, Color.argb(150, 0, 0, 0))) },
                 LayoutParams(-1, kit.dp(kit.clamp(220f, kit.hdp * 0.42f, 420f)), Gravity.BOTTOM))
-            for (t in listOf(clock, date)) t.setShadowLayer(kit.dp(10).toFloat(), 0f, kit.dp(2).toFloat(), Color.argb(170, 0, 0, 0))
-            clock.textSize = kit.clamp(64f, kit.vw(9f), 120f)
-            clock.includeFontPadding = false; clock.setPadding(0, 0, kit.dp(28), 0); clock.setSingleLine(true); clock.ellipsize = null
-            // a largura medida pelo tipo de letra variável fica curta e corta o último algarismo: reserva sempre largura de sobra (alinhado à esquerda, não se nota)
-            clock.minWidth = (clock.textSize * (if (h24) 3.6f else 5.4f)).toInt()
+            date.setShadowLayer(kit.dp(10).toFloat(), 0f, kit.dp(2).toFloat(), Color.argb(170, 0, 0, 0))
             inner.gravity = Gravity.START
-            inner.addView(clock); inner.addView(date, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(2) })
+            // a hora é desenhada à mão (não por um TextView): o tipo de letra variável fazia o campo ficar curto e cortava os últimos algarismos
+            vclock = ClockView(kit, kit.clamp(64f, kit.vw(9f), 120f), h24).also { inner.addView(it) }
+            inner.addView(date, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(2) })
             addView(inner, LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply { leftMargin = kit.dp(56); bottomMargin = kit.dp(44) })
         } else {
             inner.addView(clock); inner.addView(date, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(6) })
@@ -60,7 +61,8 @@ class SaverView(private val kit: Kit, private val h24: Boolean, private val vide
 
     private fun refresh() {
         val now = java.util.Date()
-        clock.text = java.text.SimpleDateFormat(if (h24) "HH:mm" else "h:mm a", Tr.locale).format(now)
+        val tm = java.text.SimpleDateFormat(if (h24) "HH:mm" else "h:mm a", Tr.locale).format(now)
+        clock.text = tm; vclock?.text = tm
         date.text = java.text.SimpleDateFormat("EEEE d MMMM", Tr.locale).format(now).replaceFirstChar { it.uppercase() }
         meta.removeAllViews()
         if (video) return
@@ -95,8 +97,9 @@ class SaverView(private val kit: Kit, private val h24: Boolean, private val vide
 }
 
 /** Reproduz os vídeos em sequência, sem som, ocupando o ecrã todo (corta as margens como "preencher") e com fade entre eles. */
-class AerialView(ctx: Context, private val hasBg: Boolean = false) : TextureView(ctx), TextureView.SurfaceTextureListener {
-    private val lighten = android.graphics.Paint().apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.LIGHTEN) }
+class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String = "white") : TextureView(ctx), TextureView.SurfaceTextureListener {
+    /** "white": multiplica (o branco do clipe passa à cor de fundo, as linhas pretas ficam); "black": clareia (o preto passa à cor). */
+    private val lighten = android.graphics.Paint().apply { xfermode = android.graphics.PorterDuffXfermode(if (blend == "black") android.graphics.PorterDuff.Mode.LIGHTEN else android.graphics.PorterDuff.Mode.MULTIPLY) }
     private var mp: MediaPlayer? = null
     private var queue: ArrayDeque<Aerials.Clip> = ArrayDeque()
     private var failures = 0
@@ -152,4 +155,19 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false) : TextureView
         try { mp?.release() } catch (_: Exception) {}
         mp = null
     }
+}
+
+/** A hora grande do screensaver em vídeo, desenhada num canvas com largura de sobra (nunca corta). */
+class ClockView(private val kit: Kit, sizeSp: Float, private val h24: Boolean) : View(kit.ctx) {
+    var text = ""
+        set(v) { if (field != v) { field = v; invalidate() } }
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = kit.font(200, true); color = Color.argb(240, 255, 255, 255); textSize = sizeSp * kit.ctx.resources.displayMetrics.scaledDensity
+        setShadowLayer(kit.dp(10).toFloat(), 0f, kit.dp(2).toFloat(), Color.argb(170, 0, 0, 0))
+    }
+    override fun onMeasure(w: Int, h: Int) {
+        val ref = if (h24) "00:00" else "00:00 AM"
+        setMeasuredDimension((p.measureText(ref) * 1.5f + kit.dp(40)).toInt(), (p.fontMetrics.descent - p.fontMetrics.ascent + kit.dp(8)).toInt())
+    }
+    override fun onDraw(c: Canvas) { c.drawText(text, 0f, -p.fontMetrics.ascent + kit.dp(4), p) }
 }
