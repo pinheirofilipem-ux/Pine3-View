@@ -270,14 +270,8 @@ class MainActivity : Activity(), Nav {
         rebuild()
     }
 
-    /** Câmara ao vivo + portas associadas (definição cam_doors do Pine3 View, ou as fechaduras da casa). */
-    private fun camViewer(id: String, name: String) {
-        val home = Ha.home
-        val cfg = home?.settings?.optJSONObject("cam_doors")?.optJSONArray(id)
-        val chosen = if (cfg != null) (0 until cfg.length()).map { cfg.getString(it) } else emptyList()
-        val locks = home?.rooms?.flatMap { it.devices }?.filter { it.kind == "lock" || (it.kind == "button" && Regex("lock|door|gate|entrance|porta|port[aã]o|fecha", RegexOption.IGNORE_CASE).containsMatchIn(it.id + it.name)) }?.map { it.id }.orEmpty()
-        CamViewer(this, kit, id, name, chosen.ifEmpty { locks.take(1) }).show()
-    }
+    /** Câmara ao vivo + as portas ao lado dela. */
+    private fun camViewer(id: String, name: String) { CamViewer(this, kit, id, name, Doors.forCamera(id)).show() }
 
     override fun openScreen(key: String) {
         if (key == "weather") { ForecastSheet(this, kit, Ha.home?.settings?.optString("weather_entity", "").orEmpty()).show(); return }

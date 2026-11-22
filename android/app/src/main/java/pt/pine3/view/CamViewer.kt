@@ -74,25 +74,31 @@ class CamViewer(private val act: Activity, private val kit: Kit, private val cam
         pic.outlineProvider = object : android.view.ViewOutlineProvider() { override fun getOutline(v: View, o: android.graphics.Outline) { o.setRoundRect(0, 0, v.width, v.height, kit.dp(20).toFloat()) } }
         body.addView(pic, LinearLayout.LayoutParams(0, kit.dp(kit.clamp(220f, kit.hdp - 230f, 560f)), 1f))
         val side = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
-        doors.forEach { d ->
-            val label = TextView(act)
-            val b = LinearLayout(act).apply {
-                orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-                background = kit.ripple(kit.rounded(kit.accent, 24)); setPadding(kit.dp(14), kit.dp(18), kit.dp(14), kit.dp(18)); isClickable = true
-                addView(kit.icon("mdi:door-open", kit.ink, 30), LinearLayout.LayoutParams(kit.dp(30), kit.dp(30)))
-                addView(kit.text(Tr.t("Abrir"), 19f, kit.ink, 600, display = true))
-                addView(label.apply { text = Fmt.name(d) + " · " + Tr.t("toca duas vezes"); setTextColor(Color.argb(170, 42, 34, 31)); textSize = 12f })
+        val doorsBox = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        side.addView(doorsBox)
+        fun fillDoors() {
+            doorsBox.removeAllViews()
+            Doors.forCamera(camId).ifEmpty { doors }.forEach { d ->
+                val label = TextView(act)
+                val b = LinearLayout(act).apply {
+                    orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
+                    background = kit.ripple(kit.rounded(kit.accent, 24)); setPadding(kit.dp(14), kit.dp(18), kit.dp(14), kit.dp(18)); isClickable = true
+                    addView(kit.icon("mdi:door-open", kit.ink, 30), LinearLayout.LayoutParams(kit.dp(30), kit.dp(30)))
+                    addView(kit.text(Tr.t("Abrir"), 19f, kit.ink, 600, display = true))
+                    addView(label.apply { text = Fmt.name(d) + " · " + Tr.t("toca duas vezes"); setTextColor(Color.argb(170, 42, 34, 31)); textSize = 12f })
+                }
+                b.setOnClickListener {
+                    val now = System.currentTimeMillis()
+                    if (armed == d && now < armUntil) {
+                        armed = null
+                        if (Fmt.domain(d) == "button") Ha.call("button", "press", listOf(d)) else Ha.call("lock", "open", listOf(d))
+                        label.text = Tr.t("Abrir") + " ✓"
+                    } else { armed = d; armUntil = now + 4000 }
+                }
+                doorsBox.addView(b, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = kit.dp(12) })
             }
-            b.setOnClickListener {
-                val now = System.currentTimeMillis()
-                if (armed == d && now < armUntil) {
-                    armed = null
-                    if (Fmt.domain(d) == "button") Ha.call("button", "press", listOf(d)) else Ha.call("lock", "open", listOf(d))
-                    label.text = Tr.t("Abrir") + " ✓"
-                } else { armed = d; armUntil = now + 4000 }
-            }
-            side.addView(b, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = kit.dp(12) })
         }
+        fillDoors()
         side.addView(LinearLayout(act).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
             background = kit.ripple(kit.rounded(Color.argb(36, 255, 255, 255), 24)); setPadding(kit.dp(14), kit.dp(18), kit.dp(14), kit.dp(18)); isClickable = true
@@ -101,6 +107,10 @@ class CamViewer(private val act: Activity, private val kit: Kit, private val cam
             addView(kit.text("+2 min", 19f, Color.WHITE, 600, display = true))
             addView(kit.text(Tr.t("mantém ao vivo"), 12f, Color.argb(166, 255, 255, 255)))
         }, LinearLayout.LayoutParams(-1, -2))
+        side.addView(kit.text("✎  " + Tr.t("Escolher portas"), 13f, Color.argb(190, 255, 255, 255), 600).apply {
+            setPadding(kit.dp(4), kit.dp(12), kit.dp(4), kit.dp(8)); isClickable = true
+            setOnClickListener { DoorPicker(act, kit, camId) { fillDoors() }.show() }
+        })
         side.addView(View(act), LinearLayout.LayoutParams(-1, 0, 1f))
         side.addView(kit.text(Tr.t("Fechar para o vídeo."), 12f, Color.argb(166, 255, 255, 255)).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(-1, -2))
         body.addView(side, LinearLayout.LayoutParams(kit.dp(200), -1).apply { marginStart = kit.dp(16) })

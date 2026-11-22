@@ -122,26 +122,39 @@ class BellDialog(
             body.addView(pic, LinearLayout.LayoutParams(0, kit.dp(kit.clamp(220f, kit.hdp - 260f, 520f)), 1f))
         }
         val side = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
-        doors.forEach { d ->
-            val label = TextView(act)
-            val b = LinearLayout(act).apply {
-                orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-                background = kit.ripple(kit.rounded(kit.accent, 24)); setPadding(kit.dp(14), kit.dp(18), kit.dp(14), kit.dp(18)); isClickable = true
-                addView(kit.icon("mdi:door-open", kit.ink, 30), LinearLayout.LayoutParams(kit.dp(30), kit.dp(30)))
-                addView(kit.text(Tr.t("Abrir"), 19f, kit.ink, 600, display = true))
-                addView(label.apply { text = Fmt.name(d) + " · " + Tr.t("toca duas vezes"); setTextColor(Color.argb(170, 42, 34, 31)); textSize = 12f })
-                Elastic.press(this, 0.95f)
+        val doorsBox = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        side.addView(doorsBox)
+        fun fillDoors() {
+            doorsBox.removeAllViews()
+            // a abertura da própria campainha, senão as portas da câmara (as que escolheres valem também no painel web); nada na chamada ao andar
+            val rel = attrs.optString("release_entity").takeIf { Ha.states.containsKey(it) }
+            val list = if (type == "floor_call") emptyList() else if (rel != null) listOf(rel) else if (cam.isNotBlank()) Doors.forCamera(cam) else doors
+            list.forEach { d ->
+                val label = TextView(act)
+                val b = LinearLayout(act).apply {
+                    orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
+                    background = kit.ripple(kit.rounded(kit.accent, 24)); setPadding(kit.dp(14), kit.dp(18), kit.dp(14), kit.dp(18)); isClickable = true
+                    addView(kit.icon("mdi:door-open", kit.ink, 30), LinearLayout.LayoutParams(kit.dp(30), kit.dp(30)))
+                    addView(kit.text(Tr.t("Abrir"), 19f, kit.ink, 600, display = true))
+                    addView(label.apply { text = Fmt.name(d) + " · " + Tr.t("toca duas vezes"); setTextColor(Color.argb(170, 42, 34, 31)); textSize = 12f })
+                    Elastic.press(this, 0.95f)
+                }
+                b.setOnClickListener {
+                    val now = System.currentTimeMillis()
+                    if (armed == d && now < armUntil) {
+                        armed = null
+                        if (Fmt.domain(d) == "button") Ha.call("button", "press", listOf(d)) else Ha.call("lock", "open", listOf(d))
+                        label.text = Tr.t("Abrir") + " ✓"
+                    } else { armed = d; armUntil = now + 4000 }
+                }
+                doorsBox.addView(b, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = kit.dp(12) })
             }
-            b.setOnClickListener {
-                val now = System.currentTimeMillis()
-                if (armed == d && now < armUntil) {
-                    armed = null
-                    if (Fmt.domain(d) == "button") Ha.call("button", "press", listOf(d)) else Ha.call("lock", "open", listOf(d))
-                    label.text = Tr.t("Abrir") + " ✓"
-                } else { armed = d; armUntil = now + 4000 }
-            }
-            side.addView(b, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = kit.dp(12) })
         }
+        fillDoors()
+        if (cam.isNotBlank() && type != "floor_call") side.addView(kit.text("✎  " + Tr.t("Escolher portas"), 13f, Color.argb(190, 255, 255, 255), 600).apply {
+            setPadding(kit.dp(4), kit.dp(8), kit.dp(4), kit.dp(8)); isClickable = true
+            setOnClickListener { DoorPicker(act, kit, cam) { fillDoors() }.show() }
+        })
         body.addView(side, LinearLayout.LayoutParams(if (cam.isBlank() && snap.isBlank()) kit.dp(320) else kit.dp(200), -2).apply { if (cam.isNotBlank() || snap.isNotBlank()) marginStart = kit.dp(16) })
         card.addView(body)
 
@@ -164,14 +177,8 @@ class BellDialog(
     fun dismiss() { open = false; if (dialog.isShowing) dialog.dismiss() }
 }
 
-/** Portas associadas a uma câmara (cam_doors do Pine3 View, ou as fechaduras da casa). */
-fun doorsForCamera(camId: String): List<String> {
-    val home = Ha.home
-    val cfg = home?.settings?.optJSONObject("cam_doors")?.optJSONArray(camId)
-    val chosen = if (cfg != null) (0 until cfg.length()).map { cfg.getString(it) } else emptyList()
-    val locks = home?.rooms?.flatMap { it.devices }?.filter { it.kind == "lock" || (it.kind == "button" && Regex("lock|door|gate|entrance|porta|port[aã]o|fecha", RegexOption.IGNORE_CASE).containsMatchIn(it.id + it.name)) }?.map { it.id }.orEmpty()
-    return chosen.ifEmpty { locks.take(1) }
-}
+/** Portas ao lado de uma câmara (mesmas regras do painel web). */
+fun doorsForCamera(camId: String): List<String> = Doors.forCamera(camId)
 
 /** Mostra o pop-up da campainha como se tivessem tocado agora (a primeira campainha do HA, ou a entidade das regras). Devolve false se não houver nenhuma. */
 fun testBell(act: Activity, kit: Kit): Boolean {
