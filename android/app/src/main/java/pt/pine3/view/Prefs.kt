@@ -64,7 +64,7 @@ class Prefs(ctx: Context) {
 
     /** Onde a cor de fundo aparece: "white" (nos brancos do clipe, multiplicando) ou "black" (nos pretos, clareando). */
     var saverBlend: String
-        get() = sp.getString("saverBlend", "white") ?: "white"
+        get() = sp.getString("saverBlend", "black") ?: "black"
         set(v) = sp.edit().putString("saverBlend", v).apply()
 
     /** Tamanho mínimo (MB) de um clipe para entrar por regra: os pequenos costumam ser loops soltos. */

@@ -21,7 +21,7 @@ import android.widget.TextView
 /** Ecrã de descanso (.saver do painel web): relógio grande e escurecido que deriva devagar. Um toque fecha. */
 class SaverView(private val kit: Kit, private val h24: Boolean, private val video: Boolean = false, private val bg: Int? = null, private val blend: String = "white", private val onClose: () -> Unit) : FrameLayout(kit.ctx) {
     private var player: AerialView? = null
-    private var vclock: ClockView? = null
+    private var overlay: TimeOverlay? = null
     private val clock = kit.text("", kit.clamp(90f, kit.vw(18f), 220f), Color.argb(235, 255, 255, 255), 200, display = true)
     private val date = kit.text("", kit.clamp(18f, kit.vw(2.4f), 28f), Color.argb(153, 255, 255, 255))
     private val meta = LinearLayout(kit.ctx).apply { gravity = Gravity.CENTER }
@@ -42,12 +42,10 @@ class SaverView(private val kit: Kit, private val h24: Boolean, private val vide
             player = AerialView(kit.ctx, bg != null, blend).also { addView(it, LayoutParams(-1, -1)) }
             addView(View(kit.ctx).apply { background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.TRANSPARENT, Color.argb(150, 0, 0, 0))) },
                 LayoutParams(-1, kit.dp(kit.clamp(220f, kit.hdp * 0.42f, 420f)), Gravity.BOTTOM))
-            date.setShadowLayer(kit.dp(10).toFloat(), 0f, kit.dp(2).toFloat(), Color.argb(170, 0, 0, 0))
-            inner.gravity = Gravity.START
-            // a hora é desenhada à mão (não por um TextView): o tipo de letra variável fazia o campo ficar curto e cortava os últimos algarismos
-            vclock = ClockView(kit, kit.clamp(64f, kit.vw(9f), 120f), h24).also { inner.addView(it) }
-            inner.addView(date, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(2) })
-            addView(inner, LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply { leftMargin = kit.dp(56); bottomMargin = kit.dp(44) })
+            // hora e data desenhadas à mão numa só vista de tamanho fixo (sem medir texto): nada pode cortar
+            overlay = TimeOverlay(kit, kit.clamp(64f, kit.vw(9f), 120f), h24).also {
+                addView(it, LayoutParams(it.fixedW, it.fixedH, Gravity.BOTTOM or Gravity.START).apply { leftMargin = kit.dp(48); bottomMargin = kit.dp(36) })
+            }
         } else {
             inner.addView(clock); inner.addView(date, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(6) })
             inner.addView(meta, LinearLayout.LayoutParams(-2, -2).apply { topMargin = kit.dp(26) })
@@ -62,7 +60,7 @@ class SaverView(private val kit: Kit, private val h24: Boolean, private val vide
     private fun refresh() {
         val now = java.util.Date()
         val tm = java.text.SimpleDateFormat(if (h24) "HH:mm" else "h:mm a", Tr.locale).format(now)
-        clock.text = tm; vclock?.text = tm
+        clock.text = tm; overlay?.set(tm, java.text.SimpleDateFormat("EEEE d MMMM", Tr.locale).format(now).replaceFirstChar { it.uppercase() })
         date.text = java.text.SimpleDateFormat("EEEE d MMMM", Tr.locale).format(now).replaceFirstChar { it.uppercase() }
         meta.removeAllViews()
         if (video) return
@@ -157,17 +155,31 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
     }
 }
 
-/** A hora grande do screensaver em vídeo, desenhada num canvas com largura de sobra (nunca corta). */
-class ClockView(private val kit: Kit, sizeSp: Float, private val h24: Boolean) : View(kit.ctx) {
-    var text = ""
-        set(v) { if (field != v) { field = v; invalidate() } }
-    private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        typeface = kit.font(200, true); color = Color.argb(240, 255, 255, 255); textSize = sizeSp * kit.ctx.resources.displayMetrics.scaledDensity
-        setShadowLayer(kit.dp(10).toFloat(), 0f, kit.dp(2).toFloat(), Color.argb(170, 0, 0, 0))
+/** Hora grande e data do screensaver em vídeo: uma só vista de tamanho fixo que desenha o texto à mão (sem TextView, sem medir). */
+class TimeOverlay(private val kit: Kit, sizeSp: Float, h24: Boolean) : View(kit.ctx) {
+    private val sd = kit.ctx.resources.displayMetrics.scaledDensity
+    private val big = sizeSp * sd
+    private val small = 24f * sd
+    val fixedW = (big * (if (h24) 4.2f else 6.4f)).toInt().coerceAtLeast(kit.dp(300))
+    val fixedH = (big * 1.55f + small * 1.2f).toInt()
+    private var time = ""
+    private var date = ""
+    private val pt = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = kit.font(200, true); textSize = big }
+    private val pd = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = kit.font(400, false); textSize = small }
+
+    fun set(t: String, d: String) { if (t != time || d != date) { time = t; date = d; invalidate() } }
+
+    private fun shadowed(c: Canvas, s: String, x: Float, y: Float, p: Paint, color: Int) {
+        val off = kit.dp(2).toFloat()
+        for (k in 1..3) { p.color = Color.argb(60, 0, 0, 0); c.drawText(s, x + off * k * 0.6f, y + off * k, p) }
+        p.color = color; c.drawText(s, x, y, p)
     }
-    override fun onMeasure(w: Int, h: Int) {
-        val ref = if (h24) "00:00" else "00:00 AM"
-        setMeasuredDimension((p.measureText(ref) * 1.5f + kit.dp(40)).toInt(), (p.fontMetrics.descent - p.fontMetrics.ascent + kit.dp(8)).toInt())
+
+    override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(fixedW, fixedH)
+
+    override fun onDraw(c: Canvas) {
+        val y1 = big * 1.05f
+        shadowed(c, time, 0f, y1, pt, Color.argb(245, 255, 255, 255))
+        shadowed(c, date, 0f, y1 + small * 1.5f, pd, Color.argb(220, 255, 255, 255))
     }
-    override fun onDraw(c: Canvas) { c.drawText(text, 0f, -p.fontMetrics.ascent + kit.dp(4), p) }
 }
