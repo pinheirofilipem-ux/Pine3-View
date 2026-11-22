@@ -128,17 +128,17 @@ class PokeDialog(act: android.app.Activity) : android.app.Dialog(act, android.R.
             } else { brightness(false); v.visibility = View.VISIBLE; v.alpha = 0f; v.animate().alpha(1f).setDuration(PanelState.FADE_MS).start() }
         }
     }
-    /** As janelas normais (folhas, previsão...) fecham sozinhas ao fim de [IDLE_MS] sem toques; a câmara e a campainha ficam abertas. */
+    /** As janelas normais (folhas, previsão...) fecham sozinhas ao fim do tempo definido nas definições (Prefs.modalIdleSec) sem toques; a câmara e a campainha ficam abertas. */
     var closeOnIdle = true
     private val idle = object : Runnable {
         override fun run() {
             if (!isShowing) return
-            if (closeOnIdle && System.currentTimeMillis() - PanelState.lastTouch > IDLE_MS) { dismiss(); return }
+            val idleMs = Prefs(context).modalIdleSec * 1000L
+            if (closeOnIdle && idleMs > 0 && System.currentTimeMillis() - PanelState.lastTouch > idleMs) { dismiss(); return }
             window?.decorView?.postDelayed(this, 1000)
         }
     }
     companion object {
-        const val IDLE_MS = 10_000L
         val shown = java.util.concurrent.CopyOnWriteArrayList<PokeDialog>()
         /** O screensaver vai aparecer por cima de tudo: fecha as janelas que fecham por inatividade. */
         fun closeIdle() { shown.filter { it.closeOnIdle }.forEach { try { it.dismiss() } catch (_: Exception) {} } }

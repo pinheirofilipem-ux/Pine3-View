@@ -31,11 +31,7 @@ object Pack {
 
     private var folderCache: Triple<String, Long, List<Item>>? = null
 
-    /** Os vídeos de uma pasta escolhida (acesso por pastas do Android, sem permissões extra), até 2 níveis de subpastas. */
-    private fun folder(ctx: Context): List<Item> {
-        val tree = Prefs(ctx).clipFolder.takeIf { it.isNotBlank() } ?: return emptyList()
-        folderCache?.let { if (it.first == tree && System.currentTimeMillis() - it.second < 30_000) return it.third }
-        val out = ArrayList<Item>()
+    private fun walkTree(ctx: Context, tree: String, out: MutableList<Item>) {
         try {
             val uri = android.net.Uri.parse(tree)
             fun walk(docId: String, depth: Int) {
@@ -52,12 +48,22 @@ object Pack {
             }
             walk(android.provider.DocumentsContract.getTreeDocumentId(uri), 0)
         } catch (_: Exception) {}
+    }
+
+    /** Os vídeos das pastas escolhidas (acesso por pastas do Android, sem permissões extra), até 2 níveis de subpastas. */
+    private fun folder(ctx: Context): List<Item> {
+        val trees = Prefs(ctx).clipFolders
+        if (trees.isEmpty()) return emptyList()
+        val key = trees.joinToString("|")
+        folderCache?.let { if (it.first == key && System.currentTimeMillis() - it.second < 30_000) return it.third }
+        val out = ArrayList<Item>()
+        trees.forEach { walkTree(ctx, it, out) }
         val list = out.sortedBy { it.name }
-        folderCache = Triple(tree, System.currentTimeMillis(), list)
+        folderCache = Triple(key, System.currentTimeMillis(), list)
         return list
     }
 
-    fun folderName(ctx: Context): String = Prefs(ctx).clipFolder.takeIf { it.isNotBlank() }?.let { Uri.decode(it).substringAfterLast(':').substringAfterLast('/') .ifBlank { it } } ?: ""
+    fun folderName(tree: String): String = Uri.decode(tree).substringAfterLast(':').substringAfterLast('/').ifBlank { tree }
 
     fun files(ctx: Context): List<Item> = (downloaded(ctx) + folder(ctx)).distinctBy { it.name }.sortedBy { it.name }
 

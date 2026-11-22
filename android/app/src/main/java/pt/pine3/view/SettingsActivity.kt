@@ -262,7 +262,7 @@ class SettingsActivity : Activity() {
         if (requestCode == REQ_FOLDER && resultCode == RESULT_OK) {
             val uri = data?.data ?: return
             try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) {}
-            prefs.clipFolder = uri.toString(); Pack.refreshFolder(); Aerials.setLocal(this)
+            prefs.clipFolders = prefs.clipFolders + uri.toString(); Pack.refreshFolder(); Aerials.setLocal(this)
             if (section == "saver") redraw()
         }
     }
@@ -571,6 +571,11 @@ class SettingsActivity : Activity() {
             lockTx.text = "$lockV s"
         }
         lockBar = s2.first; lockTx = s2.second; lockTx.text = "$lockV s"
+        var modalV = prefs.modalIdleSec
+        lateinit var modalTx: TextView
+        fun modalText() = if (modalV == 0) Tr.t("Nunca") else "$modalV s"
+        val s3 = bar("Fechar janelas após (segundos sem toques, 0 = nunca)", modalV, 0, 120) { v -> modalV = v; modalTx.text = modalText() }
+        modalTx = s3.second; modalTx.text = modalText()
         val sh = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         sh.addView(kit.text(Tr.t("Sensibilidade ao movimento"), 13f, kit.muted), LinearLayout.LayoutParams(0, -2, 1f))
         val sensValue = kit.text("${prefs.sensitivity} / 10", 15f, kit.accent, 600); sh.addView(sensValue)
@@ -616,16 +621,21 @@ class SettingsActivity : Activity() {
         h3(pk, Tr.t("Clipes no tablet"), true)
         para(pk, "Descarrega o pacote uma vez (cerca de 530 MB, melhor com Wi-Fi) e os clipes passam do disco, sem rede. Por omissão é o snoopy.saver.zip do repositório hitnology/snoopy.")
         // pasta do tablet com os teus ficheiros
-        label(pk, "Pasta no tablet")
-        val folderTx = kit.text(Pack.folderName(this).ifBlank { "Nenhuma pasta escolhida" }, 14f, kit.fg)
-        pk.addView(folderTx, LinearLayout.LayoutParams(-1, -2))
+        label(pk, "Pastas no tablet")
+        val folders = prefs.clipFolders
+        if (folders.isEmpty()) pk.addView(kit.text(Tr.t("Nenhuma pasta escolhida"), 14f, kit.fg), LinearLayout.LayoutParams(-1, -2))
+        folders.forEach { f ->
+            val r = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+            r.addView(kit.text(Pack.folderName(f), 14f, kit.fg), LinearLayout.LayoutParams(0, -2, 1f))
+            r.addView(pillBtn("Remover", "mdi:close") { prefs.clipFolders = prefs.clipFolders - f; Pack.refreshFolder(); Aerials.setLocal(this); redraw() })
+            pk.addView(r, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(6) })
+        }
         val frow = LinearLayout(this)
-        frow.addView(pillBtn("Escolher pasta…", "mdi:folder-open-outline") {
+        frow.addView(pillBtn(if (folders.isEmpty()) "Escolher pasta…" else "Adicionar pasta…", "mdi:folder-open-outline") {
             startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION), REQ_FOLDER)
         })
-        frow.addView(pillBtn("Limpar", "mdi:close") { prefs.clipFolder = ""; Pack.refreshFolder(); Aerials.setLocal(this); redraw() }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = d(10) })
         pk.addView(frow, LinearLayout.LayoutParams(-2, -2).apply { topMargin = d(10) })
-        para(pk, "Copia os vídeos para uma pasta do tablet (por exemplo em Filmes) e escolhe-a aqui: a app lê os .mov e .mp4 dela (e de subpastas) com a mesma regra e a mesma lista abaixo.")
+        para(pk, "Copia os vídeos para uma pasta do tablet (por exemplo em Filmes) e escolhe-a aqui (podes juntar várias pastas): a app lê os .mov e .mp4 dela (e de subpastas) com a mesma regra e a mesma lista abaixo.")
         label(pk, "Ou descarrega um pacote zip")
         val packUrl = input(prefs.packUrl, Pack.DEFAULT_URL, InputType.TYPE_TEXT_VARIATION_URI, app = true); pk.addView(packUrl)
         packStatus = kit.text(Pack.describe(this), 13f, kit.muted)
@@ -672,7 +682,7 @@ class SettingsActivity : Activity() {
         }
 
         saveApp = {
-            prefs.timeoutSec = lockV; prefs.saverSecRaw = saverV
+            prefs.timeoutSec = lockV; prefs.saverSecRaw = saverV; prefs.modalIdleSec = modalV
             prefs.sensitivity = sens.progress + 1
             prefs.saverVideo = saverVideo; prefs.saverFit = fitV; prefs.saverQuality = quality; prefs.saverSource = src.text.toString(); prefs.saverList = listIn.text.toString()
             prefs.packUrl = packUrl.text.toString().ifBlank { Pack.DEFAULT_URL }; prefs.saverExtra = extraIn.text.toString(); 
