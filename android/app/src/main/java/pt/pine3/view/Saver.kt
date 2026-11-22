@@ -40,6 +40,9 @@ class SaverView(private val kit: Kit, private val h24: Boolean, private val vide
             // vídeo por trás e, em baixo à esquerda como na Apple TV, a hora e a data com sombra
             setBackgroundColor(bg ?: Color.BLACK)
             player = AerialView(kit.ctx, bg != null, blend).also { addView(it, LayoutParams(-1, -1)) }
+            val st = kit.text("", 12f, Color.argb(150, 255, 255, 255)).apply { setShadowLayer(4f, 0f, 1f, Color.BLACK) }
+            addView(st, LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply { setMargins(kit.dp(20), kit.dp(14), 0, 0) })
+            player?.onStatus = { t -> st.text = t }
             addView(View(kit.ctx).apply { background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.TRANSPARENT, Color.argb(150, 0, 0, 0))) },
                 LayoutParams(-1, kit.dp(kit.clamp(220f, kit.hdp * 0.42f, 420f)), Gravity.BOTTOM))
             // hora e data desenhadas à mão numa só vista de tamanho fixo (sem medir texto): nada pode cortar
@@ -104,7 +107,10 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
     private var wantPlay = false
     private var released = false
 
-    init { surfaceTextureListener = this; alpha = 0f }
+    /** Estado para mostrar no ecrã (nome do clipe, erros): ajuda a perceber porque fica preto. */
+    var onStatus: ((String) -> Unit)? = null
+
+    init { surfaceTextureListener = this; alpha = 0f; isOpaque = true }
 
     fun play(list: List<Aerials.Clip>) {
         if (list.isEmpty()) return
@@ -132,7 +138,6 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
         val clip = queue.removeFirst()
         val st = surfaceTexture ?: return
         // os clipes com transparência chegam com o fundo preto (o Android ignora o canal alfa): "clarear" deixa ver a cor de fundo nesse preto
-        setLayerPaint(if (hasBg && clip.id.startsWith("local:") && Regex("loop|intro|outro", RegexOption.IGNORE_CASE).containsMatchIn(clip.id)) lighten else null) // só os fragmentos têm transparência; as cenas completas (_AS) trazem o fundo
         try { mp?.release() } catch (_: Exception) {}
         val p = MediaPlayer()
         mp = p
@@ -140,10 +145,12 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
             p.setSurface(Surface(st))
             if (clip.url.startsWith("content:")) p.setDataSource(context, android.net.Uri.parse(clip.url)) else p.setDataSource(clip.url)
             p.setVolume(0f, 0f)
-            p.setOnVideoSizeChangedListener { _, _, _ -> fit() }
-            p.setOnPreparedListener { if (mp === it) { failures = 0; fit(); it.start(); animate().alpha(1f).setDuration(900).start() } }
-            p.setOnCompletionListener { if (mp === it) animate().alpha(0f).setDuration(700).withEndAction { next() }.start() }
-            p.setOnErrorListener { _, _, _ -> failures++; if (failures < 4) post { next() }; true }
+            onStatus?.invoke("A carregar " + clip.id.removePrefix("local:") + "…")
+            p.setOnVideoSizeChangedListener { m, w, h -> fit(); onStatus?.invoke(clip.id.removePrefix("local:") + "  " + w + "×" + h) }
+            p.setOnPreparedListener { if (mp === it) { failures = 0; fit(); it.start(); postDelayed({ if (mp === it) animate().alpha(1f).setDuration(600).start() }, 1500) } }
+            p.setOnInfoListener { m, what, _ -> if (mp === m && what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) animate().alpha(1f).setDuration(900).start(); false }
+            p.setOnCompletionListener { m -> if (mp === m) animate().alpha(0f).setDuration(700).withEndAction { next() }.start() }
+            p.setOnErrorListener { _, what, extra -> failures++; onStatus?.invoke("Erro " + what + "/" + extra + " em " + clip.id.removePrefix("local:")); if (failures < 4) postDelayed({ next() }, 1500); true }
             p.prepareAsync()
         } catch (_: Exception) { failures++; if (failures < 4) post { next() } }
     }

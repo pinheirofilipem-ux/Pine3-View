@@ -584,22 +584,6 @@ class SettingsActivity : Activity() {
         var saverVideo = prefs.saverVideo
         optToggle(vid, "Usar vídeos no screensaver", null, saverVideo) { saverVideo = it; markApp() }
 
-        // fundo pastel atrás dos clipes com transparência
-        var bg = prefs.saverBg
-        label(vid, "Fundo atrás dos fragmentos com transparência (intro, loop, outro)")
-        val sw = Grid(this, d(44), d(44), d(10))
-        (listOf("") + PASTELS).forEach { c ->
-            val sel = c.equals(bg, true)
-            sw.addView(FrameLayout(this).apply {
-                background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(if (c.isEmpty()) Color.BLACK else Color.parseColor(c)); setStroke(d(if (sel) 3 else 1), if (sel) kit.fg else kit.soft) }
-                isClickable = true; setOnClickListener { bg = c; prefs.saverBg = c; markApp(); redraw() }
-            })
-        }
-        vid.addView(sw, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(4) })
-        var blend = prefs.saverBlend
-        optChoice(vid, "Onde aparece a cor", "Só afeta os fragmentos (intro, loop, outro): o Android não lê a transparência deles. As cenas completas (nome com _AS) já trazem o fundo e não são alteradas.",
-            listOf("white" to "Nos brancos", "black" to "Nos pretos"), blend) { blend = it; prefs.saverBlend = it; markApp(); redraw() }
-
         var quality = prefs.saverQuality
         optChoice(vid, "Qualidade (vídeos da Apple TV)", "1080p gasta menos dados; 4K só em tablets potentes.", listOf("1080" to "1080p (H.264)", "4k" to "4K"), quality) { quality = it; markApp(); redraw() }
         label(vid, "Lista de vídeos (endereço de um ficheiro .json ou .txt)")
@@ -681,7 +665,7 @@ class SettingsActivity : Activity() {
             prefs.timeoutSec = lockV; prefs.saverSecRaw = saverV
             prefs.sensitivity = sens.progress + 1
             prefs.saverVideo = saverVideo; prefs.saverQuality = quality; prefs.saverSource = src.text.toString(); prefs.saverList = listIn.text.toString()
-            prefs.packUrl = packUrl.text.toString().ifBlank { Pack.DEFAULT_URL }; prefs.saverExtra = extraIn.text.toString(); prefs.saverBg = bg; prefs.saverBlend = blend
+            prefs.packUrl = packUrl.text.toString().ifBlank { Pack.DEFAULT_URL }; prefs.saverExtra = extraIn.text.toString(); 
             if (files.isNotEmpty()) prefs.clipMinMb = minMb
             Aerials.reparse(this, quality)
         }
