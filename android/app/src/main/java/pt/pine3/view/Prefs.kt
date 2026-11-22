@@ -57,6 +57,11 @@ class Prefs(ctx: Context) {
         return if (s <= 0) 0 else minOf(s, maxOf(1, timeoutSec - 1))
     }
 
+    /** Estilo do vidro: 0 atual, 1 suave, 2 Liquid Glass. */
+    var glassLevel: Int
+        get() = sp.getInt("glassLevel", 0)
+        set(v) = sp.edit().putInt("glassLevel", v.coerceIn(0, 2)).apply()
+
     /** Cor de fundo (pastel) atrás dos clipes com transparência, ex. "#F7C6CE"; vazio = sem fundo. */
     var saverBg: String
         get() = sp.getString("saverBg", "") ?: ""

@@ -83,7 +83,7 @@ class BellDialog(
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         val title = if (type == "floor_call") Tr.t("Tocaram à porta de casa") else Tr.t("Tocaram à porta")
         val card = LinearLayout(act).apply {
-            orientation = LinearLayout.VERTICAL; background = kit.rounded(Color.parseColor("#F0221A26"), 32)
+            orientation = LinearLayout.VERTICAL; background = kit.sheetBg(32)
             setPadding(kit.dp(22), kit.dp(20), kit.dp(22), kit.dp(22)); isClickable = true
         }
         val hd = LinearLayout(act).apply { gravity = Gravity.CENTER_VERTICAL }

@@ -119,7 +119,7 @@ class RoomCard(private val kit: Kit, private val room: Room, dense: Boolean, pri
         val active = on.isNotEmpty()
         val fg = if (active) kit.ink else kit.fg
         val rad = if (short) 24 else 28
-        background = kit.ripple(if (active) kit.rounded(kit.cream, rad) else kit.glass(rad))
+        background = kit.ripple(if (active) kit.surfaceOn(rad) else kit.glass(rad))
         ri.paint(if (active) kit.accent else kit.soft, if (active) kit.ink else kit.fg)
         pw.paint(if (active) Color.argb(20, 42, 34, 31) else kit.soft, fg)
         pw.visibility = if (sw.isEmpty()) View.GONE else View.VISIBLE
@@ -197,7 +197,7 @@ class Tile(private val kit: Kit, private val dev: Dev, private val secWatch: Boo
     override fun update() {
         val on = Fmt.isOn(dev.id)
         val fg = if (on) kit.ink else kit.fg
-        background = kit.ripple(if (on) kit.rounded(kit.cream, 26) else kit.glass(26))
+        background = kit.ripple(if (on) kit.surfaceOn(26) else kit.glass(26))
         val tint = Fmt.accent(dev.id, kit.accent)
         ic.setIcon(Fmt.icon(dev.id, dev.kind))
         ic.paint(if (on) tint else kit.soft, if (on) kit.ink else kit.fg)
@@ -319,7 +319,7 @@ class ClimateCard(private val kit: Kit, private val dev: Dev, private val roomNa
             roomName?.takeIf { it.isNotBlank() }, if (on && tgt != null && !cur.isNaN()) Fmt.num(cur) + "°" else null,
             Tr.t(Fmt.STATE_PT[action ?: s.state] ?: (action ?: s.state)),
         ).joinToString(" · ")
-        background = kit.ripple(if (on) kit.rounded(kit.cream, 26) else kit.glass(26))
+        background = kit.ripple(if (on) kit.surfaceOn(26) else kit.glass(26))
         alpha = if (s.state == "unavailable") 0.5f else 1f
 
         seg.removeAllViews()
@@ -466,7 +466,7 @@ class SummaryCard(private val kit: Kit, private val kind: String, private val id
             val fg = if (on) kit.ink else kit.fg
             eyebrow.setTextColor(fg); big.setTextColor(fg); meta.setTextColor(if (on) kit.inkSoft else kit.muted)
         }
-        background = kit.ripple(if (on) kit.rounded(kit.cream, 28) else kit.glass(28))
+        background = kit.ripple(if (on) kit.surfaceOn(28) else kit.glass(28))
     }
 }
 

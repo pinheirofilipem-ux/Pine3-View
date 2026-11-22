@@ -169,6 +169,7 @@ class SettingsActivity : Activity() {
         UiScale.apply(this)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         prefs = Prefs(this)
+        Glass.level = prefs.glassLevel
         reloadDraft0()
         buildUi(0)
     }
@@ -222,7 +223,7 @@ class SettingsActivity : Activity() {
         page.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(page, FrameLayout.LayoutParams(-1, -1))
 
-        toast = kit.text("", 15f, kit.ink, 600).apply { background = kit.rounded(kit.cream, 40); setPadding(kit.dp(20), kit.dp(12), kit.dp(20), kit.dp(12)); visibility = View.GONE }
+        toast = kit.text("", 15f, kit.ink, 600).apply { background = kit.surfaceOn(40); setPadding(kit.dp(20), kit.dp(12), kit.dp(20), kit.dp(12)); visibility = View.GONE }
         root.addView(toast, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = kit.dp(26) })
         setContentView(root)
         navActive = -1
@@ -712,6 +713,8 @@ class SettingsActivity : Activity() {
         val a = panel()
         optChoice(a, Tr.t("Idioma"), "Idioma de todo o painel.", listOf("pt" to "Português", "en" to "English"), draft.optString("language", "pt")) { setD("language", it); redraw() }
         optChoice(a, Tr.t("Disposição"), "Como as divisões e os dispositivos aparecem.", listOf("grid" to Tr.t("Grelha"), "list" to Tr.t("Lista")), draft.optString("layout", "grid")) { setD("layout", it); redraw() }
+        optChoice(a, Tr.t("Estilo do vidro"), "Atual: enchimento liso. Suave: gradiente com aro de luz e brilho. Liquid Glass: aro duplo, luz de canto, lente com relevo e desfoque real nas janelas (Android 12 ou mais recente). Só deste dispositivo.",
+            listOf("0" to Tr.t("Atual"), "1" to Tr.t("Suave"), "2" to "Liquid Glass"), Glass.level.toString()) { prefs.glassLevel = it.toInt(); Glass.level = it.toInt(); relook() }
         optToggle(a, Tr.t("Animações"), "Transições ao mudar de ecrã, a lente da dock e a abertura dos cartões. Desliga para um painel mais leve.", bool("animations", true)) { setD("animations", it) }
 
         val c = panel()
@@ -782,7 +785,7 @@ class SettingsActivity : Activity() {
             listOf(0 to "A", 1 to "P", 2 to "M", 3 to "G").forEach { (v, l) ->
                 val sel = sizes.optInt(id, 0) == v
                 seg.addView(kit.text(l, 13f, if (sel) kit.ink else kit.fg, 600).apply {
-                    gravity = Gravity.CENTER; background = if (sel) kit.rounded(kit.cream, 11) else null; isClickable = true
+                    gravity = Gravity.CENTER; background = if (sel) kit.surfaceOn(11) else null; isClickable = true
                     setOnClickListener { val o = JSONObject(sizes.toString()); if (v == 0) o.remove(id) else o.put(id, v); setD("house_size", o); redraw() }
                 }, LinearLayout.LayoutParams(d(34), d(32)))
             }

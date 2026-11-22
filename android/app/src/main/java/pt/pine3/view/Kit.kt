@@ -136,9 +136,16 @@ class Kit(val ctx: Context) {
 
     fun rounded(color: Int, rDp: Number) = GradientDrawable().apply { setColor(color); cornerRadius = dp(rDp).toFloat() }
     fun circle(color: Int) = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
-    fun glass(rDp: Number) = GradientDrawable().apply {
+    fun glass(rDp: Number): Drawable = if (Glass.level == 0) GradientDrawable().apply {
         setColor(glassFill); cornerRadius = dp(rDp).toFloat(); setStroke(dp(1), glassStroke)
-    }
+    } else GlassDrawable(this, dp(rDp).toFloat(), 0)
+
+    /** Cartão ligado (creme): liso no estilo atual, com vidro nos outros. */
+    fun surfaceOn(rDp: Number): Drawable = if (Glass.level == 0) rounded(cream, rDp) else GlassDrawable(this, dp(rDp).toFloat(), 1, cream)
+
+    /** Fundo das janelas por cima (folhas, câmara, campainha, previsão). */
+    fun sheetBg(rDp: Number): Drawable = if (Glass.level == 0) rounded(Color.parseColor("#F0221A26"), rDp) else GlassDrawable(this, dp(rDp).toFloat(), 2)
+
     fun ripple(d: Drawable) = RippleDrawable(ColorStateList.valueOf(rippleColor), d, null)
 
     /** Botão redondo com um ícone. */

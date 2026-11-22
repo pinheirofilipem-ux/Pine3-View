@@ -134,7 +134,7 @@ class VacCard(private val kit: Kit, private val dev: Dev, private val room: Room
         val errE = Vac.error(dev); val errOn = errE != null
         val active = on
         val fg = if (active) kit.ink else kit.fg
-        background = kit.ripple(if (active) kit.rounded(kit.cream, 26) else kit.glass(26))
+        background = kit.ripple(if (active) kit.surfaceOn(26) else kit.glass(26))
         alpha = if (na) 0.5f else 1f
         ic.background = kit.circle(if (active) kit.accent else kit.soft)
         icon.setImageDrawable(kit.mdi(if (errOn) "mdi:robot-vacuum-alert" else "mdi:robot-vacuum")); icon.setColorFilter(if (active) kit.ink else kit.fg)

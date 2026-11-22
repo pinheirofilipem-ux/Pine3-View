@@ -37,7 +37,7 @@ class DeviceSheet(private val act: Activity, private val kit: Kit, private val i
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         val card = LinearLayout(act).apply {
             orientation = LinearLayout.VERTICAL
-            background = kit.rounded(Color.parseColor("#F0221A26"), 32)
+            background = kit.sheetBg(32)
             setPadding(kit.dp(26), kit.dp(22), kit.dp(26), kit.dp(26)); isClickable = true
             addView(ScrollView(act).apply { isVerticalScrollBarEnabled = false; addView(content) }, LinearLayout.LayoutParams(-1, -2))
         }

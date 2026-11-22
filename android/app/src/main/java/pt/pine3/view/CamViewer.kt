@@ -47,7 +47,7 @@ class CamViewer(private val act: Activity, private val kit: Kit, private val cam
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         started = System.currentTimeMillis(); until = started + 120_000
         val card = LinearLayout(act).apply {
-            orientation = LinearLayout.VERTICAL; background = kit.rounded(Color.parseColor("#F0221A26"), 32)
+            orientation = LinearLayout.VERTICAL; background = kit.sheetBg(32)
             setPadding(kit.dp(22), kit.dp(20), kit.dp(22), kit.dp(22)); isClickable = true
         }
         val hd = LinearLayout(act).apply { gravity = Gravity.CENTER_VERTICAL }

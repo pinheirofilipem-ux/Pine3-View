@@ -41,6 +41,7 @@ internal class LensView(private val kit: Kit) : View(kit.ctx) {
         c.save()
         c.scale(scaleXf, scaleYf, w / 2f, h / 2f)
         r.set(0f, 0f, w, h)
+        if (Glass.level >= 2) { val g = kit.dp(5).toFloat(); fill.color = Color.argb(46, 255, 232, 180); r.set(-g, -g * 0.4f, w + g, h + g); c.drawRoundRect(r, (h + g) / 2f, (h + g) / 2f, fill); fill.color = ArgbEvaluator().evaluate(glass, cream, glassC) as Int; r.set(0f, 0f, w, h) }
         c.drawRoundRect(r, h / 2f, h / 2f, fill)
         edge.color = Color.argb((60 + 150 * glass).toInt().coerceAtMost(220), 255, 255, 255)
         r.inset(kit.dp(1) / 2f, kit.dp(1) / 2f)
@@ -74,11 +75,11 @@ class DockView(private val kit: Kit, labels: List<Triple<String, String, String>
 
     init {
         val dark = !kit.light
-        background = android.graphics.drawable.GradientDrawable().apply {
+        background = if (Glass.level == 0) android.graphics.drawable.GradientDrawable().apply {
             cornerRadius = kit.dp(60).toFloat()
             setColor(if (dark) Color.argb(150, 26, 22, 30) else Color.argb(170, 255, 255, 255))
             setStroke(kit.dp(1), if (dark) Color.argb(46, 255, 255, 255) else Color.argb(210, 255, 255, 255))
-        }
+        } else GlassDrawable(kit, kit.dp(60).toFloat(), 2)
         elevation = kit.dp(8).toFloat()
         clipChildren = false; clipToPadding = false
         val pad = kit.dp(if (small) 6 else 7)

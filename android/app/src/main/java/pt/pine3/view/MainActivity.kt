@@ -170,6 +170,7 @@ class MainActivity : Activity(), Nav {
         super.onCreate(savedInstanceState)
         UiScale.apply(this)
         prefs = Prefs(this)
+        Glass.level = prefs.glassLevel
         kit = Kit(this)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
@@ -214,6 +215,7 @@ class MainActivity : Activity(), Nav {
         super.onResume()
         resumed = true
         saverVideoFailed = false
+        if (Glass.level != prefs.glassLevel) { Glass.level = prefs.glassLevel; buildDock(); shownKey = "" } // o estilo do vidro mudou nas definições
         cover()
         hideSystemBars()
         (getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager).requestDismissKeyguard(this, null)
