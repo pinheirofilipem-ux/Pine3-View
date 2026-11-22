@@ -102,6 +102,9 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
     /** "white": multiplica (o branco do clipe passa à cor de fundo, as linhas pretas ficam); "black": clareia (o preto passa à cor). */
     private val lighten = android.graphics.Paint().apply { xfermode = android.graphics.PorterDuffXfermode(if (blend == "black") android.graphics.PorterDuff.Mode.LIGHTEN else android.graphics.PorterDuff.Mode.MULTIPLY) }
     private var mp: MediaPlayer? = null
+    private var cp: CodecPlayer? = null
+    private var vw = 0f
+    private var vh = 0f
     private var queue: ArrayDeque<Aerials.Clip> = ArrayDeque()
     private var failures = 0
     private var wantPlay = false
@@ -127,8 +130,6 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
     var fitMode = "height"
 
     private fun fit() {
-        val p = mp ?: return
-        val vw = p.videoWidth.toFloat(); val vh = p.videoHeight.toFloat()
         if (vw <= 0 || vh <= 0 || width == 0 || height == 0) return
         val sc = when (fitMode) {
             "fill" -> maxOf(width / vw, height / vh)
@@ -139,11 +140,29 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
         setTransform(m)
     }
 
+    /** O MediaPlayer recusou o ficheiro: tenta com o MediaCodec (descodificador de software incluído). */
+    private fun fallback(clip: Aerials.Clip, why: String) {
+        val st = surfaceTexture ?: return
+        try { mp?.release() } catch (_: Exception) {}
+        mp = null
+        val name = clip.id.removePrefix("local:")
+        onStatus?.invoke("MediaPlayer falhou ($why); a tentar o descodificador alternativo…")
+        val me = object : CodecPlayer(context, clip.url, Surface(st),
+            { w, h -> post { vw = w.toFloat(); vh = h.toFloat(); fit() } },
+            { dec -> post { failures = 0; onStatus?.invoke("$name  ${vw.toInt()}×${vh.toInt()}  [$dec]"); animate().alpha(1f).setDuration(900).start() } },
+            { post { if (cp != null) animate().alpha(0f).setDuration(700).withEndAction { next() }.start() } },
+            { err -> post { failures++; onStatus?.invoke("Erro em $name: $err"); if (failures < 4) postDelayed({ next() }, 1500) } },
+        ) {}
+        cp = me
+        me.start()
+    }
+
     private fun next() {
         if (released) return
         if (queue.isEmpty()) { queue = ArrayDeque(Aerials.shuffled()); if (queue.isEmpty()) return }
         val clip = queue.removeFirst()
         val st = surfaceTexture ?: return
+        cp?.stop(); cp = null
         // os clipes com transparência chegam com o fundo preto (o Android ignora o canal alfa): "clarear" deixa ver a cor de fundo nesse preto
         try { mp?.release() } catch (_: Exception) {}
         val p = MediaPlayer()
@@ -153,19 +172,20 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
             if (clip.url.startsWith("content:")) p.setDataSource(context, android.net.Uri.parse(clip.url)) else p.setDataSource(clip.url)
             p.setVolume(0f, 0f)
             onStatus?.invoke("A carregar " + clip.id.removePrefix("local:") + "…")
-            p.setOnVideoSizeChangedListener { m, w, h -> fit(); onStatus?.invoke(clip.id.removePrefix("local:") + "  " + w + "×" + h) }
+            p.setOnVideoSizeChangedListener { m, w, h -> vw = w.toFloat(); vh = h.toFloat(); fit(); onStatus?.invoke(clip.id.removePrefix("local:") + "  " + w + "×" + h) }
             p.setOnPreparedListener { if (mp === it) { failures = 0; fit(); it.start(); postDelayed({ if (mp === it) animate().alpha(1f).setDuration(600).start() }, 1500) } }
             p.setOnInfoListener { m, what, _ -> if (mp === m && what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) animate().alpha(1f).setDuration(900).start(); false }
             p.setOnCompletionListener { m -> if (mp === m) animate().alpha(0f).setDuration(700).withEndAction { next() }.start() }
-            p.setOnErrorListener { _, what, extra -> failures++; onStatus?.invoke("Erro " + what + "/" + extra + " em " + clip.id.removePrefix("local:")); if (failures < 4) postDelayed({ next() }, 1500); true }
+            p.setOnErrorListener { _, what, extra -> post { fallback(clip, "$what/$extra") }; true }
             p.prepareAsync()
-        } catch (_: Exception) { failures++; if (failures < 4) post { next() } }
+        } catch (e: Exception) { post { fallback(clip, e.javaClass.simpleName + " " + (e.message ?: "")) } }
     }
 
     fun release() {
         released = true; wantPlay = false
         try { mp?.release() } catch (_: Exception) {}
         mp = null
+        cp?.stop(); cp = null
     }
 }
 
