@@ -42,7 +42,8 @@ class SaverView(private val kit: Kit, private val h24: Boolean, private val vide
             player = AerialView(kit.ctx, bg != null, blend).also { it.fitMode = fit; addView(it, LayoutParams(-1, -1)) }
             val st = kit.text("", 12f, Color.argb(150, 255, 255, 255)).apply { setShadowLayer(4f, 0f, 1f, Color.BLACK) }
             addView(st, LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply { setMargins(kit.dp(20), kit.dp(14), 0, 0) })
-            player?.onStatus = { t -> st.text = t }
+            val hide = Runnable { st.animate().alpha(0f).setDuration(600).start() }
+            player?.onStatus = { t -> st.removeCallbacks(hide); st.text = t; st.animate().cancel(); st.alpha = 1f; if (!t.startsWith("Erro") && !t.startsWith("MediaPlayer")) st.postDelayed(hide, 4000) }
             addView(View(kit.ctx).apply { background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.TRANSPARENT, Color.argb(150, 0, 0, 0))) },
                 LayoutParams(-1, kit.dp(kit.clamp(220f, kit.hdp * 0.42f, 420f)), Gravity.BOTTOM))
             // hora e data desenhadas à mão numa só vista de tamanho fixo (sem medir texto): nada pode cortar
@@ -103,6 +104,8 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
     private val lighten = android.graphics.Paint().apply { xfermode = android.graphics.PorterDuffXfermode(if (blend == "black") android.graphics.PorterDuff.Mode.LIGHTEN else android.graphics.PorterDuff.Mode.MULTIPLY) }
     private var mp: MediaPlayer? = null
     private var cp: CodecPlayer? = null
+    /** Depois de o leitor alternativo funcionar uma vez, vai-se direto a ele (o MediaPlayer já recusou estes ficheiros). */
+    private var preferCodec = false
     private var vw = 0f
     private var vh = 0f
     private var queue: ArrayDeque<Aerials.Clip> = ArrayDeque()
@@ -146,10 +149,10 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
         try { mp?.release() } catch (_: Exception) {}
         mp = null
         val name = clip.id.removePrefix("local:")
-        onStatus?.invoke("MediaPlayer falhou ($why); a tentar o descodificador alternativo…")
+        onStatus?.invoke(if (why == "direto") "A carregar $name…" else "MediaPlayer falhou ($why); a tentar o descodificador alternativo…")
         val me = object : CodecPlayer(context, clip.url, Surface(st),
             { w, h -> post { vw = w.toFloat(); vh = h.toFloat(); fit() } },
-            { dec -> post { failures = 0; onStatus?.invoke("$name  ${vw.toInt()}×${vh.toInt()}  [$dec]"); animate().alpha(1f).setDuration(900).start() } },
+            { dec -> post { failures = 0; preferCodec = true; onStatus?.invoke("$name  ${vw.toInt()}×${vh.toInt()}  [$dec]"); animate().alpha(1f).setDuration(900).start() } },
             { post { if (cp != null) animate().alpha(0f).setDuration(700).withEndAction { next() }.start() } },
             { err -> post { failures++; onStatus?.invoke("Erro em $name: $err"); if (failures < 4) postDelayed({ next() }, 1500) } },
         ) {}
@@ -163,6 +166,7 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
         val clip = queue.removeFirst()
         val st = surfaceTexture ?: return
         cp?.stop(); cp = null
+        if (preferCodec) { fallback(clip, "direto"); return }
         // os clipes com transparência chegam com o fundo preto (o Android ignora o canal alfa): "clarear" deixa ver a cor de fundo nesse preto
         try { mp?.release() } catch (_: Exception) {}
         val p = MediaPlayer()
