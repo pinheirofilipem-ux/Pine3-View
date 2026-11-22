@@ -254,6 +254,18 @@ class SettingsActivity : Activity() {
 
     private fun reloadDraft0() { draft = JSONObject(Ha.home?.settings?.toString() ?: "{}"); saved = draft.toString() }
 
+    private val REQ_FOLDER = 4821
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_FOLDER && resultCode == RESULT_OK) {
+            val uri = data?.data ?: return
+            try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) {}
+            prefs.clipFolder = uri.toString(); Pack.refreshFolder(); Aerials.setLocal(this)
+            if (section == "saver") redraw()
+        }
+    }
+
     override fun onResume() { super.onResume(); PanelState.settingsVisible = true; Ha.listeners += listener; handler.post(refresh) }
 
     override fun onPause() {
@@ -609,6 +621,18 @@ class SettingsActivity : Activity() {
         val pk = panel()
         h3(pk, Tr.t("Clipes no tablet"), true)
         para(pk, "Descarrega o pacote uma vez (cerca de 530 MB, melhor com Wi-Fi) e os clipes passam do disco, sem rede. Por omissão é o snoopy.saver.zip do repositório hitnology/snoopy.")
+        // pasta do tablet com os teus ficheiros
+        label(pk, "Pasta no tablet")
+        val folderTx = kit.text(Pack.folderName(this).ifBlank { "Nenhuma pasta escolhida" }, 14f, kit.fg)
+        pk.addView(folderTx, LinearLayout.LayoutParams(-1, -2))
+        val frow = LinearLayout(this)
+        frow.addView(pillBtn("Escolher pasta…", "mdi:folder-open-outline") {
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION), REQ_FOLDER)
+        })
+        frow.addView(pillBtn("Limpar", "mdi:close") { prefs.clipFolder = ""; Pack.refreshFolder(); Aerials.setLocal(this); redraw() }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = d(10) })
+        pk.addView(frow, LinearLayout.LayoutParams(-2, -2).apply { topMargin = d(10) })
+        para(pk, "Copia os vídeos para uma pasta do tablet (por exemplo em Filmes) e escolhe-a aqui: a app lê os .mov e .mp4 dela (e de subpastas) com a mesma regra e a mesma lista abaixo.")
+        label(pk, "Ou descarrega um pacote zip")
         val packUrl = input(prefs.packUrl, Pack.DEFAULT_URL, InputType.TYPE_TEXT_VARIATION_URI, app = true); pk.addView(packUrl)
         packStatus = kit.text(Pack.describe(this), 13f, kit.muted)
         val prow = LinearLayout(this)

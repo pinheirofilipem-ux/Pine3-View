@@ -140,7 +140,7 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
         mp = p
         try {
             p.setSurface(Surface(st))
-            p.setDataSource(clip.url)
+            if (clip.url.startsWith("content:")) p.setDataSource(context, android.net.Uri.parse(clip.url)) else p.setDataSource(clip.url)
             p.setVolume(0f, 0f)
             p.setOnVideoSizeChangedListener { _, _, _ -> fit() }
             p.setOnPreparedListener { if (mp === it) { failures = 0; fit(); it.start(); animate().alpha(1f).setDuration(900).start() } }

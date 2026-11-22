@@ -77,6 +77,11 @@ class Prefs(ctx: Context) {
         get() = try { JSONObject(sp.getString("clipChoices", "{}") ?: "{}").let { o -> o.keys().asSequence().associateWith { k -> o.optBoolean(k) } } } catch (_: Exception) { emptyMap() }
         set(v) = sp.edit().putString("clipChoices", JSONObject(v.mapKeys { it.key }).toString()).apply()
 
+    /** Pasta escolhida no tablet com os clipes (endereço da árvore de documentos do Android). */
+    var clipFolder: String
+        get() = sp.getString("clipFolder", "") ?: ""
+        set(v) = sp.edit().putString("clipFolder", v).apply()
+
     /** Endereço do zip com os clipes a guardar no tablet. */
     var packUrl: String
         get() = sp.getString("packUrl", null) ?: Pack.DEFAULT_URL
