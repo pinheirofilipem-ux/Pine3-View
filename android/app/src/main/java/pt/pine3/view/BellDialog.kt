@@ -28,8 +28,10 @@ class BellDialog(
     private val h = Handler(Looper.getMainLooper())
     private val cam = attrs.optString("camera_entity").takeIf { type == "ring" && Ha.states.containsKey(it) } ?: ""
     private val call = attrs.optString("call_id")
-    private val snap: String = if (type != "ring") "" else (listOf(attrs.optString("snapshot_entity")) + Ha.states.keys.filter { it.startsWith("image.") && it.contains("doorbell_snapshot") })
+    private fun findSnap(): String = if (type != "ring") "" else (listOf(attrs.optString("snapshot_entity")) + Ha.states.keys.filter { it.startsWith("image.") && it.contains("doorbell_snapshot") })
         .firstOrNull { it.isNotBlank() && Ha.states.containsKey(it) } ?: ""
+    /** A entidade da foto do toque; se ainda não existia ao abrir, procura-se de novo a cada segundo. */
+    private var snap: String = findSnap()
     private val started = System.currentTimeMillis()
     private var end = started + 90_000
     private var status = ""
@@ -69,6 +71,7 @@ class BellDialog(
 
     /** A foto desta chamada substitui a última imagem da câmara assim que a entidade image.* tem o call_id certo. */
     private fun pic() {
+        if (snap.isBlank()) snap = findSnap()
         if (snap.isBlank()) return
         val s = Ha.states[snap] ?: return
         val url = s.attrs.optString("entity_picture")
