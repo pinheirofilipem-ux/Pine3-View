@@ -92,10 +92,19 @@ class Prefs(ctx: Context) {
         get() = try { JSONObject(sp.getString("clipChoices", "{}") ?: "{}").let { o -> o.keys().asSequence().associateWith { k -> o.optBoolean(k) } } } catch (_: Exception) { emptyMap() }
         set(v) = sp.edit().putString("clipChoices", JSONObject(v.mapKeys { it.key }).toString()).apply()
 
-    /** Pasta escolhida no tablet com os clipes (endereço da árvore de documentos do Android). */
-    var clipFolder: String
-        get() = sp.getString("clipFolder", "") ?: ""
-        set(v) = sp.edit().putString("clipFolder", v).apply()
+    /** Pastas escolhidas no tablet com os clipes (endereços de árvores de documentos do Android). Migra a pasta única antiga. */
+    var clipFolders: List<String>
+        get() {
+            val raw = sp.getString("clipFolders", null)
+            if (raw == null) return listOfNotNull(sp.getString("clipFolder", "")?.takeIf { it.isNotBlank() })
+            return try { org.json.JSONArray(raw).let { a -> (0 until a.length()).map { a.getString(it) }.filter { it.isNotBlank() } } } catch (_: Exception) { emptyList() }
+        }
+        set(v) = sp.edit().putString("clipFolders", org.json.JSONArray(v.distinct()).toString()).apply()
+
+    /** Fecha as janelas normais ao fim de tantos segundos sem toques (0 = nunca). */
+    var modalIdleSec: Int
+        get() = sp.getInt("modalIdleSec", 10)
+        set(v) = sp.edit().putInt("modalIdleSec", v.coerceIn(0, 120)).apply()
 
     /** Endereço do zip com os clipes a guardar no tablet. */
     var packUrl: String

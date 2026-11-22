@@ -52,13 +52,13 @@ O código desta pasta é **independente** da integração (`custom_components/`)
   - *Clássico*: relógio escurecido com deriva lenta.
   - *Vídeo*: clipes em ecrã inteiro com hora e data desenhadas à mão (sem cortes), que trocam de lado ao acaso a cada clipe e a cada
     90 s, e fade entre clipes. Ajuste do vídeo (pela altura sem esticar, preencher ou inteiro) e qualidade.
-  - *Fontes*: **pasta do tablet** (escolhida no seletor de pastas do Android, ficheiros `.mov`/`.mp4`), um **pacote zip** descarregado
+  - *Fontes*: **uma ou várias pastas do tablet** (escolhidas no seletor de pastas do Android, ficheiros `.mov`/`.mp4`, com as subpastas), um **pacote zip** descarregado
     uma vez para o tablet, uma lista `.json`/`.txt` de endereços, endereços extra e, opcionalmente, o ficheiro de recursos da Apple TV.
   - *Lista de clipes* com o tamanho de cada um e interruptor por clipe. Por omissão ignora intro, loop, outro e ficheiros pequenos.
   - Se o leitor normal do Android recusar um clipe (HEVC 4K), usa um descodificador alternativo (MediaCodec).
-  - *Sensibilidade ao movimento* da câmara frontal.
-- As janelas normais (detalhe de dispositivo, previsão, escolha de portas) fecham sozinhas ao fim de 10 s sem toques; a câmara e a
-  campainha ficam abertas.
+  - *Fechar janelas após* (0 a 120 s) e *sensibilidade ao movimento* da câmara frontal.
+- As janelas normais (detalhe de dispositivo, previsão, escolha de portas) fecham sozinhas ao fim do tempo definido em Screensaver
+  (por omissão 10 s, 0 = nunca); a câmara e a campainha ficam abertas.
 - Atalho para as definições: dois dedos premidos durante 2 s, ou o menu ⋮.
 
 ## Definições (mesmo formato do painel web)
