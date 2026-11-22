@@ -416,13 +416,18 @@ class MainActivity : Activity(), Nav {
 
     private fun applySleeping(sleeping: Boolean) {
         if (!sleeping) hideSaver()
-        else saver?.let { root.removeView(it); saver = null } // pára o vídeo (e a rede) assim que o ecrã vai desligar
         if (sleeping) {
             // desvanece para preto com a mesma duração do acordar; o brilho só desce no fim (e o serviço só bloqueia o ecrã depois)
             handler.removeCallbacks(reveal)
             blackout.animate().cancel()
             if (blackout.visibility != View.VISIBLE) { blackout.alpha = 0f; blackout.visibility = View.VISIBLE }
-            blackout.animate().alpha(1f).setDuration(FADE_MS).withEndAction { if (PanelState.sleeping) setBrightnessOff(true) }.start()
+            blackout.animate().alpha(1f).setDuration(FADE_MS).withEndAction {
+                if (PanelState.sleeping) {
+                    setBrightnessOff(true)
+                    // só agora, com o ecrã já preto, se tira o screensaver (pára o vídeo e a rede): assim o painel nunca aparece entre os dois
+                    saver?.let { root.removeView(it); saver = null }
+                }
+            }.start()
             return
         }
         scheduleReveal()
