@@ -586,7 +586,7 @@ class SettingsActivity : Activity() {
 
         // fundo pastel atrás dos clipes com transparência
         var bg = prefs.saverBg
-        label(vid, "Fundo atrás dos clipes com transparência")
+        label(vid, "Fundo atrás dos fragmentos com transparência (intro, loop, outro)")
         val sw = Grid(this, d(44), d(44), d(10))
         (listOf("") + PASTELS).forEach { c ->
             val sel = c.equals(bg, true)
@@ -597,7 +597,7 @@ class SettingsActivity : Activity() {
         }
         vid.addView(sw, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(4) })
         var blend = prefs.saverBlend
-        optChoice(vid, "Onde aparece a cor", "O Android não lê a transparência destes clipes: o fundo deles vem branco ou preto, consoante o clipe. Escolhe o que se parece com os teus.",
+        optChoice(vid, "Onde aparece a cor", "Só afeta os fragmentos (intro, loop, outro): o Android não lê a transparência deles. As cenas completas (nome com _AS) já trazem o fundo e não são alteradas.",
             listOf("white" to "Nos brancos", "black" to "Nos pretos"), blend) { blend = it; prefs.saverBlend = it; markApp(); redraw() }
 
         var quality = prefs.saverQuality

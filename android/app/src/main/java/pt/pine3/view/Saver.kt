@@ -132,7 +132,7 @@ class AerialView(ctx: Context, private val hasBg: Boolean = false, blend: String
         val clip = queue.removeFirst()
         val st = surfaceTexture ?: return
         // os clipes com transparência chegam com o fundo preto (o Android ignora o canal alfa): "clarear" deixa ver a cor de fundo nesse preto
-        setLayerPaint(if (hasBg && clip.id.startsWith("local:")) lighten else null)
+        setLayerPaint(if (hasBg && clip.id.startsWith("local:") && Regex("loop|intro|outro", RegexOption.IGNORE_CASE).containsMatchIn(clip.id)) lighten else null) // só os fragmentos têm transparência; as cenas completas (_AS) trazem o fundo
         try { mp?.release() } catch (_: Exception) {}
         val p = MediaPlayer()
         mp = p
