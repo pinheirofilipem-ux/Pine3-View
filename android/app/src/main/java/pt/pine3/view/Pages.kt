@@ -127,10 +127,11 @@ class WxCard(kit: Kit, private val home: Home, private val kind: String, private
             val hr = LinearLayout(k.ctx).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(k.dp(4), if (tall) k.dp(10) else 0, k.dp(4), if (tall) k.dp(10) else 0) }
             hours.forEachIndexed { i, h ->
                 val c = LinearLayout(k.ctx).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
-                c.addView(k.text(if (i == 0 && h.time - System.currentTimeMillis() < 3600_000) Tr.t("Agora") else hh(h.time), 12f, k.muted))
-                c.addView(k.icon(icon(h.cond), k.fg, 22), LinearLayout.LayoutParams(k.dp(22), k.dp(22)).apply { topMargin = k.dp(3); bottomMargin = k.dp(3) })
-                c.addView(k.text(deg(h.temp), 15f, k.fg, 600))
-                c.addView(k.text(if (h.precip != null && h.precip >= 10) "💧" + Math.round(h.precip) + "%" else " ", 11f, Color.parseColor("#64D2FF")))
+                fun cell(v: View, lp: LinearLayout.LayoutParams) = c.addView(v, lp.apply { gravity = Gravity.CENTER_HORIZONTAL })
+                cell(k.text(if (i == 0 && h.time - System.currentTimeMillis() < 3600_000) Tr.t("Agora") else hh(h.time), 12f, k.muted).apply { gravity = Gravity.CENTER; textAlignment = View.TEXT_ALIGNMENT_CENTER }, LinearLayout.LayoutParams(-1, -2))
+                cell(k.icon(icon(h.cond), k.fg, 22), LinearLayout.LayoutParams(k.dp(22), k.dp(22)).apply { topMargin = k.dp(3); bottomMargin = k.dp(3) })
+                cell(k.text(deg(h.temp), 15f, k.fg, 600).apply { gravity = Gravity.CENTER; textAlignment = View.TEXT_ALIGNMENT_CENTER }, LinearLayout.LayoutParams(-1, -2))
+                cell(k.text(if (h.precip != null && h.precip >= 10) "💧" + Math.round(h.precip) + "%" else " ", 11f, Color.parseColor("#64D2FF")).apply { gravity = Gravity.CENTER; textAlignment = View.TEXT_ALIGNMENT_CENTER }, LinearLayout.LayoutParams(-1, -2))
                 hr.addView(c, LinearLayout.LayoutParams(k.dp(58), -2))
             }
             val hsv = android.widget.HorizontalScrollView(k.ctx).apply {

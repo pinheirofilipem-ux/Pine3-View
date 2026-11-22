@@ -114,12 +114,13 @@ class ForecastSheet(private val act: Activity, private val kit: Kit, private val
                 sub(right, Tr.t("Próximas horas"), 6)
                 val row = LinearLayout(act)
                 hourly.forEachIndexed { k, f ->
-                    val c = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; background = kit.rounded(Color.argb(24, 255, 255, 255), 18); setPadding(kit.dp(10), kit.dp(10), kit.dp(10), kit.dp(10)) }
-                    c.addView(kit.text(if (k == 0 && f.time - System.currentTimeMillis() < 3600_000) Tr.t("Agora") else hm(f.time), 12f, muted))
-                    c.addView(kit.icon(icon(f.cond), Color.WHITE, 24), LinearLayout.LayoutParams(kit.dp(24), kit.dp(24)).apply { topMargin = kit.dp(4); bottomMargin = kit.dp(4) })
-                    c.addView(kit.text(deg(f.temp), 16f, Color.WHITE, 600))
-                    c.addView(kit.text(f.precip?.let { Math.round(it).toString() + "%" } ?: " ", 11f, Color.parseColor("#64D2FF")))
-                    row.addView(c, LinearLayout.LayoutParams(kit.dp(62), -2).apply { marginEnd = kit.dp(8) })
+                    val c = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; background = kit.rounded(Color.argb(24, 255, 255, 255), 18); setPadding(kit.dp(6), kit.dp(10), kit.dp(6), kit.dp(10)) }
+                    fun cell(v: View, lp: LinearLayout.LayoutParams) = c.addView(v, lp.apply { gravity = Gravity.CENTER_HORIZONTAL })
+                    cell(kit.text(if (k == 0 && f.time - System.currentTimeMillis() < 3600_000) Tr.t("Agora") else hm(f.time), 12f, muted).apply { gravity = Gravity.CENTER; textAlignment = View.TEXT_ALIGNMENT_CENTER }, LinearLayout.LayoutParams(-1, -2))
+                    cell(kit.icon(icon(f.cond), Color.WHITE, 24), LinearLayout.LayoutParams(kit.dp(24), kit.dp(24)).apply { topMargin = kit.dp(4); bottomMargin = kit.dp(4) })
+                    cell(kit.text(deg(f.temp), 16f, Color.WHITE, 600).apply { gravity = Gravity.CENTER; textAlignment = View.TEXT_ALIGNMENT_CENTER }, LinearLayout.LayoutParams(-1, -2))
+                    cell(kit.text(f.precip?.let { Math.round(it).toString() + "%" } ?: " ", 11f, Color.parseColor("#64D2FF")).apply { gravity = Gravity.CENTER; textAlignment = View.TEXT_ALIGNMENT_CENTER }, LinearLayout.LayoutParams(-1, -2))
+                    row.addView(c, LinearLayout.LayoutParams(kit.dp(66), -2).apply { marginEnd = kit.dp(8) })
                 }
                 right.addView(HorizontalScrollView(act).apply { isHorizontalScrollBarEnabled = false; addView(row) }, lp(8))
             }
