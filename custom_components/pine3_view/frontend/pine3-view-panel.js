@@ -2152,11 +2152,71 @@ class Pine3ViewPanel extends HTMLElement {
       : `<div class="vslider" data-slider="${kind}" data-val="${pct}"><div class="fill" style="height:${pct}%"></div><div class="lbl">${pct}%</div></div>`;
   }
 
+  /**
+   * Lights and TVs / players: one narrow column (a light needs a bar, colours and a switch, not half the screen).
+   * Header, the bar (brightness or volume), colours with a free colour picker, the device's readings as a list and a
+   * big on/off button at the bottom.
+   */
+  _compactSheet(id) {
+    const s = this._s(id), d = dom(id), a = s.attributes, on = this._isOn(id), na = s.state === "unavailable";
+    const room = this._rooms().find((r) => r.ents.includes(id));
+    const tv = d === "media_player";
+    const f = a.supported_features || 0, has = (b) => (f & b) !== 0;
+    const parts = [];
+    if (d === "light") {
+      const modes = a.supported_color_modes || [];
+      const pct = on ? Math.round(((a.brightness ?? 255) / 255) * 100) : 0;
+      if (modes.some((m) => m !== "onoff")) parts.push(this._ckBar("brightness", pct, "mdi:brightness-6", t("Luminosidade")));
+      if (modes.some((m) => ["hs", "rgb", "rgbw", "rgbww", "xy"].includes(m))) {
+        const hex = (c) => "#" + c.map((v) => v.toString(16).padStart(2, "0")).join("");
+        const cur = on && a.rgb_color ? hex(a.rgb_color) : "";
+        const std = ["#ffffff", "#ffd28a", "#ff8a5c", "#ff5ca8", "#8a7cff", "#5cc8ff", "#5cff9d"];
+        const near = (h) => cur && [1, 3, 5].every((i) => Math.abs(parseInt(h.slice(i, i + 2), 16) - parseInt(cur.slice(i, i + 2), 16)) < 24);
+        const custom = cur && !std.some(near);
+        parts.push(`<div class="ck-sws">${std.map((c) => `<div class="sw ${near(c) ? "on" : ""}" data-color="${c}" style="background:${c}"></div>`).join("")}
+          <label class="sw sw-pick ${custom ? "on" : ""}" title="${t("Outra cor")}" ${custom ? `style="--cur:${cur}"` : ""}><ha-icon icon="mdi:eyedropper-variant"></ha-icon><input type="color" data-colorpick value="${cur || "#ffd28a"}" aria-label="${t("Outra cor")}"></label></div>`);
+      }
+    } else if (tv) {
+      const playing = s.state === "playing";
+      if (on && (a.media_title || a.app_name)) {
+        const dur = a.media_duration, pos = a.media_position;
+        parts.push(`<div class="ck-box ck-np">${a.entity_picture ? `<img class="ck-art" alt="" src="${esc(a.entity_picture)}">` : `<div class="ck-art"><ha-icon icon="${this._icon(id)}"></ha-icon></div>`}
+          <div class="ck-npt"><b>${esc(a.media_title || a.app_name)}</b><small>${esc([a.media_artist, a.media_title ? a.app_name : ""].filter(Boolean).join(" · "))}</small></div>
+          ${dur && pos != null ? `<div class="ck-prog"><i style="width:${Math.min(100, (pos / dur) * 100)}%"></i></div>` : ""}</div>`);
+      }
+      const tr = [has(16) ? `<button class="round" data-svc="media_player.media_previous_track"><ha-icon icon="mdi:skip-previous"></ha-icon></button>` : "",
+        has(1) || has(16384) ? `<button class="round big" data-svc="media_player.media_play_pause"><ha-icon icon="mdi:${playing ? "pause" : "play"}"></ha-icon></button>` : "",
+        has(32) ? `<button class="round" data-svc="media_player.media_next_track"><ha-icon icon="mdi:skip-next"></ha-icon></button>` : ""].join("");
+      if (on && tr) parts.push(`<div class="ck-tr">${tr}</div>`);
+      if (on && has(4) && a.volume_level != null) parts.push(this._ckBar("volume", Math.round(a.volume_level * 100), "mdi:volume-high", t("Volume")));
+      else if (on && has(1024)) parts.push(`<div class="ck-tr"><button class="round" data-svc="media_player.volume_down"><ha-icon icon="mdi:volume-minus"></ha-icon></button>${has(8) ? `<button class="round" data-mute><ha-icon icon="mdi:volume-${a.is_volume_muted ? "off" : "high"}"></ha-icon></button>` : ""}<button class="round" data-svc="media_player.volume_up"><ha-icon icon="mdi:volume-plus"></ha-icon></button></div>`);
+      if (on && (a.source_list || []).length) parts.push(`<div class="ck-lbl">${t("Entrada")}</div><div class="ck-chips">${a.source_list.map((src) => `<button class="pill ${src === a.source ? "act" : ""}" data-src="${esc(src)}">${esc(src)}</button>`).join("")}</div>`);
+    }
+    // the device's readings as a list, its other controls (child lock, modes…) as usual
+    const mem = (this._meta?.[id]?.members || []).filter((e) => e !== id && this._s(e) && this._s(e).state !== "unavailable");
+    const readings = mem.filter((e) => ["sensor", "binary_sensor"].includes(dom(e)));
+    if (readings.length) parts.push(`<div class="ck-box">${readings.map((e) => `<div class="ck-rd"><ha-icon icon="${this._icon(e)}"></ha-icon><span>${esc(this._memberName(id, e))}</span><b>${esc(dom(e) === "sensor" ? this._sensorVal(e) : this._stateText(e))}</b></div>`).join("")}</div>`);
+    const others = mem.filter((e) => !readings.includes(e));
+    if (others.length) parts.push(this._deviceSection(id, others).replace("<!--side-->", ""));
+    const canToggle = !na && (!tv || has(128) || has(256));
+    const word = on ? (tv ? t("Ligada") : t("Ligado")) : tv ? t("Desligada") : t("Desligado");
+    if (canToggle) parts.push(`<button class="ck-tg ${on ? "on" : ""}" data-toggle><ha-icon icon="${this._icon(id)}"></ha-icon><span><b>${word}</b><small>${on ? t("Toca para desligar") : t("Toca para ligar")}</small></span><i><ha-icon icon="mdi:power"></ha-icon></i></button>`);
+    const sub = [room ? this._roomName(room) : "", na ? t("Indisponível") : tv ? this._stateText(id) || this._st(s.state) : word, d === "light" && on && a.brightness != null ? `${Math.round((a.brightness / 255) * 100)}%` : ""].filter(Boolean).join(" · ");
+    return `<div class="ov ${this._ovEnter(id)}" data-close><div class="sheet ck" style="--acc:${this._accent(id)}">
+      <div class="hd"><div class="ic ${on ? "" : "off"}"><ha-icon icon="${this._icon(id)}"></ha-icon></div><div style="flex:1;min-width:0"><div class="nm">${esc(this._name(id))}</div><div class="st">${esc(sub)}</div></div>
+        <button class="sh-x" data-more title="${t("Mais definições")}" aria-label="${t("Mais definições")}"><ha-icon icon="mdi:cog-outline"></ha-icon></button><button class="sh-x" data-closex title="${t("Fechar")}" aria-label="${t("Fechar")}"><ha-icon icon="mdi:close"></ha-icon></button></div>
+      ${parts.join("")}</div></div>`;
+  }
+  _ckBar(kind, pct, icon, label) {
+    return `<div class="hslider ck-bar" data-slider="${kind}" data-val="${pct}"><div class="fill" style="width:${pct}%"></div><div class="ck-bl"><ha-icon icon="${icon}"></ha-icon>${esc(label)}</div><div class="lbl">${pct}%</div></div>`;
+  }
+
   _modalView() {
     if (this._modal === "_wx") return this._forecastSheet();
     const id = this._modal, s = id && this._s(id);
     if (!s) return "";
     const d = dom(id), a = s.attributes, on = this._isOn(id);
+    if (d === "light" || d === "media_player") return this._compactSheet(id);
     const compact = !!this._meta?.[id]?.members?.some((e) => this._s(e)); // a whole-device card: keep it short
     let content = "";
     if (d === "light" && (a.supported_color_modes || []).some((m) => m !== "onoff")) {
@@ -2373,6 +2433,9 @@ class Pine3ViewPanel extends HTMLElement {
       this._vacPick[id] = [];
       this._render();
     });
+    root.querySelectorAll("[data-colorpick]").forEach((el) => el.addEventListener("change", () => {
+      const h = el.value; this._call("light", "turn_on", { entity_id: id, rgb_color: [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) });
+    }));
     on("[data-color]", (el) => { const h = el.dataset.color; this._call("light", "turn_on", { entity_id: id, rgb_color: [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) }); });
     on("[data-preset]", (el) => this._call(dom(id), "set_preset_mode", { entity_id: id, preset_mode: el.dataset.preset }));
     on("[data-dvtg]", (el) => this._call("homeassistant", "toggle", { entity_id: el.dataset.dvtg }));

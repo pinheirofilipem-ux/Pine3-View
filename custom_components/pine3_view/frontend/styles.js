@@ -229,6 +229,35 @@ h2{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;c
 .vslider .lbl{position:absolute;left:0;right:0;bottom:16px;text-align:center;font-weight:600;font-family:var(--display);font-size:18px;color:var(--ink)}
 .row{display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap}
 .swatches{display:flex;gap:10px;justify-content:center;margin-top:14px}
+/* compact sheet: lights and TVs, one narrow column */
+.ov .sheet.ck{width:min(400px,calc(100vw - 32px));padding:18px;display:flex;flex-direction:column;gap:12px}
+.sheet.ck .hd{gap:10px}.sheet.ck .hd .ic{width:44px;height:44px}.sheet.ck .hd .ic.off{background:rgba(255,255,255,.14);color:#fff}
+.sheet.ck .hd .nm{font-size:19px}.sheet.ck .hd .st{font-size:13px}.sheet.ck .sh-x{width:36px;height:36px;flex:none}
+.sheet.ck .sub{margin-top:4px}
+.ck-bar.hslider{height:58px;margin:0;border-radius:18px}
+.ck-bar.hslider .ck-bl,.ck-bar.hslider .lbl{position:absolute;top:50%;transform:translateY(-50%);color:#fff;mix-blend-mode:difference;font-weight:700;font-size:16px;font-family:var(--display);pointer-events:none}
+.ck-bar.hslider .ck-bl{left:16px;display:flex;align-items:center;gap:10px}.ck-bar .ck-bl ha-icon{--mdc-icon-size:20px}.ck-bar.hslider .lbl{left:auto;right:18px}
+.ck-sws{display:flex;justify-content:space-between;align-items:center;padding:2px 2px}
+.ck-sws .sw{width:34px;height:34px;border:none;flex:none}.ck-sws .sw.on{box-shadow:0 0 0 3px rgb(30,24,36),0 0 0 5px #fff}
+.sw-pick{position:relative;display:grid;place-items:center;background:conic-gradient(red,#ff0,lime,cyan,blue,#f0f,red)!important;color:#fff;overflow:hidden}
+.sw-pick.on{background:var(--cur)!important}
+.sw-pick ha-icon{--mdc-icon-size:16px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+.sw-pick input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
+.ck-box{border-radius:20px;background:rgba(255,255,255,.07)}
+.ck-rd{display:flex;align-items:center;gap:12px;padding:12px 16px;font-size:15px}.ck-rd+.ck-rd{border-top:1px solid rgba(255,255,255,.08)}
+.ck-rd ha-icon{--mdc-icon-size:18px;opacity:.7}.ck-rd span{flex:1;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ck-rd b{font-weight:600}
+.ck-np{display:grid;grid-template-columns:56px 1fr;gap:12px;align-items:center;padding:12px}
+.ck-art{width:56px;height:56px;border-radius:12px;object-fit:cover;background:rgba(255,255,255,.1);display:grid;place-items:center}
+.ck-npt{min-width:0}.ck-npt b{display:block;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ck-npt small{color:var(--muted);font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ck-prog{grid-column:1/-1;height:4px;border-radius:4px;background:rgba(255,255,255,.15)}.ck-prog i{display:block;height:100%;background:#fff;border-radius:4px}
+.ck-tr{display:flex;justify-content:center;align-items:center;gap:22px}.ck-tr .round{width:48px;height:48px}.ck-tr .round.big{width:58px;height:58px;background:var(--cream);color:var(--ink)}
+.ck-lbl{font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin:2px 4px -4px}
+.ck-chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -18px;padding:0 18px}.ck-chips::-webkit-scrollbar{display:none}.ck-chips .pill{flex:none}
+.ck-tg{all:unset;cursor:pointer;box-sizing:border-box;border-radius:22px;padding:14px 16px 14px 18px;display:flex;align-items:center;gap:14px;background:rgba(255,255,255,.1);color:#fff;transition:background .25s,transform .12s}
+.ck-tg:active{transform:scale(.98)}.ck-tg>ha-icon{--mdc-icon-size:26px}.ck-tg span{flex:1}.ck-tg b{display:block;font-size:17px}.ck-tg small{opacity:.7;font-size:13px}
+.ck-tg i{width:40px;height:40px;border-radius:50%;border:2px solid rgba(255,255,255,.3);display:grid;place-items:center}.ck-tg i ha-icon{--mdc-icon-size:22px}
+.ck-tg.on{background:var(--acc);color:var(--ink)}.ck-tg.on i{border-color:rgba(0,0,0,.25)}
+
 .sw{width:32px;height:32px;border-radius:50%;cursor:pointer;border:2px solid rgba(255,255,255,.4)}
 .ring{width:230px;height:230px;margin:22px auto 6px;border-radius:50%;display:grid;place-items:center;position:relative}
 .ring .tgt{font-size:56px;font-weight:300;letter-spacing:-.03em}
