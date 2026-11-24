@@ -273,7 +273,7 @@ object Ha {
                 val res = if (m.optBoolean("success")) m.optJSONObject("result") ?: JSONObject() else null
                 if (cb != null) main.post { cb(res) }
             } else when (m.optInt("id")) {
-                ID_STATES -> m.optJSONArray("result")?.let { loadStates(it) }
+                ID_STATES, statesReq -> m.optJSONArray("result")?.let { loadStates(it) }
                 ID_HOME -> {
                     if (m.optBoolean("success")) {
                         m.optJSONObject("result")?.let { setHome(it) }
@@ -298,6 +298,9 @@ object Ha {
         notifyMain { it.onStates(emptySet()) }
     }
 
+    @Volatile private var askedMissing: Set<String> = emptySet()
+    @Volatile private var statesReq = -1
+
     private fun setHome(o: JSONObject) {
         try {
             home = Home.parse(o)
@@ -305,6 +308,15 @@ object Ha {
             log("Modelo da casa: ${home?.rooms?.size ?: 0} divisões")
             homeError = null
             recomputeWatched()
+            // Entities new to the home (e.g. a routine just added in the Roborock app): their first state may have
+            // arrived before the model and been skipped by the filter in handle(). A button rarely changes again, so ask.
+            val missing = watched.filter { it !in states }.toSet()
+            if ((missing - askedMissing).isNotEmpty()) {
+                askedMissing = missing
+                val id = ids.incrementAndGet() // HA wants a new, higher id for every request
+                statesReq = id
+                try { ws?.send(JSONObject().put("id", id).put("type", "get_states").toString()) } catch (_: Exception) {}
+            }
         } catch (e: Exception) {
             homeError = "Modelo da casa inválido: ${e.message}"
         }
