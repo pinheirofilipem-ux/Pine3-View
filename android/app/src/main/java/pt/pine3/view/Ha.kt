@@ -310,7 +310,7 @@ object Ha {
             recomputeWatched()
             // Entities new to the home (e.g. a routine just added in the Roborock app): their first state may have
             // arrived before the model and been skipped by the filter in handle(). A button rarely changes again, so ask.
-            val missing = watched.filter { it !in states }.toSet()
+            val missing = watched.filter { !states.containsKey(it) }.toSet()
             if ((missing - askedMissing).isNotEmpty()) {
                 askedMissing = missing
                 val id = ids.incrementAndGet() // HA wants a new, higher id for every request
