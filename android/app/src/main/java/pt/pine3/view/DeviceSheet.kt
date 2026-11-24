@@ -28,6 +28,9 @@ class DeviceSheet(private val act: Activity, private val kit: Kit, private val i
     private var dragging = false
     private var openSel: String? = null
     private val wide = kit.wdp >= 820f
+    /** Luzes e TVs/leitores: uma coluna estreita (cabeçalho, barra, cores, leituras e o botão grande de ligar). */
+    private val compact = Fmt.domain(id) in setOf("light", "media_player")
+    private var pickerOpen = false
     private val listener = object : Ha.Listener {
         override fun onStates(changed: Set<String>) { if (changed.isEmpty() || changed.any { it == id || dev?.members?.contains(it) == true }) schedule() }
     }
@@ -38,12 +41,12 @@ class DeviceSheet(private val act: Activity, private val kit: Kit, private val i
         val card = LinearLayout(act).apply {
             orientation = LinearLayout.VERTICAL
             background = kit.sheetBg(32)
-            setPadding(kit.dp(26), kit.dp(22), kit.dp(26), kit.dp(26)); isClickable = true
+            if (compact) setPadding(kit.dp(18), kit.dp(18), kit.dp(18), kit.dp(18)) else setPadding(kit.dp(26), kit.dp(22), kit.dp(26), kit.dp(26)); isClickable = true
             addView(ScrollView(act).apply { isVerticalScrollBarEnabled = false; addView(content) }, LinearLayout.LayoutParams(-1, -2))
         }
         val root = FrameLayout(act).apply {
             setBackgroundColor(Color.argb(150, 10, 4, 12)); isClickable = true; setOnClickListener { dismiss() }
-            addView(card, FrameLayout.LayoutParams(kit.dp(kit.clamp(320f, kit.wdp - 48f, 1350f)), -2, Gravity.CENTER))
+            addView(card, FrameLayout.LayoutParams(kit.dp(if (compact) kit.clamp(300f, kit.wdp - 32f, 400f) else kit.clamp(320f, kit.wdp - 48f, 1350f)), -2, Gravity.CENTER))
         }
         dialog.setContentView(root)
         dialog.window?.apply {
@@ -104,6 +107,7 @@ class DeviceSheet(private val act: Activity, private val kit: Kit, private val i
     private fun render() {
         content.removeAllViews()
         val s = Fmt.state(id) ?: run { dismiss(); return }
+        if (compact) { renderCompact(s); return }
         val a = s.attrs; val d = Fmt.domain(id); val on = Fmt.isOn(id)
         main = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
         side = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
@@ -200,6 +204,153 @@ class DeviceSheet(private val act: Activity, private val kit: Kit, private val i
             cols.addView(side, LinearLayout.LayoutParams(0, -2, 1.2f))
             content.addView(cols, lp(8))
         } else { content.addView(main, lp(4)); content.addView(side, lp(0)) }
+    }
+
+    private fun renderCompact(s: Ha.State) {
+        val a = s.attrs; val d = Fmt.domain(id); val on = Fmt.isOn(id); val na = s.state == "unavailable"; val tv = d == "media_player"
+        val f = a.optInt("supported_features", 0)
+        fun has(b: Int) = (f and b) != 0
+        val acc = Fmt.accent(id, kit.accent)
+        val room = Ha.home?.rooms?.firstOrNull { r -> r.devices.any { it.id == id || id in it.members } || r.entities.any { it.id == id } }
+        val word = Tr.t(if (on) (if (tv) "Ligada" else "Ligado") else if (tv) "Desligada" else "Desligado")
+        val pct = if (d == "light" && on && a.has("brightness") && !a.isNull("brightness")) Math.round(a.optDouble("brightness") / 2.55).toInt() else -1
+        val subTxt = listOfNotNull(room?.name, if (na) Tr.t("Indisponível") else if (tv) Fmt.sub(id) else word, if (pct >= 0) "$pct%" else null).joinToString(" · ")
+        val drag: (Boolean) -> Unit = { dragging = it }
+        val soft = Color.argb(24, 255, 255, 255)
+
+        val hd = LinearLayout(act).apply { gravity = Gravity.CENTER_VERTICAL }
+        hd.addView(FrameLayout(act).apply {
+            background = kit.circle(if (on) acc else Color.argb(36, 255, 255, 255))
+            addView(kit.icon(Fmt.icon(this@DeviceSheet.id, dev?.kind ?: d), if (on) kit.ink else Color.WHITE, 22), FrameLayout.LayoutParams(kit.dp(22), kit.dp(22), Gravity.CENTER))
+        }, LinearLayout.LayoutParams(kit.dp(44), kit.dp(44)).apply { marginEnd = kit.dp(12) })
+        val tt = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        tt.addView(kit.text(dev?.name ?: Fmt.name(id), 19f, Color.WHITE, 500, display = true).apply { setSingleLine(); ellipsize = android.text.TextUtils.TruncateAt.END })
+        tt.addView(kit.text(subTxt, 13f, muted).apply { setSingleLine(); ellipsize = android.text.TextUtils.TruncateAt.END })
+        hd.addView(tt, LinearLayout.LayoutParams(0, -2, 1f))
+        hd.addView(kit.roundButton("mdi:close", 36, Color.argb(40, 255, 255, 255), Color.WHITE) { dismiss() })
+        content.addView(hd)
+
+        if (d == "light") {
+            val modes = list(a, "supported_color_modes")
+            if (modes.any { it != "onoff" }) content.addView(HBar(kit, maxOf(pct, 0), "mdi:brightness-6", Tr.t("Luminosidade"), drag) { p ->
+                if (p == 0) call("light", "turn_off") else call("light", "turn_on", JSONObject().put("brightness_pct", p))
+            }, LinearLayout.LayoutParams(-1, kit.dp(58)).apply { topMargin = kit.dp(14) })
+            if (modes.any { it in setOf("hs", "rgb", "rgbw", "rgbww", "xy") }) {
+                val cur = if (on) a.optJSONArray("rgb_color")?.takeIf { it.length() == 3 }?.let { Color.rgb(it.getInt(0), it.getInt(1), it.getInt(2)) } else null
+                val std = listOf("#ffffff", "#ffd28a", "#ff8a5c", "#ff5ca8", "#8a7cff", "#5cc8ff", "#5cff9d").map { Color.parseColor(it) }
+                fun near(c: Int) = cur != null && Math.abs(Color.red(c) - Color.red(cur)) < 24 && Math.abs(Color.green(c) - Color.green(cur)) < 24 && Math.abs(Color.blue(c) - Color.blue(cur)) < 24
+                val custom = cur != null && std.none { near(it) }
+                val sw = LinearLayout(act).apply { gravity = Gravity.CENTER_VERTICAL }
+                fun put(v: View) {
+                    if (sw.childCount > 0) sw.addView(android.widget.Space(act), LinearLayout.LayoutParams(0, 1, 1f))
+                    sw.addView(v, LinearLayout.LayoutParams(kit.dp(38), kit.dp(38)))
+                }
+                fun ring(v: View, sel: Boolean) = FrameLayout(act).apply {
+                    if (sel) background = kit.circle(Color.WHITE)
+                    addView(v, FrameLayout.LayoutParams(kit.dp(if (sel) 30 else 34), kit.dp(if (sel) 30 else 34), Gravity.CENTER))
+                }
+                std.forEach { c ->
+                    val dotV = View(act).apply { background = kit.circle(c) }
+                    put(ring(dotV, near(c)).apply { isClickable = true; setOnClickListener { pickerOpen = false; call("light", "turn_on", JSONObject().put("rgb_color", org.json.JSONArray(listOf(Color.red(c), Color.green(c), Color.blue(c))))) } })
+                }
+                // free colour: a rainbow dot (or the current custom colour) that opens the colour wheel below
+                val pick = FrameLayout(act).apply {
+                    background = if (custom) kit.circle(cur!!) else android.graphics.drawable.GradientDrawable().apply {
+                        shape = android.graphics.drawable.GradientDrawable.OVAL; gradientType = android.graphics.drawable.GradientDrawable.SWEEP_GRADIENT
+                        colors = IntArray(7) { Color.HSVToColor(floatArrayOf(it * 60f, 1f, 1f)) }
+                    }
+                    addView(kit.icon("mdi:eyedropper-variant", Color.WHITE, 16), FrameLayout.LayoutParams(kit.dp(16), kit.dp(16), Gravity.CENTER))
+                }
+                put(ring(pick, custom || pickerOpen).apply { isClickable = true; setOnClickListener { pickerOpen = !pickerOpen; render() }; contentDescription = Tr.t("Outra cor") })
+                content.addView(sw, lp(12))
+                if (pickerOpen) content.addView(ColorWheel(kit, cur ?: Color.parseColor("#ffd28a")) { hue, sat ->
+                    call("light", "turn_on", JSONObject().put("hs_color", org.json.JSONArray(listOf(hue.toDouble(), sat.toDouble()))))
+                }, LinearLayout.LayoutParams(kit.dp(230), kit.dp(230)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = kit.dp(14) })
+            }
+        } else {
+            if (on && (a.optString("media_title").isNotEmpty() || a.optString("app_name").isNotEmpty())) {
+                val box = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; background = kit.rounded(soft, 20); setPadding(kit.dp(12), kit.dp(12), kit.dp(12), kit.dp(12)) }
+                val r = LinearLayout(act).apply { gravity = Gravity.CENTER_VERTICAL }
+                val art = android.widget.ImageView(act).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; background = kit.rounded(Color.argb(36, 255, 255, 255), 12); clipToOutline = true }
+                a.optString("entity_picture").takeIf { it.isNotEmpty() }?.let { u -> Ha.fetchImage(u) { b -> if (b != null) art.setImageBitmap(b) } }
+                r.addView(art, LinearLayout.LayoutParams(kit.dp(56), kit.dp(56)).apply { marginEnd = kit.dp(12) })
+                val tx = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+                tx.addView(kit.text(a.optString("media_title").ifBlank { a.optString("app_name") }, 16f, Color.WHITE, 700).apply { setSingleLine(); ellipsize = android.text.TextUtils.TruncateAt.END })
+                val by = listOf(a.optString("media_artist"), if (a.optString("media_title").isNotEmpty()) a.optString("app_name") else "").filter { it.isNotBlank() }.joinToString(" · ")
+                if (by.isNotEmpty()) tx.addView(kit.text(by, 13f, muted).apply { setSingleLine(); ellipsize = android.text.TextUtils.TruncateAt.END })
+                r.addView(tx, LinearLayout.LayoutParams(0, -2, 1f))
+                box.addView(r)
+                val dur = a.optDouble("media_duration", 0.0); val pos = a.optDouble("media_position", -1.0)
+                if (dur > 0 && pos >= 0) box.addView(android.widget.ProgressBar(act, null, android.R.attr.progressBarStyleHorizontal).apply {
+                    max = 1000; progress = (pos / dur * 1000).toInt().coerceIn(0, 1000)
+                    progressTintList = ColorStateList.valueOf(Color.WHITE); progressBackgroundTintList = ColorStateList.valueOf(Color.argb(60, 255, 255, 255))
+                }, LinearLayout.LayoutParams(-1, kit.dp(6)).apply { topMargin = kit.dp(10) })
+                content.addView(box, lp(14))
+            }
+            val tr = ArrayList<View>()
+            if (has(16)) tr += kit.roundButton("mdi:skip-previous", 48, Color.argb(36, 255, 255, 255), Color.WHITE) { call("media_player", "media_previous_track") }
+            if (has(1) || has(16384)) tr += kit.roundButton(if (s.state == "playing") "mdi:pause" else "mdi:play", 58, kit.cream, kit.ink) { call("media_player", "media_play_pause") }
+            if (has(32)) tr += kit.roundButton("mdi:skip-next", 48, Color.argb(36, 255, 255, 255), Color.WHITE) { call("media_player", "media_next_track") }
+            if (on && tr.isNotEmpty()) {
+                val r = LinearLayout(act).apply { gravity = Gravity.CENTER }
+                tr.forEachIndexed { i, v -> r.addView(v, (v.layoutParams as LinearLayout.LayoutParams).apply { if (i > 0) marginStart = kit.dp(22) }) }
+                content.addView(r, lp(14))
+            }
+            if (on && has(4) && a.has("volume_level") && !a.isNull("volume_level")) content.addView(HBar(kit, Math.round(a.optDouble("volume_level") * 100).toInt(), "mdi:volume-high", Tr.t("Volume"), drag) { p ->
+                call("media_player", "volume_set", JSONObject().put("volume_level", p / 100.0))
+            }, LinearLayout.LayoutParams(-1, kit.dp(52)).apply { topMargin = kit.dp(14) })
+            else if (on && has(1024)) {
+                val r = LinearLayout(act).apply { gravity = Gravity.CENTER }
+                r.addView(kit.roundButton("mdi:volume-minus", 48, Color.argb(36, 255, 255, 255), Color.WHITE) { call("media_player", "volume_down") })
+                r.addView(kit.roundButton("mdi:volume-plus", 48, Color.argb(36, 255, 255, 255), Color.WHITE) { call("media_player", "volume_up") }, LinearLayout.LayoutParams(kit.dp(48), kit.dp(48)).apply { marginStart = kit.dp(22) })
+                content.addView(r, lp(14))
+            }
+            val srcs = list(a, "source_list")
+            if (on && srcs.isNotEmpty()) {
+                sub(content, Tr.t("Entrada"), 14)
+                val row = LinearLayout(act)
+                srcs.forEachIndexed { i, src -> row.addView(pill(src, src == a.optString("source")) { call("media_player", "select_source", JSONObject().put("source", src)) }, LinearLayout.LayoutParams(-2, -2).apply { if (i > 0) marginStart = kit.dp(8) }) }
+                content.addView(android.widget.HorizontalScrollView(act).apply { isHorizontalScrollBarEnabled = false; addView(row) }, lp(8))
+            }
+        }
+
+        // the device's readings as a list, its other controls as in the full sheet
+        val mem = dev?.members.orEmpty().filter { it != id && Fmt.state(it)?.state.let { st -> st != null && st != "unavailable" } }
+        val readings = mem.filter { Fmt.domain(it) in setOf("sensor", "binary_sensor") }
+        if (readings.isNotEmpty()) {
+            val box = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; background = kit.rounded(soft, 20) }
+            readings.forEachIndexed { i, e ->
+                if (i > 0) box.addView(View(act).apply { setBackgroundColor(Color.argb(20, 255, 255, 255)) }, LinearLayout.LayoutParams(-1, 1))
+                val r = LinearLayout(act).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(kit.dp(16), kit.dp(12), kit.dp(16), kit.dp(12)) }
+                r.addView(kit.icon(Fmt.icon(e, Fmt.domain(e)), muted, 18), LinearLayout.LayoutParams(kit.dp(18), kit.dp(18)).apply { marginEnd = kit.dp(12) })
+                r.addView(kit.text(Fmt.name(e).removePrefix(dev?.name ?: "").trim().ifBlank { Fmt.name(e) }, 15f, muted).apply { setSingleLine(); ellipsize = android.text.TextUtils.TruncateAt.END }, LinearLayout.LayoutParams(0, -2, 1f))
+                r.addView(kit.text(Fmt.reading(e) ?: Fmt.sub(e), 15f, Color.WHITE, 600))
+                box.addView(r)
+            }
+            content.addView(box, lp(14))
+        }
+        val others = mem.filter { it !in readings }
+        if (others.isNotEmpty()) deviceSection(others, content)
+
+        val canToggle = !na && (!tv || has(128) || has(256) || Fmt.isTv(id))
+        if (canToggle) {
+            val fg = if (on) kit.ink else Color.WHITE
+            val tg = LinearLayout(act).apply {
+                gravity = Gravity.CENTER_VERTICAL; setPadding(kit.dp(18), kit.dp(14), kit.dp(16), kit.dp(14))
+                background = kit.ripple(kit.rounded(if (on) acc else Color.argb(26, 255, 255, 255), 22)); isClickable = true
+                setOnClickListener { if (tv) call("media_player", if (on) "turn_off" else "turn_on") else call("light", if (on) "turn_off" else "turn_on") }
+                Elastic.press(this, 0.97f)
+            }
+            tg.addView(kit.icon(Fmt.icon(id, dev?.kind ?: d), fg, 26), LinearLayout.LayoutParams(kit.dp(26), kit.dp(26)).apply { marginEnd = kit.dp(14) })
+            val tx = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+            tx.addView(kit.text(word, 17f, fg, 700)); tx.addView(kit.text(Tr.t(if (on) "Toca para desligar" else "Toca para ligar"), 13f, Color.argb(178, Color.red(fg), Color.green(fg), Color.blue(fg))))
+            tg.addView(tx, LinearLayout.LayoutParams(0, -2, 1f))
+            tg.addView(FrameLayout(act).apply {
+                background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setStroke(kit.dp(2), if (on) Color.argb(64, 0, 0, 0) else Color.argb(77, 255, 255, 255)) }
+                addView(kit.icon("mdi:power", fg, 22), FrameLayout.LayoutParams(kit.dp(22), kit.dp(22), Gravity.CENTER))
+            }, LinearLayout.LayoutParams(kit.dp(40), kit.dp(40)))
+            content.addView(tg, lp(14))
+        }
     }
 
     private val vacOpen = HashSet<String>()
