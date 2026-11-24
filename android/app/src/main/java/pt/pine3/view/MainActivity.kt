@@ -170,7 +170,8 @@ class MainActivity : Activity(), Nav {
 
         root = FrameLayout(this).apply { clipChildren = false }
         root.background = ThemeBackground(Themes.get("ameixa"))
-        content = FrameLayout(this)
+        // swipe left/right: next/previous view of the dock (not inside a room, in edit mode or with a window open)
+        content = SwipeFrame(this, { Lay.edit == null && roomId == null && Ha.home != null && dockKeys().size > 1 }) { dir -> swipeTab(dir) }
         root.addView(content, FrameLayout.LayoutParams(-1, -1))
 
         dockHost = FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
@@ -272,6 +273,18 @@ class MainActivity : Activity(), Nav {
         rebuild()
     }
 
+    private var slideDir = 0
+
+    /** A swipe on the page: the next (1) or previous (-1) view in the dock's order, wrapping around. */
+    private fun swipeTab(dir: Int) {
+        val keys = dockKeys()
+        val i = keys.indexOf(tab).coerceAtLeast(0)
+        val next = keys[(i + dir + keys.size) % keys.size]
+        slideDir = dir
+        showTab(next)
+        slideDir = 0
+    }
+
     /** Câmara ao vivo + as portas ao lado dela. */
     private fun camViewer(id: String, name: String) { CamViewer(this, kit, id, name, Doors.forCamera(id)).show() }
 
@@ -350,7 +363,14 @@ class MainActivity : Activity(), Nav {
         page = p
         content.addView(p.view, FrameLayout.LayoutParams(-1, -1))
         p.update()
-        if (animate) enter(p.view)
+        if (slideDir != 0) slideIn(p.view, slideDir) else if (animate) enter(p.view)
+    }
+
+    /** A page that comes in from the side after a swipe. */
+    private fun slideIn(v: View, dir: Int) {
+        val ease = android.view.animation.PathInterpolator(0.2f, 0.8f, 0.2f, 1f)
+        v.translationX = dir * kit.dp(90).toFloat(); v.alpha = 0f
+        v.animate().translationX(0f).alpha(1f).setDuration(if (animationsOn) 320 else 0).setInterpolator(ease).start()
     }
 
     /** Entrada de uma página (como o "vin" do painel web): aparece, sobe 14 dp, assenta e perde o desfoque. */

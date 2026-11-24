@@ -73,6 +73,8 @@ voltar ao topo, e o botão Guardar fica ativo a qualquer alteração (incluindo 
 A lente de vidro desliza com mola por baixo do separador ativo e estica como uma gota. Também se **agarra e arrasta** com o dedo: cresce,
 segue o dedo e assenta no separador mais próximo. Animações elásticas por toda a app (desligam-se com "Animações").
 
+**Deslizar entre vistas:** desliza o dedo para a esquerda ou para a direita na página para passar para a vista seguinte ou anterior da dock (dá a volta no fim). Não funciona dentro de uma divisão, no modo de edição, por cima da casa 3D nem a partir de uma fila que desliza de lado (cenas, entradas).
+
 ## Fora do âmbito
 Editor de planta (continua no painel web), formato estreito/telemóvel, vídeo MJPEG, modos 3D leve e planta 2D, e leitor de música
 (Apple Music/AirPlay não está implementado).
