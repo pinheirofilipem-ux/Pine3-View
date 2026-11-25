@@ -9,13 +9,14 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN, EVENT_UPDATED, VERSION
-from .discovery import build_home
+from .discovery import SUPPORTED, build_home
 
 STORAGE_KEY = f"{DOMAIN}.settings"
 DEFAULT_SETTINGS: dict[str, Any] = {
@@ -99,6 +100,20 @@ async def async_setup_api(hass: HomeAssistant) -> None:
 
     for ev in REGISTRY_EVENTS:
         hass.data[DOMAIN]["unsubs"].append(hass.bus.async_listen(ev, _changed))
+
+    # The model only lists entities that have a state. An integration that loads (or reloads) after a panel or
+    # the Android app got its model adds states without touching the registries, so its devices (a robot vacuum,
+    # new routine buttons) were missing there until something else changed: rebuild when an entity appears or goes.
+    @callback
+    def _appeared(data) -> bool:
+        data = getattr(data, "data", data)  # older Home Assistant passes the event, newer only its data
+        if (data.get("old_state") is None) == (data.get("new_state") is None):
+            return False
+        return str(data.get("entity_id", "")).split(".")[0] in SUPPORTED
+
+    hass.data[DOMAIN]["unsubs"].append(hass.bus.async_listen(EVENT_STATE_CHANGED, _changed, event_filter=_appeared))
+    if not hass.is_running:  # and once everything has loaded after a restart (fires once; nothing to unsubscribe)
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _changed)
 
 
 @callback
