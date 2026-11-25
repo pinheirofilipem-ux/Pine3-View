@@ -279,7 +279,7 @@ class HomePage(kit: Kit, private val home: Home, private val nav: Nav) : Page(ki
         if (s.optBoolean("show_summary", true)) {
             items += "@climate" to SummaryCard(kit, "climate", null, home, nav, dense)
             items += "@security" to SummaryCard(kit, "security", null, home, nav, dense)
-            devices(home).filter { it.kind == "vacuum" }.forEach { items += "@vacuum:${it.id}" to SummaryCard(kit, "vacuum", it.id, home, nav, dense) }
+            devices(home).filter { Fmt.domain(it.id) == "vacuum" }.forEach { items += "@vacuum:${it.id}" to SummaryCard(kit, "vacuum", it.id, home, nav, dense) }
             items += "@media" to SummaryCard(kit, "media", null, home, nav, dense)
         }
         fun pos(k: String, i: Int) = order.indexOf(k).let { if (it < 0) 10000 + i else it }
@@ -457,7 +457,7 @@ class RoomPage(kit: Kit, private val room: Room, private val nav: Nav) : Page(ki
             w.addView(head)
             w.addView(HorizontalScrollView(kit.ctx).apply { isHorizontalScrollBarEnabled = false; addView(chips) }, lp(kit, top = 18))
             sorted.forEach { d ->
-                val card: Card = if (d.kind == "climate" && Fmt.state(d.id) != null) ClimateCard(kit, d, null) { nav.openDevice(it) } else if (d.kind == "vacuum" && Fmt.state(d.id) != null) VacCard(kit, d, room) { nav.openDevice(it) } else Tile(kit, d) { nav.openDevice(it) }
+                val card: Card = if (d.kind == "climate" && Fmt.state(d.id) != null) ClimateCard(kit, d, null) { nav.openDevice(it) } else if (Fmt.domain(d.id) == "vacuum" && Fmt.state(d.id) != null) VacCard(kit, d, room) { nav.openDevice(it) } else Tile(kit, d) { nav.openDevice(it) }
                 card.key = d.id; card.setupEdit(kit, "dev", d.id, Ha.home?.let { Lay.isBigDev(it, d.id) } == true)
                 tiles += d to card; grid.addView(card)
             }

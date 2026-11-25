@@ -255,7 +255,10 @@ object Ha {
 
     private fun handle(text: String) {
         // Filtro barato para o fluxo de state_changed: só analisa entidades que mostramos ou que acordam o ecrã.
-        if (text.contains("\"state_changed\"")) {
+        // Só as mensagens da subscrição (id ID_EVENTS) — não "contém state_changed": a resposta do get_states é uma
+        // mensagem enorme e, se algum atributo tiver esse texto, era tomada por um evento e deitada fora (o aspirador
+        // parado e os botões das rotinas ficavam sem estado).
+        if (text.startsWith("{\"id\":$ID_EVENTS,") && text.contains("\"state_changed\"")) {
             val i = text.indexOf("\"entity_id\":\"")
             if (i >= 0) {
                 val s = i + 13
@@ -285,7 +288,10 @@ object Ha {
                     }
                 }
             }
-            "event" -> if (m.optInt("id") == ID_HOME_SUB) m.optJSONObject("event")?.let { setHome(it) }
+            "event" -> when (m.optInt("id")) {
+                ID_HOME_SUB -> m.optJSONObject("event")?.let { setHome(it) }
+                ID_EVENTS -> m.optJSONObject("event")?.optJSONObject("data")?.let { onStateChanged(it) } // the same event in another key order
+            }
         }
     }
 
