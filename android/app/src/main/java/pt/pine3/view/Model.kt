@@ -41,13 +41,17 @@ class Home(
         private fun strings(a: JSONArray?): List<String> = if (a == null) emptyList() else (0 until a.length()).map { a.getString(it) }
 
         fun parse(o: JSONObject): Home {
+            val settings = o.optJSONObject("settings") ?: JSONObject()
+            // Entities turned on under Settings > Entities show as cards of their own, as in the web panel (.extra).
+            val shown = strings(settings.optJSONArray("shown")).toSet()
+            val hiddenIds = strings(settings.optJSONArray("hidden")).toSet()
             val rooms = o.optJSONArray("rooms")?.let { arr ->
                 (0 until arr.length()).map { i ->
                     val r = arr.getJSONObject(i)
                     Room(
                         id = r.optString("id"), name = r.optString("name"), icon = r.optString("icon", "mdi:home-outline"),
                         floor = if (r.isNull("floor")) null else r.optString("floor"),
-                        devices = r.optJSONArray("devices")?.let { d ->
+                        devices = (r.optJSONArray("devices")?.let { d ->
                             (0 until d.length()).map { j ->
                                 val x = d.getJSONObject(j)
                                 Dev(
@@ -55,7 +59,11 @@ class Home(
                                     strings(x.optJSONArray("extras")), strings(x.optJSONArray("members")), x.optBoolean("hidden"),
                                 )
                             }
-                        } ?: emptyList(),
+                        } ?: emptyList()) + (r.optJSONArray("entities")?.let { e ->
+                            (0 until e.length()).map { e.getJSONObject(it) }
+                                .filter { x -> !x.optBoolean("primary") && x.optString("id") in shown }
+                                .map { x -> val id = x.optString("id"); Dev(id, x.optString("name"), id.substringBefore("."), emptyList(), emptyList(), id in hiddenIds) }
+                        } ?: emptyList()),
                         temperature = strings(r.optJSONArray("temperature")), humidity = strings(r.optJSONArray("humidity")),
                         scenes = strings(r.optJSONArray("scenes")), hidden = r.optBoolean("hidden"),
                         entities = r.optJSONArray("entities")?.let { e ->
@@ -68,7 +76,7 @@ class Home(
             return Home(
                 rooms, strings(o.optJSONArray("scenes")), strings(o.optJSONArray("scripts")),
                 if (o.isNull("weather")) null else o.optString("weather"), strings(o.optJSONArray("persons")),
-                o.optJSONObject("settings") ?: JSONObject(),
+                settings,
             )
         }
     }
